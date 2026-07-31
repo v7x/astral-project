@@ -13,3 +13,28 @@ wheels/
 
 # Virtual environments
 .venv
+
+# AI Agent artifacts
+.pi-subagents/
+.pi/
+AGENTS.md
+**/AGENTS.md
+*agent*
+*ai*
+
+# AI Agent design docs
+docs/
+
+# Secrets and local credentials
+.env
+.env.*
+!.env.example
+.netrc
+credentials/
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
