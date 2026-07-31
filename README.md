@@ -1,5 +1,7 @@
 # Astral Project
 
+Note: Astral Project is currently a work in progress, and has largely been autonomously written based on an extensive architecture. This is will likely need a deslopification pass, so use at your own risk until then!
+
 Astral Project gives coding agents least-authority remote-file access. Version 1 targets Linux and Python 3.12.
 
 ## Commands
