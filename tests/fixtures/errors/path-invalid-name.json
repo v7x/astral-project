@@ -1,0 +1,1 @@
+{"code":"ASPR_PATH_INVALID_NAME","dependency_error":null,"message":"invalid path component '../key'","next_action":"use one non-empty filename component","number":3001,"security_result":"path component was rejected","unsafe_reason":"path traversal can redirect trusted state"}

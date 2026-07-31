@@ -1,0 +1,138 @@
+"""Atomic, rollback-safe Packet 8 enrollment orchestration."""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Protocol
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+from astral_project.core.errors import AstralError, ErrorCode
+from astral_project.crypto.keys import public_key_bytes, store_private_key
+from astral_project.host.records import HostRecord
+
+
+class RemoteEnrollment(Protocol):
+    """Narrow remote mutation boundary; no arbitrary command operation exists."""
+
+    def install_bundle(self, bundle: bytes, digest: str) -> bool: ...
+    def remove_bundle(self, digest: str) -> None: ...
+    def install_issuer_key(self, key: bytes) -> bool: ...
+    def remove_issuer_key(self, key: bytes) -> None: ...
+    def add_authorized_key(self, path: str, entry: str) -> bool: ...
+    def remove_authorized_key(self, path: str, entry: str) -> None: ...
+    def smoke_test(self) -> None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class ControlFileIdentity:
+    inode: int
+    digest: str
+    link_count: int
+
+    def __post_init__(self) -> None:
+        if self.inode < 1 or self.link_count != 1 or len(self.digest) != 64:
+            raise _error("control file identity is unsafe")
+
+
+def _error(message: str, detail: str | None = None) -> AstralError:
+    return AstralError(
+        code=ErrorCode.HOST_ENROLLMENT,
+        message=message,
+        security_result="remote enrollment was rolled back or not started",
+        unsafe_reason="restricted key installation must not leave general remote authority",
+        next_action="inspect remote enrollment evidence and retry",
+        dependency_error=detail,
+    )
+
+
+def verify_host_fingerprint(expected: str, observed: str) -> None:
+    """Block enrollment when SSH observed key differs from pinned probe evidence."""
+    if not expected or expected != observed:
+        raise _error("SSH host key fingerprint changed")
+
+
+def authorized_key_entry(public_key: bytes, transport_key_id: str) -> str:
+    """Build one restricted forced-command Ed25519 authorized_keys entry."""
+    if (
+        len(public_key) != 32
+        or not transport_key_id
+        or any(char.isspace() for char in transport_key_id)
+    ):
+        raise _error("transport key material or identifier is invalid")
+    encoded = base64.b64encode(public_key).decode("ascii")
+    command = f"aspr-server server ssh-entry --transport-key {transport_key_id}"
+    return (
+        "restrict,no-pty,no-port-forwarding,no-agent-forwarding,no-X11-forwarding,"
+        f'command="{command}" ssh-ed25519 {encoded} aspr-{transport_key_id}'
+    )
+
+
+@dataclass(slots=True)
+class RollbackJournal:
+    """Execute compensations in reverse when any enrollment step fails."""
+
+    compensations: list[Callable[[], None]] = field(default_factory=list)
+
+    def add(self, compensation: Callable[[], None]) -> None:
+        self.compensations.append(compensation)
+
+    def rollback(self) -> None:
+        failures: list[str] = []
+        for compensation in reversed(self.compensations):
+            try:
+                compensation()
+            except Exception as error:
+                failures.append(str(error))
+        if failures:
+            raise _error("remote rollback was incomplete", "; ".join(failures))
+
+
+@dataclass(frozen=True, slots=True)
+class EnrollmentResult:
+    bundle_digest: str
+    authorized_key: str
+    control_file: ControlFileIdentity
+
+
+def enroll(
+    record: HostRecord,
+    remote: RemoteEnrollment,
+    *,
+    bundle: bytes,
+    issuer_key: bytes,
+    transport_key_id: str,
+    private_key_path: Path,
+    control_file: ControlFileIdentity,
+) -> EnrollmentResult:
+    """Install narrow remote authority; every created item has compensation."""
+    if not bundle or len(issuer_key) != 32:
+        raise _error("bundle or issuer key is invalid")
+    private_key = Ed25519PrivateKey.generate()
+    public_key = public_key_bytes(private_key)
+    entry = authorized_key_entry(public_key, transport_key_id)
+    digest = hashlib.sha256(bundle).hexdigest()
+    journal = RollbackJournal()
+    try:
+        if remote.install_bundle(bundle, digest):
+            journal.add(lambda: remote.remove_bundle(digest))
+        if remote.install_issuer_key(issuer_key):
+            journal.add(lambda: remote.remove_issuer_key(issuer_key))
+        path = next(
+            item.evidence for item in record.probe.capabilities if item.name == "authorized_keys"
+        )
+        if remote.add_authorized_key(path, entry):
+            journal.add(lambda: remote.remove_authorized_key(path, entry))
+        store_private_key(private_key_path, private_key)
+        remote.smoke_test()
+    except Exception as error:
+        try:
+            journal.rollback()
+        except AstralError as rollback_error:
+            raise rollback_error from error
+        raise _error("remote enrollment failed", str(error)) from error
+    return EnrollmentResult(digest, entry, control_file)

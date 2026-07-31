@@ -1,0 +1,88 @@
+version = 1
+host_id = "123e4567-e89b-42d3-a456-426614174000"
+ssh_host_fingerprint = "SHA256:supported"
+
+[probe]
+version = 1
+os = "Linux"
+architecture = "x86_64"
+remote_user = "alice"
+remote_home = "/home/alice"
+
+[[probe.capabilities]]
+name = "bubblewrap"
+status = "supported"
+reason = "installed"
+evidence = "bwrap 0.9"
+
+[[probe.capabilities]]
+name = "user_namespaces"
+status = "supported"
+reason = "unshare succeeded"
+evidence = "probe"
+
+[[probe.capabilities]]
+name = "openat2"
+status = "supported"
+reason = "syscall available"
+evidence = "probe"
+
+[[probe.capabilities]]
+name = "open_tree"
+status = "supported"
+reason = "syscall available"
+evidence = "probe"
+
+[[probe.capabilities]]
+name = "move_mount"
+status = "supported"
+reason = "syscall available"
+evidence = "probe"
+
+[[probe.capabilities]]
+name = "mount_setattr"
+status = "supported"
+reason = "syscall available"
+evidence = "probe"
+
+[[probe.capabilities]]
+name = "landlock"
+status = "supported"
+reason = "ABI 6"
+evidence = "probe"
+
+[[probe.capabilities]]
+name = "sftp_server"
+status = "supported"
+reason = "found"
+evidence = "/usr/lib/openssh/sftp-server"
+
+[[probe.capabilities]]
+name = "loader_libraries"
+status = "supported"
+reason = "closure captured"
+evidence = "manifest"
+
+[[probe.capabilities]]
+name = "filesystems"
+status = "supported"
+reason = "ext4"
+evidence = "findmnt"
+
+[[probe.capabilities]]
+name = "mount_topology"
+status = "supported"
+reason = "no nested mounts"
+evidence = "findmnt"
+
+[[probe.capabilities]]
+name = "authorized_keys"
+status = "supported"
+reason = "effective path found"
+evidence = "/home/alice/.ssh/authorized_keys"
+
+[[probe.capabilities]]
+name = "authorized_principals"
+status = "unsupported"
+reason = "not configured"
+evidence = "sshd -T"

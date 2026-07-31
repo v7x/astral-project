@@ -1,0 +1,11 @@
+# Verified from official rclone Linux amd64 release ZIP SHA256SUMS.
+# binary_sha256 is verified after extraction by rclone_external_ssh_spike.py.
+["1.73.3"]
+archive_sha256 = "70278c22b98c7d02aed01828b70053904dbce4c8a1a15d7781d836c6fdb036ea"
+binary_sha256 = "41bd63149d3bd281f9d8fb02fd8c0406234634a59cd0f591b86ad3f1e2f6abb7"
+archive_url = "https://downloads.rclone.org/v1.73.3/rclone-v1.73.3-linux-amd64.zip"
+
+["1.74.4"]
+archive_sha256 = "fe435e0c36228e7c2f116a8701f01127bb1f694005fc11d1f27186c8bca4115d"
+binary_sha256 = "9f56ca5edfac24a3ed37226c2ba1de69f1ec9e05fa2526cddee5cd97e202be6b"
+archive_url = "https://downloads.rclone.org/v1.74.4/rclone-v1.74.4-linux-amd64.zip"
