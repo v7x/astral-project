@@ -16,18 +16,48 @@ _SFTP_VERSION = 2
 
 
 def run_sftp_handshake(runtime: Path, *, timeout_seconds: float = 5.0) -> int:
-    """Start only fixed loader/server argv and require one SFTP version response."""
+    """Start fixed loader/server argv and require one SFTP version response."""
+    return _run_handshake(
+        [
+            str(runtime / "ld.so"),
+            "--library-path",
+            str(runtime / "lib"),
+            str(runtime / "sftp-server"),
+            "-e",
+            "-l",
+            "INFO",
+        ],
+        timeout_seconds,
+    )
+
+
+def run_closure_only_sftp_handshake(runtime: Path, *, timeout_seconds: float = 5.0) -> int:
+    """Require SFTP success after `unshare --root`; host `/usr`, `/lib`, `/etc` are absent."""
+    return _run_handshake(
+        [
+            "/usr/bin/unshare",
+            "--mount",
+            "--user",
+            "--map-root-user",
+            "--net",
+            "--fork",
+            f"--root={runtime}",
+            "--wd=/",
+            "/ld.so",
+            "--library-path",
+            "/lib",
+            "/sftp-server",
+            "-e",
+            "-l",
+            "INFO",
+        ],
+        timeout_seconds,
+    )
+
+
+def _run_handshake(command: list[str], timeout_seconds: float) -> int:
     if timeout_seconds <= 0:
         raise _error("SFTP smoke timeout is invalid")
-    command = [
-        str(runtime / "ld.so"),
-        "--library-path",
-        str(runtime / "lib"),
-        str(runtime / "sftp-server"),
-        "-e",
-        "-l",
-        "INFO",
-    ]
     process = subprocess.Popen(
         command,
         stdin=subprocess.PIPE,

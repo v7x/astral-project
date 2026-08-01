@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -15,7 +16,7 @@ from astral_project.runtime.closure import (
     generated_identity_inputs,
     verify_runtime_closure,
 )
-from astral_project.runtime.smoke import run_sftp_handshake
+from astral_project.runtime.smoke import run_closure_only_sftp_handshake, run_sftp_handshake
 
 
 def _manifest(tmp_path: Path) -> RuntimeManifestV1:
@@ -61,15 +62,25 @@ def test_runtime_discovery_uses_fixed_system_tools_and_explicit_dependencies(
         path.write_bytes(path.name.encode("ascii"))
 
     def run(arguments: list[str], **_: object) -> object:
-        if arguments[0] == "/usr/bin/readelf":
-            return type(
-                "Result", (), {"stdout": f"      [Requesting program interpreter: {loader}]\n"}
-            )()
-        return type("Result", (), {"stdout": f"libc.so.6 => {library} (0x0)\n"})()
+        assert arguments[:4] == ["/usr/bin/readelf", "--wide", "--program-headers", "--dynamic"]
+        return type(
+            "Result",
+            (),
+            {
+                "stdout": (
+                    f"      [Requesting program interpreter: {loader}]\n"
+                    " 0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]\n"
+                )
+            },
+        )()
 
     monkeypatch.setattr("astral_project.runtime.closure.subprocess.run", run)
     manifest = discover_sftp_runtime(
-        server, generated_directory=tmp_path / "identity", architecture="x86_64", libc="2.39"
+        server,
+        generated_directory=tmp_path / "identity",
+        architecture="x86_64",
+        libc="2.39",
+        library_roots=(source,),
     )
 
     assert [item.destination for item in manifest.files] == [
@@ -90,6 +101,23 @@ def test_fixed_loader_reaches_sftp_handshake_with_installed_ubuntu_runtime(tmp_p
     runtime = RuntimeClosureBuilder().install(manifest, tmp_path / "runtime")
 
     assert run_sftp_handshake(runtime) >= 3
+
+
+def test_closure_only_handshake_when_user_namespaces_are_available(tmp_path: Path) -> None:
+    server = Path("/usr/lib/openssh/sftp-server")
+    if not server.exists():
+        pytest.skip("Ubuntu sftp-server is not installed")
+    capability = subprocess.run(
+        ["/usr/bin/unshare", "--user", "--map-root-user", "--fork", "true"],
+        check=False,
+        capture_output=True,
+    )
+    if capability.returncode != 0:
+        pytest.skip("host policy denies disposable user namespace")
+    manifest = discover_sftp_runtime(server, generated_directory=tmp_path / "identity")
+    runtime = RuntimeClosureBuilder().install(manifest, tmp_path / "runtime")
+
+    assert run_closure_only_sftp_handshake(runtime) >= 3
 
 
 def test_runtime_closure_rejects_unexplained_or_modified_file(tmp_path: Path) -> None:

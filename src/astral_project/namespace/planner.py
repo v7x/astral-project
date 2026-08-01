@@ -155,16 +155,26 @@ def build_namespace_plan(grant: Grant) -> NamespacePlan:
 
 def _normalized_target(target: str) -> str:
     path = PurePosixPath(target)
-    if not target.startswith("/") or target == "/" or ".." in path.parts or str(path) != target:
-        raise _error("virtual target must be absolute normalized non-root path")
+    encoded = target.encode("utf-8")
+    if (
+        not target.startswith("/")
+        or target == "/"
+        or "\x00" in target
+        or ".." in path.parts
+        or str(path) != target
+        or len(encoded) > 4096
+        or any(len(part.encode("utf-8")) > 255 for part in path.parts)
+    ):
+        raise _error("virtual target must be bounded absolute normalized non-root path")
     return target
 
 
 def _reserved(target: str) -> bool:
-    return any(
-        target == root or target.startswith(root + "/")
-        for root in (INTERNAL_STAGING_ROOT, RUNTIME_ROOT)
-    )
+    return any(_paths_overlap(target, root) for root in (INTERNAL_STAGING_ROOT, RUNTIME_ROOT))
+
+
+def _paths_overlap(left: str, right: str) -> bool:
+    return left == right or left.startswith(right + "/") or right.startswith(left + "/")
 
 
 def _nested(left: str, right: str) -> bool:

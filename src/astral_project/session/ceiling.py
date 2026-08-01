@@ -1,10 +1,10 @@
-"""Packet 14B root-owned server-ceiling schema and pure GrantV1 validation."""
+"""Packet 14B root-owned per-source-root ceiling and GrantV1 validation."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Self
+from typing import Self, cast
 
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.core.ids import IssuerKeyId
@@ -24,13 +24,61 @@ def _error(message: str) -> AstralError:
 
 
 @dataclass(frozen=True, slots=True)
+class SourceRootCeilingV1:
+    """One non-overlapping administrator-owned export root."""
+
+    canonical_root: str
+    maximum_access: AccessMode
+    allowed_kinds: tuple[ExportKind, ...]
+    nested_mount_policy: str = "forbid"
+
+    def __post_init__(self) -> None:
+        _path(self.canonical_root, "source root")
+        if (
+            not self.allowed_kinds
+            or tuple(sorted(set(self.allowed_kinds), key=lambda item: item.value))
+            != self.allowed_kinds
+        ):
+            raise _error("source root kinds must be unique sorted")
+        if self.nested_mount_policy not in {"forbid", "advisory"}:
+            raise _error("source root nested mount policy is invalid")
+
+    def to_payload(self) -> dict[str, CborValue]:
+        return {
+            "allowed_kinds": [item.value for item in self.allowed_kinds],
+            "canonical_root": self.canonical_root,
+            "maximum_access": self.maximum_access.value,
+            "nested_mount_policy": self.nested_mount_policy,
+        }
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, object]) -> Self:
+        if set(payload) != {
+            "allowed_kinds",
+            "canonical_root",
+            "maximum_access",
+            "nested_mount_policy",
+        }:
+            raise _error("source root ceiling fields are incomplete or unknown")
+        try:
+            return cls(
+                canonical_root=_string(payload, "canonical_root"),
+                maximum_access=AccessMode(_string(payload, "maximum_access")),
+                allowed_kinds=tuple(
+                    ExportKind(item) for item in _strings(payload, "allowed_kinds")
+                ),
+                nested_mount_policy=_string(payload, "nested_mount_policy"),
+            )
+        except ValueError as error:
+            raise _error("source root ceiling kind or access is invalid") from error
+
+
+@dataclass(frozen=True, slots=True)
 class ServerCeilingV1:
     """Root-owned policy input; worker never receives this object or its paths."""
 
-    allowed_source_roots: tuple[str, ...]
+    source_roots: tuple[SourceRootCeilingV1, ...]
     allowed_issuers: tuple[IssuerKeyId, ...]
-    allowed_kinds: tuple[ExportKind, ...]
-    allow_read_write: bool
     forbidden_source_roots: tuple[str, ...]
     max_exports: int
     max_ttl_seconds: int
@@ -44,31 +92,33 @@ class ServerCeilingV1:
             raise _error("server ceiling policy hash must be 32 bytes")
         if self.max_exports < 1 or self.max_ttl_seconds < 1:
             raise _error("server ceiling limits are invalid")
-        _roots(self.allowed_source_roots, "allowed source roots", require_nonempty=True)
+        if not self.source_roots:
+            raise _error("server ceiling requires source roots")
+        roots = tuple(item.canonical_root for item in self.source_roots)
+        if roots != tuple(sorted(roots, key=str.encode)) or len(set(roots)) != len(roots):
+            raise _error("source roots must be unique sorted")
+        if any(
+            paths_overlap(left, right)
+            for index, left in enumerate(roots)
+            for right in roots[index + 1 :]
+        ):
+            raise _error("overlapping source roots require explicit precedence ADR")
         _roots(self.forbidden_source_roots, "forbidden source roots", require_nonempty=False)
-        if not self.allowed_issuers or not self.allowed_kinds:
-            raise _error("server ceiling requires issuer and type allowlists")
         if (
-            tuple(sorted(set(self.allowed_issuers), key=lambda item: item.value))
+            not self.allowed_issuers
+            or tuple(sorted(set(self.allowed_issuers), key=lambda item: item.value))
             != self.allowed_issuers
         ):
             raise _error("server ceiling issuer list must be unique sorted")
-        if (
-            tuple(sorted(set(self.allowed_kinds), key=lambda item: item.value))
-            != self.allowed_kinds
-        ):
-            raise _error("server ceiling type list must be unique sorted")
 
     def to_payload(self) -> dict[str, CborValue]:
         return {
             "allowed_issuers": [item.value for item in self.allowed_issuers],
-            "allowed_kinds": [item.value for item in self.allowed_kinds],
-            "allowed_source_roots": list(self.allowed_source_roots),
-            "allow_read_write": self.allow_read_write,
             "forbidden_source_roots": list(self.forbidden_source_roots),
             "max_exports": self.max_exports,
             "max_ttl_seconds": self.max_ttl_seconds,
             "policy_hash": self.policy_hash,
+            "source_roots": [item.to_payload() for item in self.source_roots],
             "version": self.version,
         }
 
@@ -80,27 +130,27 @@ class ServerCeilingV1:
         decoded = canonical_loads(data)
         expected = {
             "allowed_issuers",
-            "allowed_kinds",
-            "allowed_source_roots",
-            "allow_read_write",
             "forbidden_source_roots",
             "max_exports",
             "max_ttl_seconds",
             "policy_hash",
+            "source_roots",
             "version",
         }
         if not isinstance(decoded, Mapping) or set(decoded) != expected:
             raise _error("server ceiling fields are incomplete or unknown")
+        roots = decoded.get("source_roots")
+        if not isinstance(roots, list) or not all(isinstance(item, Mapping) for item in roots):
+            raise _error("source_roots must be map list")
         try:
             return cls(
-                allowed_source_roots=_strings(decoded, "allowed_source_roots"),
+                source_roots=tuple(
+                    SourceRootCeilingV1.from_payload(cast(Mapping[str, object], item))
+                    for item in roots
+                ),
                 allowed_issuers=tuple(
                     IssuerKeyId(value) for value in _strings(decoded, "allowed_issuers")
                 ),
-                allowed_kinds=tuple(
-                    ExportKind(value) for value in _strings(decoded, "allowed_kinds")
-                ),
-                allow_read_write=_boolean(decoded, "allow_read_write"),
                 forbidden_source_roots=_strings(decoded, "forbidden_source_roots"),
                 max_exports=_integer(decoded, "max_exports"),
                 max_ttl_seconds=_integer(decoded, "max_ttl_seconds"),
@@ -108,11 +158,10 @@ class ServerCeilingV1:
                 version=_integer(decoded, "version"),
             )
         except ValueError as error:
-            raise _error("server ceiling identifiers or kinds are invalid") from error
+            raise _error("server ceiling identifiers are invalid") from error
 
 
 def validate_grant_against_ceiling(grant: Grant, ceiling: ServerCeilingV1) -> None:
-    """Pure root-owned ceiling check. Signature/context verification happens before this."""
     if grant.issuer_key_id not in ceiling.allowed_issuers:
         raise _error("grant issuer is outside server ceiling")
     if len(grant.exports) > ceiling.max_exports:
@@ -122,30 +171,54 @@ def validate_grant_against_ceiling(grant: Grant, ceiling: ServerCeilingV1) -> No
     if grant.server_policy_hash is not None and grant.server_policy_hash != ceiling.policy_hash:
         raise _error("grant server policy hash does not match server ceiling")
     for export in grant.exports:
-        if export.kind not in ceiling.allowed_kinds:
-            raise _error("grant export type is outside server ceiling")
-        if export.access_mode is AccessMode.READ_WRITE and not ceiling.allow_read_write:
-            raise _error("read-write export is outside server ceiling")
-        if not _under_any(export.canonical_source, ceiling.allowed_source_roots):
+        root = next(
+            (
+                item
+                for item in ceiling.source_roots
+                if export.canonical_source == item.canonical_root
+                or _under(export.canonical_source, item.canonical_root)
+            ),
+            None,
+        )
+        if root is None:
             raise _error("grant source is outside allowed server roots")
-        if _under_any(export.canonical_source, ceiling.forbidden_source_roots):
-            raise _error("grant source is under forbidden server root")
+        if export.kind not in root.allowed_kinds:
+            raise _error("grant export type is outside source root ceiling")
+        if (
+            export.access_mode is AccessMode.READ_WRITE
+            and root.maximum_access is not AccessMode.READ_WRITE
+        ):
+            raise _error("read-write export is outside source root ceiling")
+        if any(
+            paths_overlap(export.canonical_source, forbidden)
+            for forbidden in ceiling.forbidden_source_roots
+        ):
+            raise _error("grant source overlaps forbidden server root")
+
+
+def paths_overlap(left: str, right: str) -> bool:
+    """Component-aware relation for already canonical absolute paths."""
+    return left == right or _under(left, right) or _under(right, left)
+
+
+def _under(path: str, root: str) -> bool:
+    return path != root and (root == "/" or path.startswith(root + "/"))
 
 
 def _roots(values: tuple[str, ...], name: str, *, require_nonempty: bool) -> None:
     if (require_nonempty and not values) or tuple(sorted(set(values), key=str.encode)) != values:
         raise _error(f"{name} must be unique sorted paths")
     for value in values:
-        if (
-            not value.startswith("/")
-            or "\x00" in value
-            or any(part in {".", ".."} for part in value.split("/"))
-        ):
-            raise _error(f"{name} contains invalid path")
+        _path(value, name)
 
 
-def _under_any(path: str, roots: tuple[str, ...]) -> bool:
-    return any(path == root or path.startswith(root.rstrip("/") + "/") for root in roots)
+def _path(value: str, name: str) -> None:
+    if (
+        not value.startswith("/")
+        or "\x00" in value
+        or any(part in {".", ".."} for part in value.split("/"))
+    ):
+        raise _error(f"{name} contains invalid path")
 
 
 def _strings(payload: Mapping[str, object], field: str) -> tuple[str, ...]:
@@ -155,17 +228,17 @@ def _strings(payload: Mapping[str, object], field: str) -> tuple[str, ...]:
     return tuple(value)
 
 
+def _string(payload: Mapping[str, object], field: str) -> str:
+    value = payload.get(field)
+    if not isinstance(value, str):
+        raise _error(f"{field} must be string")
+    return value
+
+
 def _bytes(payload: Mapping[str, object], field: str) -> bytes:
     value = payload.get(field)
     if not isinstance(value, bytes):
         raise _error(f"{field} must be bytes")
-    return value
-
-
-def _boolean(payload: Mapping[str, object], field: str) -> bool:
-    value = payload.get(field)
-    if not isinstance(value, bool):
-        raise _error(f"{field} must be boolean")
     return value
 
 

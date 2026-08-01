@@ -13,6 +13,7 @@ from astral_project.crypto.grants import AccessMode, ExportKind, Grant, GrantExp
 from astral_project.namespace.planner import (
     INTERNAL_STAGING_ROOT,
     NamespacePlan,
+    _normalized_target,
     build_namespace_plan,
 )
 
@@ -79,9 +80,17 @@ def test_exact_duplicate_export_is_collapsed() -> None:
         (_export("/same", inode=1), _export("/same", inode=2)),
         (_export("/parent"), _export("/parent/child", inode=2)),
         (_export(f"{INTERNAL_STAGING_ROOT}/bad"),),
+        (_export("/.astral-project"),),
+        (_export("/.astral-project-runtime/child"),),
+        (_export("/" + "a" * 4097),),
         (_export("/"),),
     ],
 )
 def test_plan_rejects_ambiguous_or_reserved_targets(exports: tuple[GrantExport, ...]) -> None:
     with pytest.raises(AstralError):
         build_namespace_plan(_grant(exports))
+
+
+def test_target_normalizer_rejects_nul_before_native_plan_encoding() -> None:
+    with pytest.raises(AstralError):
+        _normalized_target("/bad\x00target")

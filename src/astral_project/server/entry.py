@@ -19,7 +19,16 @@ from astral_project.core.ids import HostId, IssuerKeyId
 from astral_project.core.paths import check_private_path
 from astral_project.crypto.grants import GrantVerificationContext
 from astral_project.crypto.keys import public_key_from_bytes
-from astral_project.server.protocol import Preface, read_preface, write_error, write_ready
+from astral_project.server.protocol import (
+    read_outer_request,
+    write_outer_ready,
+    write_outer_rejection,
+)
+from astral_project.session.contracts import (
+    RemoteSessionReadyV1,
+    RemoteSessionRejectedV1,
+    RemoteSessionRequestV1,
+)
 
 SSH_ORIGINAL_COMMAND = "aspr-channel-v1"
 _SERVER_CONFIG = Path(".config") / "astral-project" / "server.toml"
@@ -45,20 +54,20 @@ def run_ssh_entry(
     environment: Mapping[str, str],
     trust: ServerTrust | None = None,
     now: int | None = None,
-    after_verification: Callable[[Preface], None] | None = None,
+    after_verification: Callable[[RemoteSessionRequestV1], None] | None = None,
 ) -> int:
-    """Serve one preface; stdout receives protocol bytes only, never diagnostic text."""
-    nonce = b""
+    """Serve one outer session frame; `Ready` is final frame before raw SFTP."""
+    nonce: bytes | None = None
     try:
         _require_exact_command(environment)
         active_trust = trust if trust is not None else load_server_trust(transport_key_id)
         _require_transport_key(active_trust, transport_key_id)
-        preface = read_preface(stdin)
-        nonce = preface.nonce
-        issuer = active_trust.issuer_keys.get(preface.signed_grant.grant.issuer_key_id)
+        request = read_outer_request(stdin)
+        nonce = request.session_nonce
+        issuer = active_trust.issuer_keys.get(request.signed_grant.grant.issuer_key_id)
         if issuer is None:
             raise _issuer_error("grant issuer is not enrolled")
-        preface.signed_grant.verify(
+        request.signed_grant.verify(
             issuer,
             GrantVerificationContext(
                 host_id=active_trust.host_id,
@@ -69,11 +78,11 @@ def run_ssh_entry(
         )
         # Packet 9 ends here. Later packets dispatch only after this authentication gate.
         if after_verification is not None:
-            after_verification(preface)
-        write_ready(stdout, preface.nonce)
+            after_verification(request)
+        write_outer_ready(stdout, RemoteSessionReadyV1(request.session_id, request.session_nonce))
         return 0
     except AstralError as error:
-        write_error(stdout, nonce, error.code)
+        write_outer_rejection(stdout, RemoteSessionRejectedV1(nonce, error.code.string))
         stderr.write(f"{error.to_text()}\n")
         return 70
 

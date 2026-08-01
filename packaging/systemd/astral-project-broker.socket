@@ -1,0 +1,14 @@
+[Unit]
+Description=Astral Project broker socket
+PartOf=astral-project-broker.service
+
+[Socket]
+ListenStream=/run/astral-project/broker.sock
+SocketUser=root
+SocketGroup=astral-project
+SocketMode=0660
+DirectoryMode=0750
+RemoveOnStop=true
+
+[Install]
+WantedBy=sockets.target

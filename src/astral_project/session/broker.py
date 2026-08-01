@@ -26,6 +26,16 @@ class BrokerFailureCode(StrEnum):
     REPLAY_DENIED = "replay_denied"
     PLAN_INVALID = "plan_invalid"
     WORKER_FAILED = "worker_failed"
+    BACKEND_UNAVAILABLE = "backend_unavailable"
+
+
+class BrokerBackendId(StrEnum):
+    ADMIN_BOOTSTRAPPED_V1 = "admin_bootstrapped_broker_v1"
+
+
+class CancelReason(StrEnum):
+    CLIENT_REQUEST = "client_request"
+    OUTER_SESSION_CLOSED = "outer_session_closed"
 
 
 class ReplayState(StrEnum):
@@ -48,6 +58,8 @@ class WorkerFdLayoutV1:
     mapping_continue: int = 4
     sealed_plan: int = 5
     stream: int = 6
+    log: int = 7
+    runtime: int = 74
     source_base: int = 10
     source_limit: int = 74
 
@@ -57,9 +69,11 @@ class WorkerFdLayoutV1:
             self.mapping_continue,
             self.sealed_plan,
             self.stream,
+            self.log,
+            self.runtime,
             self.source_base,
             self.source_limit,
-        ) != (3, 4, 5, 6, 10, 74):
+        ) != (3, 4, 5, 6, 7, 74, 10, 74):
             raise _error("worker FD layout is not fixed")
 
 
@@ -143,6 +157,7 @@ class CreateNamespaceV1:
 class CancelNamespaceV1:
     request_id: bytes
     session_id: bytes
+    reason: CancelReason
     protocol_version: int = SESSION_FORMAT_VERSION
 
     def __post_init__(self) -> None:
@@ -152,6 +167,32 @@ class CancelNamespaceV1:
             or len(self.session_id) != 16
         ):
             raise _error("cancel namespace request is invalid")
+
+    def to_payload(self) -> dict[str, CborValue]:
+        return {
+            "protocol_version": self.protocol_version,
+            "reason": self.reason.value,
+            "request_id": self.request_id,
+            "session_id": self.session_id,
+        }
+
+    def canonical_bytes(self) -> bytes:
+        return canonical_dumps(self.to_payload())
+
+    @classmethod
+    def from_cbor(cls, data: bytes) -> Self:
+        payload = _terminal_payload(
+            data, {"protocol_version", "reason", "request_id", "session_id"}
+        )
+        try:
+            return cls(
+                _bytes(payload, "request_id"),
+                _bytes(payload, "session_id"),
+                CancelReason(_string(payload, "reason")),
+                _integer(payload, "protocol_version"),
+            )
+        except ValueError as error:
+            raise _error("cancel namespace reason is invalid") from error
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,10 +208,24 @@ class PeerCredentials:
             raise _error("peer credentials are invalid")
 
 
-def require_expected_peer(peer: PeerCredentials, *, uid: int) -> None:
-    """Broker accepts only kernel-observed expected remote service UID."""
-    if uid < 1 or peer.uid != uid:
-        raise _error("SO_PEERCRED UID is not authorized", ErrorCode.DAEMON_AUTH)
+def require_expected_peer(peer: PeerCredentials, *, uid: int, gid: int) -> None:
+    """Broker accepts only kernel-observed root-configured service identity."""
+    if uid < 1 or gid < 1 or peer.uid != uid or peer.gid != gid:
+        raise _error("SO_PEERCRED UID or GID is not authorized", ErrorCode.DAEMON_AUTH)
+
+
+@dataclass(frozen=True, slots=True)
+class BrokerConnectionAuditV1:
+    """No-input terminal audit for connection failures before grant decoding."""
+
+    event_time: int
+    peer_uid: int
+    failure: BrokerFailureCode
+    stage: str
+
+    def __post_init__(self) -> None:
+        if self.event_time < 0 or self.peer_uid < 0 or not self.stage or len(self.stage) > 64:
+            raise _error("connection audit is invalid")
 
 
 @dataclass(frozen=True, slots=True)
@@ -271,7 +326,7 @@ class NamespaceReadyV1:
 
     request_id: bytes
     session_id: bytes
-    backend_id: str
+    backend_id: BrokerBackendId
     effective_exports_digest: bytes
     runtime_manifest_digest: bytes
     expires_at: int
@@ -287,13 +342,12 @@ class NamespaceReadyV1:
             or len(self.runtime_manifest_digest) != 32
             or self.expires_at < 0
             or self.stream_fd_count != 1
-            or not self.backend_id
         ):
             raise _error("namespace ready response is invalid")
 
     def to_payload(self) -> dict[str, CborValue]:
         return {
-            "backend_id": self.backend_id,
+            "backend_id": self.backend_id.value,
             "effective_exports_digest": self.effective_exports_digest,
             "expires_at": self.expires_at,
             "protocol_version": self.protocol_version,
@@ -306,12 +360,43 @@ class NamespaceReadyV1:
     def canonical_bytes(self) -> bytes:
         return canonical_dumps(self.to_payload())
 
+    @classmethod
+    def from_cbor(cls, data: bytes) -> Self:
+        payload = _terminal_payload(
+            data,
+            {
+                "backend_id",
+                "effective_exports_digest",
+                "expires_at",
+                "protocol_version",
+                "request_id",
+                "runtime_manifest_digest",
+                "session_id",
+                "stream_fd_count",
+            },
+        )
+        try:
+            return cls(
+                request_id=_bytes(payload, "request_id"),
+                session_id=_bytes(payload, "session_id"),
+                backend_id=BrokerBackendId(_string(payload, "backend_id")),
+                effective_exports_digest=_bytes(payload, "effective_exports_digest"),
+                runtime_manifest_digest=_bytes(payload, "runtime_manifest_digest"),
+                expires_at=_integer(payload, "expires_at"),
+                stream_fd_count=_integer(payload, "stream_fd_count"),
+                protocol_version=_integer(payload, "protocol_version"),
+            )
+        except ValueError as error:
+            raise _error("namespace ready backend is invalid") from error
+
 
 @dataclass(frozen=True, slots=True)
 class NamespaceRejectedV1:
     request_id: bytes
+    session_id: bytes | None
     stable_error_code: BrokerFailureCode
     stage: str
+    retryable: bool
     safe_message: str
     protocol_version: int = SESSION_FORMAT_VERSION
 
@@ -319,12 +404,127 @@ class NamespaceRejectedV1:
         if (
             self.protocol_version != SESSION_FORMAT_VERSION
             or len(self.request_id) != 16
+            or (self.session_id is not None and len(self.session_id) != 16)
             or not self.stage
             or len(self.stage) > 64
             or not self.safe_message
             or len(self.safe_message) > 256
         ):
             raise _error("namespace rejection response is invalid")
+
+    def to_payload(self) -> dict[str, CborValue]:
+        return {
+            "protocol_version": self.protocol_version,
+            "request_id": self.request_id,
+            "retryable": self.retryable,
+            "safe_message": self.safe_message,
+            "session_id": self.session_id,
+            "stable_error_code": self.stable_error_code.value,
+            "stage": self.stage,
+        }
+
+    def canonical_bytes(self) -> bytes:
+        return canonical_dumps(self.to_payload())
+
+    @classmethod
+    def from_cbor(cls, data: bytes) -> Self:
+        payload = _terminal_payload(
+            data,
+            {
+                "protocol_version",
+                "request_id",
+                "retryable",
+                "safe_message",
+                "session_id",
+                "stable_error_code",
+                "stage",
+            },
+        )
+        session_id = payload.get("session_id")
+        if session_id is not None and not isinstance(session_id, bytes):
+            raise _error("namespace rejection session ID must be bytes or null")
+        try:
+            return cls(
+                _bytes(payload, "request_id"),
+                session_id,
+                BrokerFailureCode(_string(payload, "stable_error_code")),
+                _string(payload, "stage"),
+                _boolean(payload, "retryable"),
+                _string(payload, "safe_message"),
+                _integer(payload, "protocol_version"),
+            )
+        except ValueError as error:
+            raise _error("namespace rejection error code is invalid") from error
+
+
+@dataclass(frozen=True, slots=True)
+class NamespaceCancelledV1:
+    request_id: bytes
+    session_id: bytes
+    protocol_version: int = SESSION_FORMAT_VERSION
+
+    def __post_init__(self) -> None:
+        if (
+            self.protocol_version != SESSION_FORMAT_VERSION
+            or len(self.request_id) != 16
+            or len(self.session_id) != 16
+        ):
+            raise _error("namespace cancelled response is invalid")
+
+    def canonical_bytes(self) -> bytes:
+        return canonical_dumps(
+            {
+                "protocol_version": self.protocol_version,
+                "request_id": self.request_id,
+                "session_id": self.session_id,
+            }
+        )
+
+    @classmethod
+    def from_cbor(cls, data: bytes) -> Self:
+        payload = _terminal_payload(data, {"protocol_version", "request_id", "session_id"})
+        return cls(
+            _bytes(payload, "request_id"),
+            _bytes(payload, "session_id"),
+            _integer(payload, "protocol_version"),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class NamespaceNotFoundV1:
+    request_id: bytes
+    session_id: bytes
+    protocol_version: int = SESSION_FORMAT_VERSION
+
+    def __post_init__(self) -> None:
+        if (
+            self.protocol_version != SESSION_FORMAT_VERSION
+            or len(self.request_id) != 16
+            or len(self.session_id) != 16
+        ):
+            raise _error("namespace not-found response is invalid")
+
+    def canonical_bytes(self) -> bytes:
+        return canonical_dumps(
+            {
+                "protocol_version": self.protocol_version,
+                "request_id": self.request_id,
+                "session_id": self.session_id,
+            }
+        )
+
+    @classmethod
+    def from_cbor(cls, data: bytes) -> Self:
+        payload = _terminal_payload(data, {"protocol_version", "request_id", "session_id"})
+        return cls(
+            _bytes(payload, "request_id"),
+            _bytes(payload, "session_id"),
+            _integer(payload, "protocol_version"),
+        )
+
+
+type CreateNamespaceResponseV1 = NamespaceReadyV1 | NamespaceRejectedV1
+type CancelNamespaceResponseV1 = NamespaceCancelledV1 | NamespaceNotFoundV1 | NamespaceRejectedV1
 
 
 class ReplayLedger:
@@ -337,49 +537,49 @@ class ReplayLedger:
         self._entries: dict[bytes, tuple[ReplayState, int]] = {}
         self._lock = Lock()
 
-    def issue(self, nonce: bytes, *, expires_at: int, now: int) -> ReplayState:
-        _nonce(nonce)
+    def issue(self, signed_grant: SignedGrant, client_nonce: bytes, *, now: int) -> ReplayState:
+        """Issue one creation attempt, bound to issuer, grant ID, and client nonce."""
+        key = replay_key(signed_grant, client_nonce)
+        expires_at = signed_grant.grant.expires_at
         if expires_at <= now:
-            raise _error("cannot issue expired nonce")
+            raise _error("cannot issue expired replay key")
         with self._lock:
             self._expire_locked(now)
-            if nonce in self._entries:
-                raise _error("nonce already exists")
-            self._entries[nonce] = (ReplayState.ISSUED, expires_at)
+            if key in self._entries:
+                raise _error("namespace creation was already issued")
+            self._entries[key] = (ReplayState.ISSUED, expires_at)
             return ReplayState.ISSUED
 
-    def consume_grant(self, signed_grant: SignedGrant, *, now: int) -> ReplayState:
-        """Bind replay decision to signed GrantV1 nonce and expiry after broker verification."""
-        return self.consume(signed_grant.grant.nonce, now=now)
-
-    def consume(self, nonce: bytes, *, now: int) -> ReplayState:
-        _nonce(nonce)
+    def consume(self, signed_grant: SignedGrant, client_nonce: bytes, *, now: int) -> ReplayState:
+        key = replay_key(signed_grant, client_nonce)
         with self._lock:
             self._expire_locked(now)
             try:
-                state, expires_at = self._entries[nonce]
+                state, expires_at = self._entries[key]
             except KeyError as error:
-                raise _error("nonce was not issued") from error
+                raise _error("namespace creation was not issued") from error
             if state is not ReplayState.ISSUED or now >= expires_at:
-                raise _error("nonce cannot be consumed")
-            self._entries[nonce] = (ReplayState.CONSUMED, expires_at)
+                raise _error("namespace creation cannot be consumed")
+            self._entries[key] = (ReplayState.CONSUMED, expires_at)
             return ReplayState.CONSUMED
 
-    def revoke(self, nonce: bytes) -> ReplayState:
-        _nonce(nonce)
+    def revoke(self, signed_grant: SignedGrant, client_nonce: bytes) -> ReplayState:
+        key = replay_key(signed_grant, client_nonce)
         with self._lock:
             try:
-                _, expires_at = self._entries[nonce]
+                _, expires_at = self._entries[key]
             except KeyError as error:
-                raise _error("nonce was not issued") from error
-            self._entries[nonce] = (ReplayState.REVOKED, expires_at)
+                raise _error("namespace creation was not issued") from error
+            self._entries[key] = (ReplayState.REVOKED, expires_at)
             return ReplayState.REVOKED
 
-    def state(self, nonce: bytes, *, now: int) -> ReplayState | None:
-        _nonce(nonce)
+    def state(
+        self, signed_grant: SignedGrant, client_nonce: bytes, *, now: int
+    ) -> ReplayState | None:
+        key = replay_key(signed_grant, client_nonce)
         with self._lock:
             self._expire_locked(now)
-            entry = self._entries.get(nonce)
+            entry = self._entries.get(key)
             return None if entry is None else entry[0]
 
     def _expire_locked(self, now: int) -> None:
@@ -409,6 +609,13 @@ def _string(payload: Mapping[str, object], field: str) -> str:
     return value
 
 
+def _boolean(payload: Mapping[str, object], field: str) -> bool:
+    value = payload.get(field)
+    if not isinstance(value, bool):
+        raise _error(f"{field} must be boolean")
+    return value
+
+
 def _optional_failure(payload: Mapping[str, object], field: str) -> BrokerFailureCode | None:
     value = payload.get(field)
     if value is None:
@@ -421,6 +628,13 @@ def _optional_failure(payload: Mapping[str, object], field: str) -> BrokerFailur
         raise _error(f"{field} is unsupported") from error
 
 
-def _nonce(value: bytes) -> None:
-    if len(value) != NONCE_LENGTH:
-        raise _error("replay nonce must be 32 bytes")
+def replay_key(signed_grant: SignedGrant, client_nonce: bytes) -> bytes:
+    if len(client_nonce) != NONCE_LENGTH:
+        raise _error("replay client nonce must be 32 bytes")
+    return canonical_dumps(
+        {
+            "client_nonce": client_nonce,
+            "grant_id": signed_grant.grant.grant_id.value,
+            "issuer_key_id": signed_grant.grant.issuer_key_id.value,
+        }
+    )

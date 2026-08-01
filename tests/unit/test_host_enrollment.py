@@ -58,6 +58,7 @@ def test_restricted_key_and_enrollment_idempotent(tmp_path: Path) -> None:
     assert entry.startswith(
         'restrict,no-pty,no-port-forwarding,no-agent-forwarding,no-X11-forwarding,command="'
     )
+    assert "/usr/libexec/astral-project/aspr-server server ssh-entry" in entry
     remote = Remote()
     result = enroll(
         HostRecord.load(FIXTURE),
@@ -87,6 +88,25 @@ def test_partial_enrollment_rolls_back(tmp_path: Path, fail: str) -> None:
         )
     assert error.value.code is ErrorCode.HOST_ENROLLMENT
     assert any(event.startswith("remove-") for event in remote.events)
+    assert not (tmp_path / "key").exists()
+
+
+def test_enrollment_refuses_existing_key_without_remote_mutation(tmp_path: Path) -> None:
+    path = tmp_path / "key"
+    path.write_bytes(b"trusted")
+    remote = Remote()
+    with pytest.raises(AstralError):
+        enroll(
+            HostRecord.load(FIXTURE),
+            remote,
+            bundle=b"bundle",
+            issuer_key=b"i" * 32,
+            transport_key_id="id",
+            private_key_path=path,
+            control_file=ControlFileIdentity(1, "a" * 64, 1),
+        )
+    assert remote.events == []
+    assert path.read_bytes() == b"trusted"
 
 
 def test_idempotent_and_rollback_failure_paths(tmp_path: Path) -> None:
@@ -158,6 +178,8 @@ def test_bad_key_and_control_identity_fail() -> None:
         authorized_key_entry(b"x", "id")
     with pytest.raises(AstralError):
         authorized_key_entry(b"x" * 32, "bad id")
+    with pytest.raises(AstralError):
+        authorized_key_entry(b"x" * 32, "--option")
     with pytest.raises(AstralError):
         ControlFileIdentity(1, "a" * 64, 2)
     verify_host_fingerprint("SHA256:pinned", "SHA256:pinned")

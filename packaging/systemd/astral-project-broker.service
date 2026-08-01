@@ -1,0 +1,30 @@
+[Unit]
+Description=Astral Project descriptor-pinned namespace broker
+Requires=astral-project-broker.socket
+After=network.target
+
+[Service]
+Type=exec
+User=root
+Group=root
+ExecStart=/usr/libexec/astral-project/aspr-broker --socket-activation
+NoNewPrivileges=false
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_UNIX
+SystemCallArchitectures=native
+ReadWritePaths=/run/astral-project /var/lib/astral-project/runtime
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER CAP_SETGID CAP_SETUID CAP_SETPCAP CAP_SYS_ADMIN
+AmbientCapabilities=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

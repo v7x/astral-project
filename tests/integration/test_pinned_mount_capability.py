@@ -122,6 +122,9 @@ def test_probe_uses_parent_written_maps_and_no_admin_launcher() -> None:
     assert '_write_identity_map(Path("/proc") / str(child.pid)' in source
     assert "parent_uid, parent_gid = os.getuid(), os.getgid()" in source
     assert "aa-exec" not in source
-    assert not (PROJECT_ROOT / "packaging/apparmor").exists()
+    profile = PROJECT_ROOT / "packaging/apparmor/usr.libexec.astral-project.aspr-broker"
+    assert profile.is_file()
+    assert "aa-exec" not in profile.read_text(encoding="utf-8")
+    assert "deny network" in profile.read_text(encoding="utf-8")
     assert not (PROJECT_ROOT / "packaging/install").exists()
     assert not (PROJECT_ROOT / "packaging/setup").exists()

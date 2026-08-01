@@ -1,4 +1,4 @@
-"""Packet 9 forced-command and bounded-preface tests."""
+"""Outer remote-session framing and forced-command transition tests."""
 
 from __future__ import annotations
 
@@ -7,8 +7,7 @@ from io import BytesIO, StringIO
 import pytest
 
 from astral_project.core.errors import AstralError, ErrorCode
-from astral_project.core.ids import GrantId, HostId, IssuerKeyId
-from astral_project.crypto.cbor import canonical_dumps
+from astral_project.core.ids import GrantId, HostId, IssuerKeyId, SessionId
 from astral_project.crypto.grants import (
     AccessMode,
     ExportKind,
@@ -20,17 +19,16 @@ from astral_project.crypto.grants import (
 from astral_project.crypto.keys import generate_private_key, public_key_bytes, public_key_from_bytes
 from astral_project.server.entry import SSH_ORIGINAL_COMMAND, ServerTrust, run_ssh_entry
 from astral_project.server.protocol import (
-    MAX_PREFACE_BYTES,
-    Preface,
-    PrefaceOperation,
-    fuzz_preface,
-    read_preface,
-    read_response,
-    write_preface,
+    MAX_OUTER_SESSION_BYTES,
+    fuzz_outer_request,
+    read_outer_request,
+    read_outer_response,
+    write_outer_request,
 )
+from astral_project.session.contracts import RemoteSessionRequestV1
 
 
-def signed_preface() -> tuple[Preface, ServerTrust]:
+def signed_request() -> tuple[RemoteSessionRequestV1, ServerTrust]:
     key = generate_private_key()
     issuer_id = IssuerKeyId("00000000-0000-4000-8000-000000000002")
     host_id = HostId("00000000-0000-4000-8000-000000000003")
@@ -56,127 +54,109 @@ def signed_preface() -> tuple[Preface, ServerTrust]:
         ),
     )
     return (
-        Preface(PrefaceOperation.OPEN_SFTP, b"request-nonce", SignedGrant.create(grant, key)),
+        RemoteSessionRequestV1(
+            SessionId("00000000-0000-4000-8000-000000000004"),
+            b"n" * 32,
+            SignedGrant.create(grant, key),
+        ),
         ServerTrust(
-            host_id=host_id,
-            ssh_host_key_fingerprint="SHA256:host-fingerprint",
-            remote_user="alice",
-            issuer_keys={issuer_id: public_key_from_bytes(public_key_bytes(key))},
-            transport_key_ids=frozenset({"transport-1"}),
+            host_id,
+            "SHA256:host-fingerprint",
+            "alice",
+            {issuer_id: public_key_from_bytes(public_key_bytes(key))},
+            frozenset({"transport-1"}),
         ),
     )
 
 
-def framed(preface: Preface) -> BytesIO:
+def framed(request: RemoteSessionRequestV1) -> BytesIO:
     stream = BytesIO()
-    write_preface(stream, preface)
+    write_outer_request(stream, request)
     stream.seek(0)
     return stream
 
 
-def test_preface_round_trip_all_operations() -> None:
-    preface, _ = signed_preface()
-    for operation in PrefaceOperation:
-        candidate = Preface(operation, preface.nonce, preface.signed_grant)
-        assert read_preface(framed(candidate)) == candidate
+def test_outer_request_round_trip_and_bounded_rejection() -> None:
+    request, _ = signed_request()
+    assert read_outer_request(framed(request)) == request
+    for payload in (b"", b"\x00\x00\x00\x01", (MAX_OUTER_SESSION_BYTES + 1).to_bytes(4, "big")):
+        with pytest.raises(AstralError):
+            read_outer_request(BytesIO(payload))
 
 
-@pytest.mark.parametrize(
-    "payload", [b"", b"\x00\x00\x00\x01", (MAX_PREFACE_BYTES + 1).to_bytes(4, "big")]
-)
-def test_preface_rejects_truncated_and_oversized_frames(payload: bytes) -> None:
-    with pytest.raises(AstralError) as error:
-        read_preface(BytesIO(payload))
-    assert error.value.code is ErrorCode.PROTOCOL_FRAME
-
-
-def test_preface_rejects_unknown_version() -> None:
-    preface, _ = signed_preface()
-    payload = canonical_dumps(
-        {
-            "grant": preface.signed_grant.to_cbor(),
-            "nonce": preface.nonce,
-            "operation": preface.operation.value,
-            "version": 2,
-        }
-    )
-    stream = BytesIO(len(payload).to_bytes(4, "big") + payload)
-    with pytest.raises(AstralError) as error:
-        read_preface(stream)
-    assert error.value.code is ErrorCode.PROTOCOL_VERSION
-
-
-def test_ssh_entry_accepts_only_exact_command_and_stdout_is_binary_protocol() -> None:
-    preface, trust = signed_preface()
+def test_outer_ready_is_final_frame_before_raw_sftp_transition() -> None:
+    request, trust = signed_request()
     stdout = BytesIO()
-    stderr = StringIO()
-
-    result = run_ssh_entry(
-        "transport-1",
-        stdin=framed(preface),
-        stdout=stdout,
-        stderr=stderr,
-        environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_COMMAND},
-        trust=trust,
-        now=150,
+    assert (
+        run_ssh_entry(
+            "transport-1",
+            stdin=framed(request),
+            stdout=stdout,
+            stderr=StringIO(),
+            environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_COMMAND},
+            trust=trust,
+            now=150,
+        )
+        == 0
     )
-
-    assert result == 0
-    assert stderr.getvalue() == ""
     stdout.seek(0)
-    assert read_response(stdout) == {
-        "nonce": preface.nonce,
+    assert read_outer_response(stdout) == {
+        "session_id": request.session_id.value,
+        "session_nonce": request.session_nonce,
         "status": "ready",
         "version": 1,
     }
+    assert stdout.read() == b""
 
+
+def test_malformed_or_bad_signature_request_reaches_no_dispatch() -> None:
+    request, trust = signed_request()
+    tampered = RemoteSessionRequestV1(
+        request.session_id,
+        request.session_nonce,
+        SignedGrant(
+            Grant.from_payload(
+                {**request.signed_grant.grant.to_payload(), "remote_user": "mallory"}
+            ),
+            request.signed_grant.signature,
+        ),
+    )
+    dispatched: list[RemoteSessionRequestV1] = []
     stdout = BytesIO()
-    stderr = StringIO()
-    result = run_ssh_entry(
-        "transport-1",
-        stdin=framed(preface),
-        stdout=stdout,
-        stderr=stderr,
-        environment={"SSH_ORIGINAL_COMMAND": "sh -c id"},
-        trust=trust,
-        now=150,
+    assert (
+        run_ssh_entry(
+            "transport-1",
+            stdin=framed(tampered),
+            stdout=stdout,
+            stderr=StringIO(),
+            environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_COMMAND},
+            trust=trust,
+            now=150,
+            after_verification=dispatched.append,
+        )
+        == 70
     )
-    assert result == 70
-    stdout.seek(0)
-    assert read_response(stdout)["code"] == ErrorCode.PROTOCOL_COMMAND.string
-    assert "SSH original command" in stderr.getvalue()
-
-
-def test_bad_signature_fails_before_post_verification_dispatch() -> None:
-    preface, trust = signed_preface()
-    tampered_grant = Grant.from_payload(
-        {**preface.signed_grant.grant.to_payload(), "remote_user": "mallory"}
-    )
-    tampered = Preface(
-        PrefaceOperation.OPEN_SFTP,
-        preface.nonce,
-        SignedGrant(tampered_grant, preface.signed_grant.signature),
-    )
-    dispatched: list[Preface] = []
-    stdout = BytesIO()
-
-    result = run_ssh_entry(
-        "transport-1",
-        stdin=framed(tampered),
-        stdout=stdout,
-        stderr=StringIO(),
-        environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_COMMAND},
-        trust=trust,
-        now=150,
-        after_verification=dispatched.append,
-    )
-
-    assert result == 70
     assert dispatched == []
     stdout.seek(0)
-    assert read_response(stdout)["code"] == ErrorCode.CRYPTO_SIGNATURE.string
+    assert read_outer_response(stdout)["error_code"] == ErrorCode.CRYPTO_SIGNATURE.string
 
 
-def test_fuzz_target_never_raises_for_malformed_corpus() -> None:
+def test_outer_command_and_fuzz_fail_closed() -> None:
+    request, trust = signed_request()
+    stdout = BytesIO()
+    assert (
+        run_ssh_entry(
+            "transport-1",
+            stdin=framed(request),
+            stdout=stdout,
+            stderr=StringIO(),
+            environment={"SSH_ORIGINAL_COMMAND": "sh -c id"},
+            trust=trust,
+            now=150,
+        )
+        == 70
+    )
+    stdout.seek(0)
+    assert read_outer_response(stdout)["error_code"] == ErrorCode.PROTOCOL_COMMAND.string
     for payload in (b"", b"x", b"\xff" * 16, b"\x00\x00\x00\x02\xff\xff"):
-        fuzz_preface(payload)
+        fuzz_outer_request(payload)

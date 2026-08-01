@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fcntl
 import os
 import signal
 import stat
@@ -38,10 +39,7 @@ class MappingWorker:
             try:
                 os.close(ready_read)
                 os.close(continue_write)
-                os.dup2(ready_write, 3)
-                os.dup2(continue_read, 4)
-                os.close(ready_write)
-                os.close(continue_read)
+                _install_worker_sync_fds(ready_write, continue_read)
                 os.execve(str(self.executable), [str(self.executable)], {})
             except OSError:
                 os._exit(111)
@@ -62,6 +60,32 @@ class MappingWorker:
         finally:
             os.close(ready_read)
             os.close(continue_write)
+
+
+def _install_worker_sync_fds(ready_write: int, continue_read: int) -> None:
+    """Install FD 3/4 without closing a channel during a descriptor collision."""
+    destinations = (3, 4)
+    sources = (ready_write, continue_read)
+    relocated: list[int] = []
+    try:
+        for source in sources:
+            if source in destinations:
+                duplicate = fcntl.fcntl(source, fcntl.F_DUPFD_CLOEXEC, 8)
+                os.close(source)
+                relocated.append(duplicate)
+            else:
+                relocated.append(source)
+        for source, destination in zip(relocated, destinations, strict=True):
+            os.dup2(source, destination, inheritable=True)
+        for source in relocated:
+            if source not in destinations:
+                os.close(source)
+    except OSError:
+        for source in relocated:
+            if source not in destinations:
+                with suppress(OSError):
+                    os.close(source)
+        raise
 
 
 def _write_identity_map(pid: int, *, uid: int, gid: int) -> None:

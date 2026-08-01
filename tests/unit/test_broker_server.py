@@ -25,13 +25,13 @@ from astral_project.crypto.keys import public_key_bytes, public_key_from_bytes
 from astral_project.server.entry import ServerTrust
 from astral_project.session.broker import (
     BrokerAuditV1,
+    BrokerConnectionAuditV1,
     BrokerFailureCode,
     CreateNamespaceV1,
+    NamespaceRejectedV1,
     PeerCredentials,
-    WorkerResult,
-    WorkerResultV1,
 )
-from astral_project.session.ceiling import ServerCeilingV1
+from astral_project.session.ceiling import ServerCeilingV1, SourceRootCeilingV1
 
 
 def _authority() -> tuple[BrokerAuthority, SignedGrant]:
@@ -70,11 +70,12 @@ def _authority() -> tuple[BrokerAuthority, SignedGrant]:
     return (
         BrokerAuthority(
             expected_peer_uid=1000,
+            expected_peer_gid=1000,
             server_ceiling=ServerCeilingV1(
-                allowed_source_roots=("/source",),
+                source_roots=(
+                    SourceRootCeilingV1("/source", AccessMode.READ_ONLY, (ExportKind.DIRECTORY,)),
+                ),
                 allowed_issuers=(issuer,),
-                allowed_kinds=(ExportKind.DIRECTORY,),
-                allow_read_write=False,
                 forbidden_source_roots=(),
                 max_exports=1,
                 max_ttl_seconds=100,
@@ -135,13 +136,14 @@ def test_root_skeleton_validates_request_audits_and_never_executes(
         payload = _request(signed).canonical_bytes()
         client.sendall(len(payload).to_bytes(4, "big") + payload)
         length = int.from_bytes(client.recv(4), "big")
-        result = WorkerResultV1.from_cbor(client.recv(length))
+        result = NamespaceRejectedV1.from_cbor(client.recv(length))
         client.close()
         thread.join(timeout=1)
 
         assert not thread.is_alive()
-        assert result.result is WorkerResult.FAILED
-        assert result.failure is BrokerFailureCode.WORKER_FAILED
+        assert result.retryable is False
+        assert result.stable_error_code is BrokerFailureCode.BACKEND_UNAVAILABLE
+        assert result.stage == "worker_start"
         assert len(audits) == 1
         assert audits[0].peer_uid == 1000
         assert mapping.calls == [(1000, 1000)]
@@ -149,15 +151,16 @@ def test_root_skeleton_validates_request_audits_and_never_executes(
         server.close()
 
 
+@pytest.mark.parametrize("uid, gid", [(1001, 1000), (1000, 1001)])
 def test_root_skeleton_rejects_unauthorized_peer_before_request_parse(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, uid: int, gid: int
 ) -> None:
     authority, _ = _authority()
     server = BrokerServer(BrokerPaths(tmp_path / "broker.sock"), authority)
     monkeypatch.setattr("astral_project.broker.server.os.geteuid", lambda: 0)
     monkeypatch.setattr(
         "astral_project.broker.server._peer_credentials",
-        lambda connection: PeerCredentials(pid=1, uid=1001, gid=1001),
+        lambda connection: PeerCredentials(pid=1, uid=uid, gid=gid),
     )
     server.start()
     try:
@@ -173,6 +176,40 @@ def test_root_skeleton_rejects_unauthorized_peer_before_request_parse(
         client.close()
         thread.join(timeout=1)
         assert not thread.is_alive()
+    finally:
+        server.close()
+
+
+def test_root_skeleton_times_out_partial_frame_before_worker_or_audit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    authority, _ = _authority()
+    audits: list[BrokerAuditV1] = []
+    connection_audits: list[BrokerConnectionAuditV1] = []
+    server = BrokerServer(
+        BrokerPaths(tmp_path / "broker.sock"),
+        authority,
+        audit_sink=audits.append,
+        connection_audit_sink=connection_audits.append,
+    )
+    monkeypatch.setattr("astral_project.broker.server.os.geteuid", lambda: 0)
+    monkeypatch.setattr("astral_project.broker.server.BROKER_IO_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(
+        "astral_project.broker.server._peer_credentials",
+        lambda connection: PeerCredentials(pid=1, uid=1000, gid=1000),
+    )
+    server.start()
+    try:
+        thread = _serve(server)
+        client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        client.connect(str(tmp_path / "broker.sock"))
+        client.sendall(b"\x00\x00")
+        thread.join(timeout=1)
+        assert not thread.is_alive()
+        assert audits == []
+        assert len(connection_audits) == 1
+        assert connection_audits[0].stage == "frame_timeout"
+        client.close()
     finally:
         server.close()
 

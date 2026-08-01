@@ -1,0 +1,9 @@
+# Installed root-owned configuration. Administrator fills user ceilings and issuer keys.
+version = 1
+socket_path = "/run/astral-project/broker.sock"
+runtime_root = "/var/lib/astral-project/runtime/sftp_v1"
+runtime_manifest_digest = "" # installer writes verified active closure digest
+mount_worker = "/usr/libexec/astral-project/aspr-mount-worker"
+namespace_worker = "/usr/libexec/astral-project/aspr-namespace-worker"
+workload = "sftp_v1"
+backend_id = "admin_bootstrapped_broker_v1"

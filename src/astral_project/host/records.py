@@ -59,6 +59,26 @@ def _invalid(message: str) -> AstralError:
     )
 
 
+def _toml_string(value: str) -> str:
+    escaped: list[str] = []
+    for character in value:
+        if character == "\\":
+            escaped.append("\\\\")
+        elif character == '"':
+            escaped.append('\\"')
+        elif character == "\n":
+            escaped.append("\\n")
+        elif character == "\r":
+            escaped.append("\\r")
+        elif character == "\t":
+            escaped.append("\\t")
+        elif ord(character) < 0x20:
+            escaped.append(f"\\u{ord(character):04x}")
+        else:
+            escaped.append(character)
+    return '"' + "".join(escaped) + '"'
+
+
 def _string(data: dict[str, object], field: str) -> str:
     value = data.get(field)
     if not isinstance(value, str) or not value:
@@ -164,25 +184,25 @@ class HostRecord:
     def to_toml(self) -> str:
         lines = [
             "version = 1",
-            f'host_id = "{self.host_id}"',
-            f'ssh_host_fingerprint = "{self.ssh_host_fingerprint}"',
+            f"host_id = {_toml_string(str(self.host_id))}",
+            f"ssh_host_fingerprint = {_toml_string(self.ssh_host_fingerprint)}",
             "",
             "[probe]",
             "version = 1",
-            f'os = "{self.probe.os}"',
-            f'architecture = "{self.probe.architecture}"',
-            f'remote_user = "{self.probe.remote_user}"',
-            f'remote_home = "{self.probe.remote_home}"',
+            f"os = {_toml_string(self.probe.os)}",
+            f"architecture = {_toml_string(self.probe.architecture)}",
+            f"remote_user = {_toml_string(self.probe.remote_user)}",
+            f"remote_home = {_toml_string(self.probe.remote_home)}",
         ]
         for item in self.probe.capabilities:
             lines.extend(
                 [
                     "",
                     "[[probe.capabilities]]",
-                    f'name = "{item.name}"',
-                    f'status = "{item.status.value}"',
-                    f'reason = "{item.reason}"',
-                    f'evidence = "{item.evidence}"',
+                    f"name = {_toml_string(item.name)}",
+                    f"status = {_toml_string(item.status.value)}",
+                    f"reason = {_toml_string(item.reason)}",
+                    f"evidence = {_toml_string(item.evidence)}",
                 ]
             )
         return "\n".join(lines) + "\n"

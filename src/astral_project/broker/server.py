@@ -22,8 +22,10 @@ from astral_project.crypto.grants import GrantVerificationContext
 from astral_project.server.entry import ServerTrust
 from astral_project.session.broker import (
     BrokerAuditV1,
+    BrokerConnectionAuditV1,
     BrokerFailureCode,
     CreateNamespaceV1,
+    NamespaceRejectedV1,
     PeerCredentials,
     WorkerResult,
     WorkerResultV1,
@@ -32,6 +34,7 @@ from astral_project.session.broker import (
 from astral_project.session.ceiling import ServerCeilingV1, validate_grant_against_ceiling
 
 MAX_BROKER_FRAME_BYTES = 1 << 20
+BROKER_IO_TIMEOUT_SECONDS = 2.0
 _FRAME_HEADER = struct.Struct(">I")
 
 
@@ -45,12 +48,13 @@ class BrokerAuthority:
     """Administrator-supplied authority; request bytes supply none of these fields."""
 
     expected_peer_uid: int
+    expected_peer_gid: int
     server_ceiling: ServerCeilingV1
     trust: ServerTrust
 
     def __post_init__(self) -> None:
-        if self.expected_peer_uid < 1:
-            raise _error("broker expected peer UID is invalid")
+        if self.expected_peer_uid < 1 or self.expected_peer_gid < 1:
+            raise _error("broker expected peer UID or GID is invalid")
 
 
 class BrokerServer:
@@ -62,12 +66,16 @@ class BrokerServer:
         authority: BrokerAuthority,
         *,
         audit_sink: Callable[[BrokerAuditV1], None] | None = None,
+        connection_audit_sink: Callable[[BrokerConnectionAuditV1], None] | None = None,
         clock: Callable[[], int] | None = None,
         mapping_worker: MappingWorker | None = None,
     ) -> None:
         self.paths = paths
         self.authority = authority
         self._audit_sink = audit_sink if audit_sink is not None else lambda _: None
+        self._connection_audit_sink = (
+            connection_audit_sink if connection_audit_sink is not None else lambda _: None
+        )
         self._clock = clock if clock is not None else lambda: int(time.time())
         self._mapping_worker = mapping_worker
         self._listener: socket.socket | None = None
@@ -98,22 +106,50 @@ class BrokerServer:
             raise _error("broker is not started")
         connection, _ = self._listener.accept()
         with connection:
+            request: CreateNamespaceV1 | None = None
+            peer: PeerCredentials | None = None
             try:
+                connection.settimeout(BROKER_IO_TIMEOUT_SECONDS)
                 peer = _peer_credentials(connection)
-                require_expected_peer(peer, uid=self.authority.expected_peer_uid)
+                require_expected_peer(
+                    peer, uid=self.authority.expected_peer_uid, gid=self.authority.expected_peer_gid
+                )
                 request = _read_request(connection)
                 self._validate(request)
                 if self._mapping_worker is not None:
-                    self._mapping_worker.run(uid=peer.uid, gid=peer.gid)
+                    self._mapping_worker.run(
+                        uid=self.authority.expected_peer_uid, gid=self.authority.expected_peer_gid
+                    )
                 result = WorkerResultV1(
                     failure=BrokerFailureCode.WORKER_FAILED,
                     result=WorkerResult.FAILED,
                     session_id=_session_id_text(request.session_id),
                 )
                 self._audit(request, result)
-                _write_result(connection, result)
+                _write_response(
+                    connection,
+                    NamespaceRejectedV1(
+                        request_id=request.request_id,
+                        session_id=request.session_id,
+                        stable_error_code=BrokerFailureCode.BACKEND_UNAVAILABLE,
+                        stage="worker_start",
+                        retryable=False,
+                        safe_message="namespace backend is unavailable",
+                    ),
+                )
+            except TimeoutError:
+                if peer is not None:
+                    self._connection_audit_sink(
+                        BrokerConnectionAuditV1(
+                            event_time=self._clock(),
+                            peer_uid=peer.uid,
+                            failure=BrokerFailureCode.PROTOCOL_INVALID,
+                            stage="frame_timeout",
+                        )
+                    )
+                return
             except AstralError:
-                # Malformed or unauthorized callers receive no parser-oracle response.
+                # Never emit a parser oracle to an unauthenticated or partial request.
                 return
 
     def close(self) -> None:
@@ -174,7 +210,7 @@ def _read_request(connection: socket.socket) -> CreateNamespaceV1:
     return CreateNamespaceV1.from_cbor(_read_exact(connection, length))
 
 
-def _write_result(connection: socket.socket, result: WorkerResultV1) -> None:
+def _write_response(connection: socket.socket, result: NamespaceRejectedV1) -> None:
     payload = result.canonical_bytes()
     connection.sendall(_FRAME_HEADER.pack(len(payload)) + payload)
 

@@ -121,6 +121,52 @@ class RemoteSessionRequestV1:
             raise _error("remote session has unsupported identifiers or operation") from error
 
 
+@dataclass(frozen=True, slots=True)
+class RemoteSessionReadyV1:
+    session_id: SessionId
+    session_nonce: bytes
+    version: int = SESSION_FORMAT_VERSION
+
+    def __post_init__(self) -> None:
+        if self.version != SESSION_FORMAT_VERSION or len(self.session_nonce) != NONCE_LENGTH:
+            raise _error("remote session ready is invalid")
+
+    def canonical_bytes(self) -> bytes:
+        return canonical_dumps(
+            {
+                "session_id": self.session_id.value,
+                "session_nonce": self.session_nonce,
+                "status": "ready",
+                "version": self.version,
+            }
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class RemoteSessionRejectedV1:
+    session_nonce: bytes | None
+    error_code: str
+    version: int = SESSION_FORMAT_VERSION
+
+    def __post_init__(self) -> None:
+        if (
+            self.version != SESSION_FORMAT_VERSION
+            or (self.session_nonce is not None and len(self.session_nonce) != NONCE_LENGTH)
+            or not self.error_code
+        ):
+            raise _error("remote session rejection is invalid")
+
+    def canonical_bytes(self) -> bytes:
+        return canonical_dumps(
+            {
+                "error_code": self.error_code,
+                "session_nonce": self.session_nonce,
+                "status": "rejected",
+                "version": self.version,
+            }
+        )
+
+
 def write_remote_session_request(stream: BinaryIO, request: RemoteSessionRequestV1) -> None:
     """Write one bounded canonical remote session frame; no transport is opened here."""
     payload = request.canonical_bytes()

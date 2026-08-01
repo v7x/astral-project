@@ -17,6 +17,11 @@ from astral_project.crypto.cbor import CborValue, canonical_dumps
 
 WORKLOAD_ID = "sftp_v1"
 RUNTIME_TARGET = "/.astral-project-runtime"
+DEFAULT_LIBRARY_ROOTS = (
+    Path("/lib/x86_64-linux-gnu"),
+    Path("/usr/lib/x86_64-linux-gnu"),
+    Path("/lib64"),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +33,7 @@ class RuntimeInput:
     generated: bool = False
     sha256: bytes | None = None
     mode: int | None = None
+    resolution: str | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -41,10 +47,17 @@ class RuntimeInput:
             self, "sha256", _digest(self.source) if self.sha256 is None else self.sha256
         )
         object.__setattr__(self, "mode", _mode(self.source) if self.mode is None else self.mode)
+        object.__setattr__(
+            self,
+            "resolution",
+            str(self.source.resolve(strict=True)) if self.resolution is None else self.resolution,
+        )
         if (
             not isinstance(self.sha256, bytes)
             or len(self.sha256) != 32
             or not isinstance(self.mode, int)
+            or not isinstance(self.resolution, str)
+            or not self.resolution.startswith("/")
         ):
             raise _error("runtime input digest or mode is invalid")
 
@@ -75,6 +88,7 @@ class RuntimeManifestV1:
                     "destination": item.destination,
                     "generated": item.generated,
                     "mode": item.mode,
+                    "resolution": item.resolution,
                     "sha256": item.sha256,
                 }
                 for item in self.files
@@ -105,6 +119,7 @@ class RuntimeManifestV1:
                     'destination = "' + _toml_string(item.destination) + '"',
                     f"generated = {str(item.generated).lower()}",
                     f"mode = {item.mode}",
+                    'resolution = "' + _toml_string(item.resolution or "") + '"',
                     'sha256 = "' + item.sha256.hex() + '"',
                 ]
             )
@@ -120,11 +135,12 @@ def discover_sftp_runtime(
     generated_directory: Path,
     architecture: str | None = None,
     libc: str | None = None,
+    library_roots: tuple[Path, ...] = DEFAULT_LIBRARY_ROOTS,
 ) -> RuntimeManifestV1:
-    """Discover loader and complete dynamic dependency list on trusted Ubuntu builder."""
+    """Inspect ELF metadata without executing any runtime input."""
     server = _trusted_regular_file(sftp_server, "sftp-server")
-    loader = _read_loader(server)
-    libraries = _read_libraries(server)
+    loader, needed = _read_elf_metadata(server)
+    libraries = _resolve_needed_libraries(needed, library_roots)
     inputs = [RuntimeInput("ld.so", loader), RuntimeInput("sftp-server", server)]
     names: set[str] = set()
     for library in libraries:
@@ -204,38 +220,52 @@ def generated_identity_inputs(directory: Path) -> tuple[RuntimeInput, ...]:
     return tuple(result)
 
 
-def _read_loader(sftp_server: Path) -> Path:
+def _read_elf_metadata(sftp_server: Path) -> tuple[Path, tuple[str, ...]]:
+    """Read PT_INTERP and DT_NEEDED with `readelf`; no inspected ELF runs."""
     result = subprocess.run(
-        ["/usr/bin/readelf", "--program-headers", str(sftp_server)],
+        ["/usr/bin/readelf", "--wide", "--program-headers", "--dynamic", str(sftp_server)],
         check=True,
         capture_output=True,
         text=True,
     )
+    loader: Path | None = None
+    needed: list[str] = []
     marker = "Requesting program interpreter: "
     for line in result.stdout.splitlines():
-        if marker in line and line.rstrip().endswith("]"):
-            return _trusted_regular_file(Path(line.split(marker, 1)[1].strip()[:-1]), "loader")
-    raise _error("sftp-server has no dynamic loader")
+        stripped = line.strip()
+        if marker in line and stripped.endswith("]"):
+            loader = _trusted_regular_file(Path(line.split(marker, 1)[1].strip()[:-1]), "loader")
+        if "(RPATH)" in stripped or "(RUNPATH)" in stripped:
+            raise _error("runtime ELF RPATH or RUNPATH is forbidden")
+        if "(NEEDED)" in stripped:
+            _, separator, suffix = stripped.partition("Shared library: [")
+            if not separator or not suffix.endswith("]"):
+                raise _error("readelf emitted malformed DT_NEEDED record")
+            name = suffix[:-1]
+            if not name or "/" in name or "\x00" in name:
+                raise _error("runtime ELF DT_NEEDED name is invalid")
+            needed.append(name)
+    if loader is None:
+        raise _error("sftp-server has no dynamic loader")
+    if not needed:
+        raise _error("sftp-server has no DT_NEEDED entries")
+    return loader, tuple(sorted(set(needed), key=str.encode))
 
 
-def _read_libraries(sftp_server: Path) -> tuple[Path, ...]:
-    result = subprocess.run(
-        ["/usr/bin/ldd", str(sftp_server)], check=True, capture_output=True, text=True
-    )
-    libraries: list[Path] = []
-    for line in result.stdout.splitlines():
-        words = line.strip().split()
-        if not words or words[0].startswith("linux-vdso"):
-            continue
-        if "not found" in words:
-            raise _error("sftp-server dependency is unresolved")
-        candidate = words[2] if len(words) >= 3 and words[1] == "=>" else words[0]
-        if not candidate.startswith("/"):
-            raise _error("ldd emitted unsupported dependency record")
-        libraries.append(Path(candidate))
-    if not libraries:
-        raise _error("sftp-server has no discovered dependencies")
-    return tuple(libraries)
+def _resolve_needed_libraries(names: tuple[str, ...], roots: tuple[Path, ...]) -> tuple[Path, ...]:
+    if not roots:
+        raise _error("runtime library root list is empty")
+    resolved: list[Path] = []
+    approved = tuple(root.resolve(strict=True) for root in roots)
+    for name in names:
+        candidate = next((root / name for root in approved if (root / name).is_file()), None)
+        if candidate is None:
+            raise _error("runtime ELF dependency is unresolved in approved roots")
+        library = _trusted_regular_file(candidate, "shared library")
+        if not any(library == root or root in library.parents for root in approved):
+            raise _error("runtime library resolves outside approved roots")
+        resolved.append(library)
+    return tuple(resolved)
 
 
 def _trusted_regular_file(path: Path, name: str) -> Path:

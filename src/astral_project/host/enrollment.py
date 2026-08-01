@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -12,8 +13,12 @@ from typing import Protocol
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from astral_project.core.errors import AstralError, ErrorCode
+from astral_project.core.paths import _fsync_directory
 from astral_project.crypto.keys import public_key_bytes, store_private_key
 from astral_project.host.records import HostRecord
+
+ENROLLED_SERVER_EXECUTABLE = "/usr/libexec/astral-project/aspr-server"
+_TRANSPORT_KEY_ID = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
 
 
 class RemoteEnrollment(Protocol):
@@ -60,12 +65,12 @@ def authorized_key_entry(public_key: bytes, transport_key_id: str) -> str:
     """Build one restricted forced-command Ed25519 authorized_keys entry."""
     if (
         len(public_key) != 32
-        or not transport_key_id
-        or any(char.isspace() for char in transport_key_id)
+        or transport_key_id.startswith("-")
+        or _TRANSPORT_KEY_ID.fullmatch(transport_key_id) is None
     ):
         raise _error("transport key material or identifier is invalid")
     encoded = base64.b64encode(public_key).decode("ascii")
-    command = f"aspr-server server ssh-entry --transport-key {transport_key_id}"
+    command = f"{ENROLLED_SERVER_EXECUTABLE} server ssh-entry --transport-key {transport_key_id}"
     return (
         "restrict,no-pty,no-port-forwarding,no-agent-forwarding,no-X11-forwarding,"
         f'command="{command}" ssh-ed25519 {encoded} aspr-{transport_key_id}'
@@ -112,6 +117,8 @@ def enroll(
     """Install narrow remote authority; every created item has compensation."""
     if not bundle or len(issuer_key) != 32:
         raise _error("bundle or issuer key is invalid")
+    if private_key_path.exists():
+        raise _error("transport private key destination already exists")
     private_key = Ed25519PrivateKey.generate()
     public_key = public_key_bytes(private_key)
     entry = authorized_key_entry(public_key, transport_key_id)
@@ -122,12 +129,20 @@ def enroll(
             journal.add(lambda: remote.remove_bundle(digest))
         if remote.install_issuer_key(issuer_key):
             journal.add(lambda: remote.remove_issuer_key(issuer_key))
-        path = next(
-            item.evidence for item in record.probe.capabilities if item.name == "authorized_keys"
+        capability = next(
+            (item for item in record.probe.capabilities if item.name == "authorized_keys"), None
         )
+        if capability is None or capability.status.value != "supported":
+            raise _error("effective authorized_keys path is unsupported for automatic enrollment")
+        path = capability.evidence
+        if ";" in path:
+            raise _error(
+                "multiple effective authorized_keys paths require explicit enrollment choice"
+            )
         if remote.add_authorized_key(path, entry):
             journal.add(lambda: remote.remove_authorized_key(path, entry))
         store_private_key(private_key_path, private_key)
+        journal.add(lambda: _remove_new_private_key(private_key_path))
         remote.smoke_test()
     except Exception as error:
         try:
@@ -136,3 +151,13 @@ def enroll(
             raise rollback_error from error
         raise _error("remote enrollment failed", str(error)) from error
     return EnrollmentResult(digest, entry, control_file)
+
+
+def _remove_new_private_key(path: Path) -> None:
+    try:
+        path.unlink()
+        _fsync_directory(path.parent)
+    except FileNotFoundError:
+        return
+    except OSError as error:
+        raise _error("could not remove newly created transport private key", str(error)) from error

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -21,6 +22,20 @@ def test_supported_and_restricted_fixtures_round_trip(tmp_path: Path) -> None:
         HostRecord.load(FIXTURES / "restricted-hpc.toml").probe.capabilities[1].status
         is CapabilityStatus.UNSUPPORTED
     )
+
+
+def test_host_record_toml_escapes_dynamic_values(tmp_path: Path) -> None:
+    record = HostRecord.load(FIXTURES / "supported.toml")
+    first = replace(
+        record.probe.capabilities[0], reason='quote " slash \\ newline\n', evidence="é\ttext"
+    )
+    escaped = replace(
+        record, probe=replace(record.probe, capabilities=(first, *record.probe.capabilities[1:]))
+    )
+    path = tmp_path / "escaped.toml"
+    path.write_text(escaped.to_toml(), encoding="utf-8")
+
+    assert HostRecord.load(path) == escaped
 
 
 @pytest.mark.parametrize(

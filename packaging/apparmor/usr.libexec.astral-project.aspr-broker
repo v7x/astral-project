@@ -1,0 +1,53 @@
+#include <tunables/global>
+
+profile aspr-broker /usr/libexec/astral-project/aspr-broker flags=(attach_disconnected) {
+  #include <abstractions/base>
+  capability chown,
+  capability dac_override,
+  capability fowner,
+  capability setgid,
+  capability setuid,
+  capability setpcap,
+  capability sys_admin,
+
+  /usr/libexec/astral-project/aspr-broker rix,
+  /usr/libexec/astral-project/aspr-namespace-worker rix,
+  /usr/libexec/astral-project/aspr-mount-worker Px -> aspr-namespace-setup,
+  /usr/bin/python3 rix,
+  /usr/lib/** r,
+  /etc/astral-project/** r,
+  /var/lib/astral-project/runtime/** r,
+  /run/astral-project/** rw,
+  /proc/*/{uid_map,gid_map,setgroups} rw,
+  /proc/** r,
+  deny network,
+}
+
+profile aspr-namespace-setup /usr/libexec/astral-project/aspr-mount-worker flags=(attach_disconnected) {
+  #include <abstractions/base>
+  capability setgid,
+  capability setuid,
+  capability setpcap,
+  capability sys_admin,
+  /usr/libexec/astral-project/aspr-mount-worker rix,
+  /var/lib/astral-project/runtime/** r,
+  /run/astral-project/** rw,
+  /proc/thread-self/attr/exec w,
+  /proc/** r,
+  change_profile -> aspr-sftp-v1,
+  deny network,
+}
+
+profile aspr-sftp-v1 flags=(attach_disconnected) {
+  #include <abstractions/base>
+  /usr/libexec/astral-project/aspr-mount-worker rix,
+  /.astral-project-runtime/ld.so rix,
+  /.astral-project-runtime/sftp-server rix,
+  /.astral-project-runtime/lib/** r,
+  /.astral-project-runtime/etc/** r,
+  /** r,
+  deny network,
+  deny capability,
+  deny mount,
+  deny /proc/** rwklx,
+}

@@ -74,6 +74,7 @@ class ResolvedSource:
     descriptor: int
     identity: SourceIdentity
     nested_mounts: tuple[MountTopology, ...]
+    nested_mounts_advisory: bool = True
 
     def close(self) -> None:
         if self.descriptor >= 0:
@@ -89,6 +90,8 @@ class ResolvedSource:
 
 @dataclass(frozen=True, slots=True)
 class MountTopology:
+    """Display-path mountinfo evidence only; never grants export authority."""
+
     mount_id: int
     parent_mount_id: int
     mount_point: str
@@ -129,6 +132,20 @@ def resolve_source(root: TrustedRoot, requested_path: str) -> ResolvedSource:
     except Exception:
         os.close(descriptor)
         raise
+
+
+def revalidate_source_identity(source: ResolvedSource) -> None:
+    """Require pinned descriptor identity unchanged immediately before plan creation."""
+    try:
+        details = linux.statx_descriptor(source.descriptor)
+    except OSError as error:
+        raise _resolution_error("could not revalidate pinned source", error) from error
+    if (details.device, details.inode, details.mount_id) != (
+        source.identity.device,
+        source.identity.inode,
+        source.identity.mount_id,
+    ):
+        raise _path_error("pinned source identity changed before plan creation")
 
 
 def _relative_to_root(root: str, requested_path: str) -> str:

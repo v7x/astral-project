@@ -20,18 +20,22 @@ _SECRET = re.compile(r"(?i)(password|token|secret)=\S+")
 # Values are deliberately conservative: a shell-only probe marks unprovable kernel
 # properties unknown rather than claiming support.
 REMOTE_PROBE_SCRIPT = r"""set -eu
-json() { printf '%s' "$1" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g; s/\r/\\\\r/g; s/\n/\\\\n/g'; }
+json() { python3 -c 'import json,sys; print(json.dumps(sys.argv[1]),end="")' "$1"; }
 value() { command -v "$1" 2>/dev/null || true; }
-cap() { printf '{"name":"%s","status":"%s","reason":"%s","evidence":"%s"}' "$1" "$2" "$3" "$4"; }
+cap() { printf '{"name":'; json "$1"; printf ',"status":'; json "$2"; printf ',"reason":'; json "$3"; printf ',"evidence":'; json "$4"; printf '}'; }
 user=$(id -un)
 home=${HOME:-/}
 os=$(uname -s)
 arch=$(uname -m)
 bwrap=$(value bwrap)
 sftp=$(value sftp-server)
-keys=$(sshd -T 2>/dev/null | awk '/^authorizedkeysfile / {print $2; exit}' || true)
-principals=$(sshd -T 2>/dev/null | awk '/^authorizedprincipalsfile / {print $2; exit}' || true)
-printf '{"version":1,"os":"'; json "$os"; printf '","architecture":"'; json "$arch"; printf '","remote_user":"'; json "$user"; printf '","remote_home":"'; json "$home"; printf '","capabilities":['
+if [ -z "$sftp" ]; then for candidate in /usr/lib/openssh/sftp-server /usr/libexec/openssh/sftp-server /usr/lib/ssh/sftp-server; do if [ -x "$candidate" ]; then sftp=$candidate; break; fi; done; fi
+host=$(hostname 2>/dev/null || printf localhost)
+sshd_effective=$(sshd -T -C "user=$user,host=$host,addr=127.0.0.1" 2>/dev/null || true)
+resolve_paths() { field=$1; printf '%s\n' "$2" | awk -v wanted="$field" -v home="$home" '$1==wanted { for(i=2;i<=NF;i++) { p=$i; if(substr(p,1,1)!="/") p=home "/" p; printf "%s%s", sep, p; sep=";" } }'; }
+keys=$(resolve_paths authorizedkeysfile "$sshd_effective")
+principals=$(resolve_paths authorizedprincipalsfile "$sshd_effective")
+printf '{"version":1,"os":'; json "$os"; printf ',"architecture":'; json "$arch"; printf ',"remote_user":'; json "$user"; printf ',"remote_home":'; json "$home"; printf ',"capabilities":['
 if [ -n "$bwrap" ]; then cap bubblewrap supported installed "$bwrap"; else cap bubblewrap unsupported missing 'command -v bwrap'; fi
 printf ','
 if unshare -Ur true >/dev/null 2>&1; then cap user_namespaces supported 'unshare succeeded' 'unshare -Ur true'; else cap user_namespaces unsupported 'unshare failed' 'unshare -Ur true'; fi
@@ -47,9 +51,9 @@ printf ','; cap loader_libraries unknown 'runtime closure not yet inspected' 'Pa
 printf ','; cap filesystems unknown 'filesystem survey requires candidate roots' 'Packet 7 shell probe'
 printf ','; cap mount_topology unknown 'mount topology requires candidate roots' 'Packet 7 shell probe'
 printf ','
-if [ -n "$keys" ]; then cap authorized_keys supported 'sshd -T found effective path' "$keys"; else cap authorized_keys unknown 'sshd -T unavailable or no path' 'none'; fi
+if [ -n "$keys" ]; then cap authorized_keys supported 'sshd -T -C found effective paths' "$keys"; else cap authorized_keys unsupported 'could not determine effective authorized_keys paths' 'none'; fi
 printf ','
-if [ -n "$principals" ]; then cap authorized_principals supported 'sshd -T found effective path' "$principals"; else cap authorized_principals unknown 'sshd -T unavailable or no path' 'none'; fi
+if [ -n "$principals" ]; then cap authorized_principals supported 'sshd -T -C found effective path' "$principals"; else cap authorized_principals unknown 'sshd -T -C unavailable or no path' 'none'; fi
 printf ']}\n'
 """
 

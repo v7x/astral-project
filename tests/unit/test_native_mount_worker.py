@@ -27,14 +27,30 @@ def test_mount_worker_uses_only_fixed_fd_abi_and_descriptor_syscalls() -> None:
 
     for required in (
         "PLAN 5",
+        "STREAM 6",
+        "LOG 7",
+        "RUNTIME 74",
+        "STAGING_BASE",
+        "getpid()",
         "SOURCE_BASE 10",
         "F_GET_SEALS",
         "SYS_statx",
         "SYS_open_tree",
         "SYS_mount_setattr",
         "SYS_move_mount",
+        "F_GET_SEALS",
+        "seals<0",
+        "overlap_target",
         "SYS_pivot_root",
+        "MOUNT_ATTR_NOSUID",
+        "MOUNT_ATTR_NODEV",
+        "MOUNT_ATTR_NOEXEC",
+        "FD_CLOEXEC",
         "SYS_capset",
+        "PR_SET_SECUREBITS",
+        "PR_CAPBSET_DROP",
+        "PR_CAP_AMBIENT_CLEAR_ALL",
+        "PR_SET_PDEATHSIG",
         "PR_SET_NO_NEW_PRIVS",
         "SYS_close_range",
         'APPARMOR_PROFILE "aspr-sftp-v1"',
@@ -45,4 +61,6 @@ def test_mount_worker_uses_only_fixed_fd_abi_and_descriptor_syscalls() -> None:
         assert required in source
     assert "system(" not in source
     assert "execlp" not in source
+    assert "dup2(STREAM,STDERR_FILENO)" not in source
+    assert "dup2(LOG,STDERR_FILENO)" in source
     assert "caller-controlled" not in source
