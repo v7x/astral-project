@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import array
+import os
 import socket
 import threading
 from pathlib import Path
@@ -10,6 +12,7 @@ from typing import cast
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from astral_project.broker.client import request_namespace
 from astral_project.broker.mapping import MappingWorker
 from astral_project.broker.server import BrokerAuthority, BrokerPaths, BrokerServer
 from astral_project.core.ids import GrantId, HostId, IssuerKeyId
@@ -104,6 +107,17 @@ class _RecordingMappingWorker:
         self.calls.append((uid, gid))
 
 
+def _send_request_with_stream(
+    connection: socket.socket, request: CreateNamespaceV1, stream_descriptor: int
+) -> None:
+    frame = len(request.canonical_bytes()).to_bytes(4, "big") + request.canonical_bytes()
+    sent = connection.sendmsg(
+        [frame],
+        [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [stream_descriptor]))],
+    )
+    connection.sendall(frame[sent:])
+
+
 def _serve(server: BrokerServer) -> threading.Thread:
     thread = threading.Thread(target=server.serve_once)
     thread.start()
@@ -133,10 +147,12 @@ def test_root_skeleton_validates_request_audits_and_never_executes(
         thread = _serve(server)
         client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         client.connect(str(tmp_path / "broker.sock"))
-        payload = _request(signed).canonical_bytes()
-        client.sendall(len(payload).to_bytes(4, "big") + payload)
+        stream_client, stream_worker = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+        _send_request_with_stream(client, _request(signed), stream_worker.fileno())
         length = int.from_bytes(client.recv(4), "big")
         result = NamespaceRejectedV1.from_cbor(client.recv(length))
+        stream_client.close()
+        stream_worker.close()
         client.close()
         thread.join(timeout=1)
 
@@ -148,6 +164,44 @@ def test_root_skeleton_validates_request_audits_and_never_executes(
         assert audits[0].peer_uid == 1000
         assert mapping.calls == [(1000, 1000)]
     finally:
+        server.close()
+
+
+def test_broker_client_transfers_exact_stream_descriptor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    authority, signed = _authority()
+    received: list[int] = []
+    server = BrokerServer(
+        BrokerPaths(tmp_path / "broker.sock"),
+        authority,
+        clock=lambda: 150,
+        stream_handoff_sink=received.append,
+    )
+    monkeypatch.setattr("astral_project.broker.server.os.geteuid", lambda: 0)
+    monkeypatch.setattr(
+        "astral_project.broker.server._peer_credentials",
+        lambda connection: PeerCredentials(pid=1, uid=1000, gid=1000),
+    )
+    server.start()
+    stream_client, stream_worker = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        thread = _serve(server)
+        result = request_namespace(
+            tmp_path / "broker.sock", _request(signed), stream_descriptor=stream_worker.fileno()
+        )
+        thread.join(timeout=1)
+        assert isinstance(result, NamespaceRejectedV1)
+        assert result.stable_error_code is BrokerFailureCode.BACKEND_UNAVAILABLE
+        assert len(received) == 1
+        stream_worker.close()
+        assert stream_client.send(b"S") == 1
+        assert os.read(received[0], 1) == b"S"
+    finally:
+        stream_client.close()
+        stream_worker.close()
+        for descriptor in received:
+            os.close(descriptor)
         server.close()
 
 

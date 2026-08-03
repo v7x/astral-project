@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /usr/bin/python3 -I -m astral_project.broker.main --socket-activation

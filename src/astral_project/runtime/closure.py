@@ -17,11 +17,6 @@ from astral_project.crypto.cbor import CborValue, canonical_dumps
 
 WORKLOAD_ID = "sftp_v1"
 RUNTIME_TARGET = "/.astral-project-runtime"
-DEFAULT_LIBRARY_ROOTS = (
-    Path("/lib/x86_64-linux-gnu"),
-    Path("/usr/lib/x86_64-linux-gnu"),
-    Path("/lib64"),
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,12 +130,14 @@ def discover_sftp_runtime(
     generated_directory: Path,
     architecture: str | None = None,
     libc: str | None = None,
-    library_roots: tuple[Path, ...] = DEFAULT_LIBRARY_ROOTS,
+    library_roots: tuple[Path, ...] | None = None,
 ) -> RuntimeManifestV1:
     """Inspect ELF metadata without executing any runtime input."""
     server = _trusted_regular_file(sftp_server, "sftp-server")
     loader, needed = _read_elf_metadata(server)
-    libraries = _resolve_needed_libraries(needed, library_roots)
+    libraries = _resolve_needed_libraries(
+        needed, ubuntu_library_roots() if library_roots is None else library_roots
+    )
     inputs = [RuntimeInput("ld.so", loader), RuntimeInput("sftp-server", server)]
     names: set[str] = set()
     for library in libraries:
@@ -158,6 +155,26 @@ def discover_sftp_runtime(
         libc=platform.libc_ver()[1] if libc is None else libc,
         files=tuple(sorted(inputs, key=lambda item: item.destination)),
     )
+
+
+def ubuntu_library_roots() -> tuple[Path, ...]:
+    """Return controlled Ubuntu multiarch roots for trusted closure construction."""
+    try:
+        result = subprocess.run(
+            ["/usr/bin/dpkg-architecture", "-qDEB_HOST_MULTIARCH"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise _error("could not determine Ubuntu multiarch library root") from error
+    multiarch = result.stdout.strip()
+    if not multiarch or any(
+        character not in "abcdefghijklmnopqrstuvwxyz0123456789_-" for character in multiarch
+    ):
+        raise _error("Ubuntu multiarch identifier is invalid")
+    roots = (Path("/lib") / multiarch, Path("/usr/lib") / multiarch, Path("/lib64"))
+    return tuple(root for root in roots if root.is_dir())
 
 
 class RuntimeClosureBuilder:
@@ -203,6 +220,28 @@ def verify_runtime_closure(root: Path, manifest: RuntimeManifestV1) -> None:
             raise _error("runtime closure file digest or mode differs")
 
 
+def open_verified_runtime_closure(runtime_root: Path, manifest: RuntimeManifestV1) -> int:
+    """Open root-owned immutable closure as O_PATH directory for native FD 74."""
+    _require_root_owned_directory(runtime_root, "runtime root")
+    closure = runtime_root / manifest.digest()
+    _require_root_owned_directory(closure, "runtime closure")
+    verify_runtime_closure(closure, manifest)
+    flags = getattr(os, "O_PATH", 0o10000000) | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    try:
+        descriptor = os.open(closure, flags)
+    except OSError as error:
+        raise _error("could not open verified runtime closure") from error
+    try:
+        opened = os.fstat(descriptor)
+        expected = closure.lstat()
+        if (opened.st_dev, opened.st_ino) != (expected.st_dev, expected.st_ino):
+            raise _error("runtime closure changed during descriptor open")
+        return descriptor
+    except Exception:
+        os.close(descriptor)
+        raise
+
+
 def generated_identity_inputs(directory: Path) -> tuple[RuntimeInput, ...]:
     """Generate only files needed by fixed workload; never copy host `/etc`."""
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -218,6 +257,15 @@ def generated_identity_inputs(directory: Path) -> tuple[RuntimeInput, ...]:
         os.chmod(path, 0o444)
         result.append(RuntimeInput(f"etc/{name}", path, generated=True))
     return tuple(result)
+
+
+def _require_root_owned_directory(path: Path, label: str) -> None:
+    try:
+        details = path.lstat()
+    except OSError as error:
+        raise _error(f"{label} is unavailable") from error
+    if not stat.S_ISDIR(details.st_mode) or details.st_uid != 0 or details.st_mode & 0o022:
+        raise _error(f"{label} has unsafe ownership, type, or mode")
 
 
 def _read_elf_metadata(sftp_server: Path) -> tuple[Path, tuple[str, ...]]:

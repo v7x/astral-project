@@ -19,6 +19,7 @@ from astral_project.core.ids import HostId, IssuerKeyId
 from astral_project.core.paths import check_private_path
 from astral_project.crypto.grants import GrantVerificationContext
 from astral_project.crypto.keys import public_key_from_bytes
+from astral_project.server.broker_bridge import bridge_sftp_stream, open_broker_sftp_stream
 from astral_project.server.protocol import (
     read_outer_request,
     write_outer_ready,
@@ -55,6 +56,7 @@ def run_ssh_entry(
     trust: ServerTrust | None = None,
     now: int | None = None,
     after_verification: Callable[[RemoteSessionRequestV1], None] | None = None,
+    broker_dispatch: bool = False,
 ) -> int:
     """Serve one outer session frame; `Ready` is final frame before raw SFTP."""
     nonce: bytes | None = None
@@ -79,7 +81,10 @@ def run_ssh_entry(
         # Packet 9 ends here. Later packets dispatch only after this authentication gate.
         if after_verification is not None:
             after_verification(request)
+        stream = open_broker_sftp_stream(request) if broker_dispatch else None
         write_outer_ready(stdout, RemoteSessionReadyV1(request.session_id, request.session_nonce))
+        if stream is not None:
+            bridge_sftp_stream(stream, stdin=stdin, stdout=stdout)
         return 0
     except AstralError as error:
         write_outer_rejection(stdout, RemoteSessionRejectedV1(nonce, error.code.string))
@@ -195,5 +200,6 @@ def main() -> None:
             stdout=sys.stdout.buffer,
             stderr=sys.stderr,
             environment=os.environ,
+            broker_dispatch=True,
         )
     )

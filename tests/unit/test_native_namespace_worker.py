@@ -4,11 +4,18 @@ from __future__ import annotations
 
 import os
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
 
-from astral_project.broker.mapping import MappingWorker, _install_worker_sync_fds
+from astral_project.broker.mapping import (
+    MappingWorker,
+    WorkerLaunchFds,
+    WorkerProcess,
+    _install_worker_fds,
+    _install_worker_sync_fds,
+)
 from astral_project.core.errors import AstralError
 
 PROJECT_ROOT = Path(__file__).parents[2]
@@ -79,6 +86,66 @@ def test_sync_fd_relocation_preserves_both_channels(occupied: tuple[int, ...]) -
     assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
     os.close(ready_read)
     os.close(continue_write)
+
+
+def test_worker_process_reaps_exit_and_kills_timeout() -> None:
+    child = os.fork()
+    if child == 0:
+        os._exit(7)
+    assert os.WEXITSTATUS(WorkerProcess(child).wait(timeout_seconds=1)) == 7
+
+    child = os.fork()
+    if child == 0:
+        time.sleep(10)
+        os._exit(0)
+    with pytest.raises(AstralError, match="supervisor deadline"):
+        WorkerProcess(child).wait(timeout_seconds=0.01)
+
+
+def test_worker_fixed_fd_handoff_relocates_all_abi_collisions() -> None:
+    ready_read, ready_write = os.pipe()
+    continue_read, continue_write = os.pipe()
+    extras = [os.pipe() for _ in range(5)]
+    child = os.fork()
+    if child == 0:
+        try:
+            originals = [ready_write, continue_read, *(pair[0] for pair in extras)]
+            relocated = [
+                os.dup2(descriptor, 100 + slot) for slot, descriptor in enumerate(originals)
+            ]
+            for descriptor in originals:
+                os.close(descriptor)
+            destinations = (3, 4, 5, 6, 7, 10, 74)
+            for descriptor, destination in zip(relocated, destinations, strict=True):
+                os.dup2(descriptor, destination)
+                os.close(descriptor)
+            before = tuple(os.fstat(descriptor).st_ino for descriptor in destinations)
+            _install_worker_fds(3, 4, {5: 5, 6: 6, 7: 7, 10: 10, 74: 74})
+            after = tuple(os.fstat(descriptor).st_ino for descriptor in destinations)
+            if before != after or any(
+                os.get_inheritable(descriptor) is False for descriptor in destinations
+            ):
+                os._exit(1)
+            os.write(3, b"R")
+            os._exit(0 if os.read(4, 1) == b"C" else 2)
+        except OSError:
+            os._exit(3)
+    os.close(ready_write)
+    os.close(continue_read)
+    for read_end, write_end in extras:
+        os.close(read_end)
+        os.close(write_end)
+    assert os.read(ready_read, 1) == b"R"
+    assert os.write(continue_write, b"C") == 1
+    _, status = os.waitpid(child, 0)
+    assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0
+    os.close(ready_read)
+    os.close(continue_write)
+
+
+def test_worker_launch_fds_rejects_descriptor_aliasing() -> None:
+    with pytest.raises(AstralError, match="aliased"):
+        WorkerLaunchFds(sealed_plan=5, stream=6, log=6, sources=(10,), runtime=74)
 
 
 def test_native_worker_source_has_mapping_only_authority() -> None:

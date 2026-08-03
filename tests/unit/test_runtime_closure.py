@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from astral_project.runtime.closure import (
     RuntimeManifestV1,
     discover_sftp_runtime,
     generated_identity_inputs,
+    open_verified_runtime_closure,
     verify_runtime_closure,
 )
 from astral_project.runtime.smoke import run_closure_only_sftp_handshake, run_sftp_handshake
@@ -50,6 +52,22 @@ def test_runtime_closure_is_deterministic_verified_and_content_addressed(tmp_pat
     assert (root / "manifest.toml").read_bytes() == manifest.toml_bytes()
     assert (root / "etc/passwd").read_text(encoding="ascii").startswith("aspr:")
     assert RuntimeClosureBuilder().install(manifest, tmp_path / "runtime") == root
+
+
+def test_runtime_open_returns_descriptor_for_verified_closure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest(tmp_path)
+    root = RuntimeClosureBuilder().install(manifest, tmp_path / "runtime")
+    monkeypatch.setattr(
+        "astral_project.runtime.closure._require_root_owned_directory", lambda *_: None
+    )
+
+    descriptor = open_verified_runtime_closure(root.parent, manifest)
+    try:
+        assert os.fstat(descriptor).st_ino == root.stat().st_ino
+    finally:
+        os.close(descriptor)
 
 
 def test_runtime_discovery_uses_fixed_system_tools_and_explicit_dependencies(

@@ -322,7 +322,7 @@ class WorkerResultV1:
 
 @dataclass(frozen=True, slots=True)
 class NamespaceReadyV1:
-    """Framed success response; exactly one stream FD follows through `SCM_RIGHTS`."""
+    """Framed success response after client transferred sole stream FD through `SCM_RIGHTS`."""
 
     request_id: bytes
     session_id: bytes

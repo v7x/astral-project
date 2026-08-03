@@ -72,6 +72,7 @@ def test_root_owned_package_configuration_is_fixed() -> None:
         "runtime_manifest_digest": "",
         "mount_worker": "/usr/libexec/astral-project/aspr-mount-worker",
         "namespace_worker": "/usr/libexec/astral-project/aspr-namespace-worker",
+        "authority_path": "/etc/astral-project/authority.toml",
         "workload": "sftp_v1",
         "backend_id": "admin_bootstrapped_broker_v1",
     }
