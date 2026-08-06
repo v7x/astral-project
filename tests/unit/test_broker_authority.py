@@ -1,0 +1,52 @@
+"""VM-only root authority artifacts are complete, typed, and deterministic."""
+
+from __future__ import annotations
+
+import tomllib
+from pathlib import Path
+
+from astral_project.broker.authority import AuthorityTomlV1, generate_vm_authority
+from astral_project.core.ids import HostId, IssuerKeyId
+from astral_project.crypto.grants import AccessMode, ExportKind
+from astral_project.session.ceiling import ServerCeilingV1, SourceRootCeilingV1
+
+
+def test_generator_writes_strict_authority_toml_and_canonical_ceiling(tmp_path: Path) -> None:
+    issuer = IssuerKeyId("00000000-0000-4000-8000-000000000001")
+    ceiling = ServerCeilingV1(
+        source_roots=(
+            SourceRootCeilingV1("/srv/project", AccessMode.READ_ONLY, (ExportKind.DIRECTORY,)),
+        ),
+        allowed_issuers=(issuer,),
+        forbidden_source_roots=(),
+        max_exports=1,
+        max_ttl_seconds=60,
+        policy_hash=b"p" * 32,
+    )
+    ceiling_path = tmp_path / "ceiling.cbor"
+    authority_path = tmp_path / "authority.toml"
+    authority = AuthorityTomlV1(
+        expected_peer_uid=1001,
+        expected_peer_gid=1001,
+        host_id=HostId("00000000-0000-4000-8000-000000000002"),
+        ssh_host_key_fingerprint="SHA256:vm-only",
+        remote_user="aspr-test",
+        issuer_keys=((issuer, b"k" * 32),),
+        transport_key_ids=("transport_01",),
+        ceiling_path=ceiling_path,
+    )
+
+    generate_vm_authority(authority, ceiling, authority_path=authority_path)
+
+    assert ServerCeilingV1.from_cbor(ceiling_path.read_bytes()) == ceiling
+    assert tomllib.loads(authority_path.read_text(encoding="utf-8")) == {
+        "version": 1,
+        "expected_peer_gid": 1001,
+        "expected_peer_uid": 1001,
+        "host_id": str(authority.host_id),
+        "remote_user": "aspr-test",
+        "ssh_host_key_fingerprint": "SHA256:vm-only",
+        "ceiling_path": str(ceiling_path),
+        "transport_key_ids": ["transport_01"],
+        "issuer_keys": {str(issuer): "a2tra2tra2tra2tra2tra2tra2tra2tra2tra2tra2s="},
+    }

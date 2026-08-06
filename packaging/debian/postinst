@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+case "${1:-}" in
+  configure)
+    systemd-sysusers /usr/lib/sysusers.d/astral-project.conf
+    systemd-tmpfiles --create /usr/lib/tmpfiles.d/astral-project.conf
+    ;;
+  *)
+    exit 0
+    ;;
+esac

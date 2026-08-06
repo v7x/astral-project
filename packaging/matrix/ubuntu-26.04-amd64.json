@@ -1,0 +1,14 @@
+{
+  "architecture": "amd64",
+  "gate": "packet15f",
+  "release": "26.04",
+  "result": "pending",
+  "required": [
+    "package-install",
+    "systemd-fd3",
+    "apparmor-enforce",
+    "descriptor-pinned-mount",
+    "sftp-handshake",
+    "expiry-cancellation-cleanup"
+  ]
+}

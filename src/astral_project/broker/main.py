@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import sys
-import tempfile
-from pathlib import Path
 
 from astral_project.broker.config import load_broker_authority, load_broker_install_config
 from astral_project.broker.executor import BrokerSessionExecutor
 from astral_project.broker.mapping import MappingWorker
 from astral_project.broker.registry import ActiveSessionRegistry
 from astral_project.broker.server import BrokerPaths, BrokerServer
-from astral_project.runtime.closure import discover_sftp_runtime
+from astral_project.broker.socket_activation import take_systemd_listener
+from astral_project.runtime.installer import load_active_runtime_closure
 
 
 def main() -> None:
@@ -19,12 +18,7 @@ def main() -> None:
         raise SystemExit(64)
     config = load_broker_install_config()
     authority = load_broker_authority(config.authority_path)
-    with tempfile.TemporaryDirectory(prefix="aspr-runtime-manifest-") as temporary:
-        manifest = discover_sftp_runtime(
-            Path("/usr/lib/openssh/sftp-server"), generated_directory=Path(temporary)
-        )
-    if manifest.digest() != config.runtime_manifest_digest:
-        raise SystemExit(70)
+    manifest = load_active_runtime_closure(config.runtime_root, config.runtime_manifest_digest)
     registry = ActiveSessionRegistry()
     server = BrokerServer(
         BrokerPaths(config.socket_path),
@@ -37,7 +31,7 @@ def main() -> None:
         ),
         active_session_sink=registry.register_from_server,
     )
-    server.start()
+    server.start(inherited_listener=take_systemd_listener())
     try:
         while True:
             server.serve_once()

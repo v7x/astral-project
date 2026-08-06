@@ -94,10 +94,15 @@ class BrokerServer:
         self._active_session_sink = active_session_sink
         self._listener: socket.socket | None = None
 
-    def start(self) -> None:
-        """Bind one root-owned socket. Package setup owns directory and service lifecycle."""
+    def start(self, *, inherited_listener: socket.socket | None = None) -> None:
+        """Bind socket or adopt sole validated systemd-owned listener."""
         if os.geteuid() != 0:
             raise _error("broker must run as root")
+        if inherited_listener is not None:
+            if self._listener is not None or inherited_listener.family != socket.AF_UNIX:
+                raise _error("broker inherited listener is invalid")
+            self._listener = inherited_listener
+            return
         if not self.paths.socket.parent.is_dir():
             raise _error("broker socket directory is unavailable")
         if self.paths.socket.exists():

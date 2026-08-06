@@ -31,3 +31,18 @@ def test_registry_cancellation_terminates_and_removes_worker() -> None:
     assert registry.cancel(session_id) is True
     assert worker.terminated.wait(1)
     assert registry.cancel(session_id) is False
+
+
+def test_registry_expiry_terminates_worker_and_removes_session() -> None:
+    worker = Worker()
+    now = [100]
+    registry = ActiveSessionRegistry(clock=lambda: now[0])
+    session_id = b"e" * 16
+
+    registry.register(session_id, worker, expires_at=101)  # type: ignore[arg-type]
+    assert worker.supervised.wait(1)
+    now[0] = 101
+
+    assert registry.expire() == 1
+    assert worker.terminated.wait(1)
+    assert registry.active_count() == 0

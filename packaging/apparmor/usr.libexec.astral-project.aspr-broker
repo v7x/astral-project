@@ -13,7 +13,7 @@ profile aspr-broker /usr/libexec/astral-project/aspr-broker flags=(attach_discon
   /usr/libexec/astral-project/aspr-broker rix,
   /usr/libexec/astral-project/aspr-namespace-worker rix,
   /usr/libexec/astral-project/aspr-mount-worker Px -> aspr-namespace-setup,
-  /usr/bin/python3 rix,
+  /usr/bin/python3* rix,
   /usr/lib/** r,
   /etc/astral-project/** r,
   /var/lib/astral-project/runtime/** r,

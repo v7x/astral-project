@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from astral_project.core.errors import AstralError, ErrorCode
-from astral_project.crypto.cbor import CborValue, canonical_dumps
+from astral_project.crypto.cbor import CborValue, canonical_dumps, canonical_loads
 
 WORKLOAD_ID = "sftp_v1"
 RUNTIME_TARGET = "/.astral-project-runtime"
@@ -96,6 +96,61 @@ class RuntimeManifestV1:
 
     def canonical_bytes(self) -> bytes:
         return canonical_dumps(self.payload())
+
+    @classmethod
+    def from_cbor(cls, data: bytes, *, closure_root: Path) -> RuntimeManifestV1:
+        """Load exact canonical installed manifest; files resolve only beneath closure root."""
+        payload = canonical_loads(data)
+        if not isinstance(payload, dict) or set(payload) != {
+            "architecture",
+            "files",
+            "libc",
+            "runtime_target",
+            "version",
+            "workload_id",
+        }:
+            raise _error("runtime manifest fields are incomplete or unknown")
+        if (
+            payload["version"] != 1
+            or payload["workload_id"] != WORKLOAD_ID
+            or payload["runtime_target"] != RUNTIME_TARGET
+            or not isinstance(payload["architecture"], str)
+            or not isinstance(payload["libc"], str)
+            or not isinstance(payload["files"], list)
+        ):
+            raise _error("runtime manifest header is invalid")
+        inputs: list[RuntimeInput] = []
+        for item in payload["files"]:
+            if not isinstance(item, dict) or set(item) != {
+                "destination",
+                "generated",
+                "mode",
+                "resolution",
+                "sha256",
+            }:
+                raise _error("runtime manifest file entry is invalid")
+            destination = item["destination"]
+            digest = item["sha256"]
+            mode = item["mode"]
+            resolution = item["resolution"]
+            generated = item["generated"]
+            if (
+                not isinstance(destination, str)
+                or not isinstance(digest, bytes)
+                or not isinstance(mode, int)
+                or isinstance(mode, bool)
+                or not isinstance(resolution, str)
+                or not isinstance(generated, bool)
+            ):
+                raise _error("runtime manifest file value is invalid")
+            source = closure_root / destination
+            if closure_root not in source.parents and source != closure_root:
+                raise _error("runtime manifest destination escapes closure")
+            inputs.append(RuntimeInput(destination, source, generated, digest, mode, resolution))
+        manifest = cls(payload["architecture"], payload["libc"], tuple(inputs))
+        if manifest.canonical_bytes() != data:
+            raise _error("runtime manifest bytes are not self-consistent")
+        return manifest
 
     def toml_bytes(self) -> bytes:
         lines = [

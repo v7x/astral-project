@@ -13,6 +13,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from astral_project.broker.client import request_namespace
+from astral_project.broker.executor import BrokerSessionExecutor
 from astral_project.broker.mapping import MappingWorker
 from astral_project.broker.server import BrokerAuthority, BrokerPaths, BrokerServer
 from astral_project.core.ids import GrantId, HostId, IssuerKeyId
@@ -164,6 +165,64 @@ def test_root_skeleton_validates_request_audits_and_never_executes(
         assert audits[0].peer_uid == 1000
         assert mapping.calls == [(1000, 1000)]
     finally:
+        server.close()
+
+
+def test_executor_path_returns_ready_and_preserves_raw_stream_descriptor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    authority, signed = _authority()
+    active_sessions: list[tuple[bytes, object, int]] = []
+
+    class Active:
+        effective_exports_digest = b"e" * 32
+        runtime_manifest_digest = b"m" * 32
+
+    class Executor:
+        descriptor = -1
+
+        def start(
+            self, grant: object, *, stream_descriptor: int, peer_uid: int, peer_gid: int
+        ) -> Active:
+            assert peer_uid == peer_gid == 1000
+            self.descriptor = stream_descriptor
+            return Active()
+
+    executor = Executor()
+    server = BrokerServer(
+        BrokerPaths(tmp_path / "broker.sock"),
+        authority,
+        executor=cast(BrokerSessionExecutor, executor),
+        active_session_sink=lambda session_id, active, expires_at: active_sessions.append(
+            (session_id, active, expires_at)
+        ),
+        clock=lambda: 150,
+    )
+    monkeypatch.setattr("astral_project.broker.server.os.geteuid", lambda: 0)
+    monkeypatch.setattr(
+        "astral_project.broker.server._peer_credentials",
+        lambda connection: PeerCredentials(pid=1, uid=1000, gid=1000),
+    )
+    server.start()
+    stream_client, stream_worker = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        thread = _serve(server)
+        result = request_namespace(
+            tmp_path / "broker.sock", _request(signed), stream_descriptor=stream_worker.fileno()
+        )
+        thread.join(timeout=1)
+        assert not thread.is_alive()
+        assert result.session_id == _request(signed).session_id
+        assert stream_client.send(b"S") == 1
+        assert os.read(executor.descriptor, 1) == b"S"
+        assert len(active_sessions) == 1
+        assert active_sessions[0][0] == result.session_id
+        assert active_sessions[0][2] == 200
+    finally:
+        stream_client.close()
+        stream_worker.close()
+        if executor.descriptor >= 0:
+            os.close(executor.descriptor)
         server.close()
 
 

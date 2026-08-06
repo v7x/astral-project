@@ -26,6 +26,8 @@ class BrokerInstallConfig:
     mount_worker: Path
     namespace_worker: Path
     authority_path: Path
+    workload: str
+    backend_id: str
     version: int
 
 
@@ -40,6 +42,8 @@ def load_broker_install_config(path: Path = DEFAULT_CONFIG) -> BrokerInstallConf
             "runtime_manifest_digest",
             "runtime_root",
             "socket_path",
+            "workload",
+            "backend_id",
             "version",
         },
     )
@@ -51,12 +55,16 @@ def load_broker_install_config(path: Path = DEFAULT_CONFIG) -> BrokerInstallConf
             mount_worker=_absolute(raw, "mount_worker"),
             namespace_worker=_absolute(raw, "namespace_worker"),
             authority_path=_absolute(raw, "authority_path"),
+            workload=_string(raw, "workload"),
+            backend_id=_string(raw, "backend_id"),
             version=_integer(raw, "version"),
         )
     except (TypeError, ValueError) as error:
         raise _error("broker installation configuration is invalid") from error
     if config.version != 1:
         raise _error("broker installation configuration version is unsupported")
+    if config.workload != "sftp_v1" or config.backend_id != "admin_bootstrapped_broker_v1":
+        raise _error("broker installation workload or backend is unsupported")
     for trusted_path in (
         config.runtime_root,
         config.mount_worker,
