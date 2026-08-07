@@ -119,7 +119,7 @@ int main(int argc,char **argv) {
  if(prctl(PR_SET_PDEATHSIG,SIGKILL,0,0,0)) die("parent death signal");
  if(getppid()==1) bad("broker parent already exited");
  if(snprintf(staging,sizeof(staging),"%s%ld",STAGING_BASE,(long)getpid())>=((int)sizeof(staging))) bad("staging path too long");
- if(unshare(CLONE_NEWUSER|CLONE_NEWNS)) die("unshare");
+ if(unshare(CLONE_NEWUSER)) die("unshare user namespace");
  sync_map();
  { int seals=fcntl(PLAN,F_GET_SEALS); if(seals<0) die("F_GET_SEALS"); if((seals&(F_SEAL_WRITE|F_SEAL_SHRINK|F_SEAL_GROW|F_SEAL_SEAL))!=(F_SEAL_WRITE|F_SEAL_SHRINK|F_SEAL_GROW|F_SEAL_SEAL)) bad("plan unsealed"); }
  require_fd(STREAM); require_fd(LOG); require_fd(RUNTIME);
@@ -128,15 +128,26 @@ int main(int argc,char **argv) {
  if(!p||!seen) die("plan allocation");
  if(pread(PLAN,p,n,0)!=(ssize_t)n) die("plan read");
  if(memcmp(p,"ASPRPLN1",8)||u32(p+8)!=1||(count=u32(p+12))==0||count>MAX_ENTRIES) bad("plan header invalid");
+ /* Verify every source in broker mount namespace before CLONE_NEWNS. */
+ for(i=0;i<count;i++) { uint32_t slot; unsigned char kind; uint16_t len;
+  if(o+ENTRY>n) bad("plan truncated");
+  slot=u32(p+o);kind=p[o+5];len=u16(p+o+32);
+  if(slot>=count||seen[slot]||len>MAX_TARGET||o+ENTRY+len>n) bad("plan entry invalid");
+  seen[slot]=1; valid_target(p+o+ENTRY,len);
+  require_fd(SOURCE_BASE+slot); verify_fd(SOURCE_BASE+slot,u64(p+o+8),u64(p+o+16),u64(p+o+24),kind);
+  o+=ENTRY+len;
+ }
+ if(o!=n) bad("plan trailing data");
+ if(unshare(CLONE_NEWNS)) die("unshare mount namespace");
  if(mount(NULL,"/",NULL,MS_REC|MS_PRIVATE,NULL)) die("private mounts");
  if(mkdir(staging,0700)&&errno!=EEXIST) die("mkdir worker staging");
- if(mount("tmpfs",staging,"tmpfs",MS_NOSUID|MS_NODEV,"mode=0700,uid=0,gid=0")) die("staging tmpfs");
+ if(mount("tmpfs",staging,"tmpfs",MS_NOSUID|MS_NODEV,"mode=0700")) die("staging tmpfs");
+ o=HEADER; memset(seen,0,MAX_ENTRIES);
  for(i=0;i<count;i++) { uint32_t slot; unsigned char access,kind; uint16_t len; char target[STAGING_MAX+MAX_TARGET+1];
   if(o+ENTRY>n) bad("plan truncated");
   slot=u32(p+o);access=p[o+4];kind=p[o+5];len=u16(p+o+32);
   if(slot>=count||seen[slot]||len>MAX_TARGET||o+ENTRY+len>n) bad("plan entry invalid");
-  seen[slot]=1; valid_target(p+o+ENTRY,len);
-  require_fd(SOURCE_BASE+slot); verify_fd(SOURCE_BASE+slot,u64(p+o+8),u64(p+o+16),u64(p+o+24),kind);
+  seen[slot]=1;
   if(strlen(staging)+len>=sizeof(target)) bad("target too long");
   memcpy(target,staging,strlen(staging)); memcpy(target+strlen(staging),p+o+ENTRY,len); target[strlen(staging)+len]=0;
   make_target(target,kind); mount_one(SOURCE_BASE+slot,target,access,1); o+=ENTRY+len;

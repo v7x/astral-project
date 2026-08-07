@@ -64,3 +64,13 @@ def test_mount_worker_uses_only_fixed_fd_abi_and_descriptor_syscalls() -> None:
     assert "dup2(STREAM,STDERR_FILENO)" not in source
     assert "dup2(LOG,STDERR_FILENO)" in source
     assert "caller-controlled" not in source
+
+
+def test_worker_verifies_source_identities_before_private_mount_namespace() -> None:
+    source = SOURCE.read_text(encoding="utf-8")
+
+    assert "unshare(CLONE_NEWUSER)" in source
+    assert "unshare(CLONE_NEWNS)" in source
+    assert "unshare(CLONE_NEWUSER|CLONE_NEWNS)" not in source
+    assert source.index("verify_fd(SOURCE_BASE+slot") < source.index("unshare(CLONE_NEWNS)")
+    assert source.index("unshare(CLONE_NEWNS)") < source.index("private mounts")

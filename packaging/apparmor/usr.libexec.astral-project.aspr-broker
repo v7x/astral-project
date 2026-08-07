@@ -27,6 +27,8 @@ profile aspr-broker /usr/libexec/astral-project/aspr-broker flags=(attach_discon
 
 profile aspr-namespace-setup /usr/libexec/astral-project/aspr-mount-worker flags=(attach_disconnected) {
   #include <abstractions/base>
+  capability dac_override,
+  capability dac_read_search,
   capability setgid,
   capability setuid,
   capability setpcap,
