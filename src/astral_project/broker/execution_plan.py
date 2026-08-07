@@ -7,9 +7,10 @@ import os
 import struct
 from dataclasses import dataclass
 
+from astral_project.broker.sources import PinnedSources
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.crypto.grants import AccessMode, ExportKind
-from astral_project.namespace.planner import NamespacePlan, PlannedExport
+from astral_project.namespace.planner import PlannedExport
 from astral_project.session.broker import WORKER_FD_LAYOUT
 
 _MAGIC = b"ASPRPLN1"
@@ -25,18 +26,26 @@ class ExecutionPlanV1:
     """Sealed worker input: descriptor identity and virtual target only."""
 
     exports: tuple[PlannedExport, ...]
+    broker_mount_ids: tuple[int, ...]
 
     def __post_init__(self) -> None:
-        if not 1 <= len(self.exports) <= _MAX_EXPORTS:
-            raise _error("execution plan export count is invalid")
+        if (
+            not 1 <= len(self.exports) <= _MAX_EXPORTS
+            or len(self.exports) != len(self.broker_mount_ids)
+            or any(value < 1 for value in self.broker_mount_ids)
+        ):
+            raise _error("execution plan export or broker mount identity is invalid")
 
     @classmethod
-    def from_namespace_plan(cls, plan: NamespacePlan) -> ExecutionPlanV1:
-        return cls(plan.exports)
+    def from_pinned_sources(cls, pinned: PinnedSources) -> ExecutionPlanV1:
+        return cls(
+            tuple(item.export for item in pinned.sources),
+            tuple(item.mount_id for item in pinned.sources),
+        )
 
     def to_bytes(self) -> bytes:
         body = bytearray()
-        for export in self.exports:
+        for export, mount_id in zip(self.exports, self.broker_mount_ids, strict=True):
             target = export.virtual_target.encode("utf-8")
             if not 1 <= len(target) <= _MAX_TARGET_BYTES:
                 raise _error("execution plan target is invalid")
@@ -48,7 +57,7 @@ class ExecutionPlanV1:
                     0,
                     export.identity.device,
                     export.identity.inode,
-                    export.identity.mount_id,
+                    mount_id,
                     len(target),
                 )
             )

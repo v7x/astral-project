@@ -60,7 +60,7 @@ def _authority() -> tuple[BrokerAuthority, SignedGrant]:
                 "/project",
                 AccessMode.READ_ONLY,
                 ExportKind.DIRECTORY,
-                SourceIdentity(1, 2, 3, "ext4", ExportKind.DIRECTORY),
+                SourceIdentity(1, 2, "ext4", ExportKind.DIRECTORY),
             ),
         ),
     )

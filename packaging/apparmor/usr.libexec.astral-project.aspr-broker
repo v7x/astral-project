@@ -17,6 +17,7 @@ profile aspr-broker /usr/libexec/astral-project/aspr-broker flags=(attach_discon
   /usr/lib/** r,
   /etc/astral-project/** r,
   /var/lib/astral-project/runtime/** r,
+  #include if exists <local/astral-project-source-roots>
   /run/astral-project/** rw,
   /proc/*/{uid_map,gid_map,setgroups} rw,
   /proc/** r,

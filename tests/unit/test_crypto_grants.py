@@ -53,7 +53,6 @@ def sample_grant(**changes: object) -> Grant:
                 source_identity=SourceIdentity(
                     device=8,
                     inode=42,
-                    mount_id=7,
                     filesystem_type="ext4",
                     object_type=ExportKind.DIRECTORY,
                 ),
@@ -190,14 +189,14 @@ def test_extension_rules_preserve_optional_data_when_policy_allows() -> None:
 @pytest.mark.parametrize(
     "factory",
     [
-        lambda: SourceIdentity(-1, 1, 1, "ext4", ExportKind.FILE),
+        lambda: SourceIdentity(-1, 1, "ext4", ExportKind.FILE),
         lambda: GrantExport(
             "/source",
             "/source",
             "/target",
             AccessMode.READ_ONLY,
             ExportKind.FILE,
-            SourceIdentity(1, 1, 1, "ext4", ExportKind.DIRECTORY),
+            SourceIdentity(1, 1, "ext4", ExportKind.DIRECTORY),
         ),
         lambda: GrantExport(
             "relative",
@@ -205,7 +204,7 @@ def test_extension_rules_preserve_optional_data_when_policy_allows() -> None:
             "/target",
             AccessMode.READ_ONLY,
             ExportKind.FILE,
-            SourceIdentity(1, 1, 1, "ext4", ExportKind.FILE),
+            SourceIdentity(1, 1, "ext4", ExportKind.FILE),
         ),
         lambda: sample_grant(format_version=2),
         lambda: sample_grant(ssh_host_key_fingerprint=""),

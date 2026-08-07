@@ -60,14 +60,15 @@ def _extension_mapping(value: Mapping[str, CborValue], field_name: str) -> dict[
 
 @dataclass(frozen=True, slots=True)
 class SourceIdentity:
+    """Portable signed source-object identity; mount identity is broker-local."""
+
     device: int
     inode: int
-    mount_id: int
     filesystem_type: str
     object_type: ExportKind
 
     def __post_init__(self) -> None:
-        if min(self.device, self.inode, self.mount_id) < 0 or not self.filesystem_type:
+        if min(self.device, self.inode) < 0 or not self.filesystem_type:
             raise _grant_error("source identity is invalid")
 
     def to_payload(self) -> dict[str, CborValue]:
@@ -75,7 +76,6 @@ class SourceIdentity:
             "device": self.device,
             "filesystem_type": self.filesystem_type,
             "inode": self.inode,
-            "mount_id": self.mount_id,
             "object_type": self.object_type.value,
         }
 
@@ -85,7 +85,6 @@ class SourceIdentity:
             return cls(
                 device=_integer(payload, "device"),
                 inode=_integer(payload, "inode"),
-                mount_id=_integer(payload, "mount_id"),
                 filesystem_type=_string(payload, "filesystem_type"),
                 object_type=ExportKind(_string(payload, "object_type")),
             )

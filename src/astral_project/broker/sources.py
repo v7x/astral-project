@@ -19,10 +19,11 @@ from astral_project.session.ceiling import ServerCeilingV1, validate_grant_again
 
 @dataclass(frozen=True, slots=True)
 class PinnedSource:
-    """Worker source descriptor, keyed only by deterministic execution-plan slot."""
+    """Broker-pinned descriptor plus ephemeral broker-mount identity."""
 
     descriptor: int
     export: PlannedExport
+    mount_id: int
 
 
 @dataclass(slots=True)
@@ -67,11 +68,12 @@ def pin_grant_sources(grant: Grant, ceiling: ServerCeilingV1) -> PinnedSources:
                 roots[root_path] = root
             source = resolve_source(root, grant_export.canonical_source)
             try:
+                _require_safe_broker_topology(source, root_path, ceiling)
                 _require_signed_identity(source, grant_export)
                 revalidate_source_identity(source)
                 descriptor = source.descriptor
                 source.descriptor = -1
-                pinned.append(PinnedSource(descriptor, export))
+                pinned.append(PinnedSource(descriptor, export, source.identity.mount_id))
             finally:
                 source.close()
         return PinnedSources(plan=plan, sources=tuple(pinned))
@@ -116,11 +118,21 @@ def _require_signed_identity(source: ResolvedSource, export: GrantExport) -> Non
         source.canonical_path != export.canonical_source
         or identity.device != signed.device
         or identity.inode != signed.inode
-        or identity.mount_id != signed.mount_id
         or identity.filesystem_type != signed.filesystem_type
         or identity.kind is not signed.object_type
     ):
         raise _error("pinned source does not match signed source identity")
+
+
+def _require_safe_broker_topology(
+    source: ResolvedSource, root_path: str, ceiling: ServerCeilingV1
+) -> None:
+    """V1 permits only tested local ext4 and no nested mount import."""
+    root = next(item for item in ceiling.source_roots if item.canonical_root == root_path)
+    if source.identity.filesystem_type != "ext4":
+        raise _error("source filesystem is unsupported by strict V1")
+    if root.nested_mount_policy == "forbid" and source.nested_mounts:
+        raise _error("source contains nested mounts forbidden by server ceiling")
 
 
 def _error(message: str) -> AstralError:

@@ -22,11 +22,11 @@ def _pinned(descriptor: int) -> PinnedSources:
     export = PlannedExport(
         access_mode=AccessMode.READ_ONLY,
         descriptor_slot=0,
-        identity=SourceIdentity(1, 2, 3, "ext4", ExportKind.FILE),
+        identity=SourceIdentity(1, 2, "ext4", ExportKind.FILE),
         kind=ExportKind.FILE.value,
         virtual_target="/project",
     )
-    return PinnedSources(NamespacePlan((export,)), (PinnedSource(descriptor, export),))
+    return PinnedSources(NamespacePlan((export,)), (PinnedSource(descriptor, export, 1),))
 
 
 def test_executor_starts_worker_and_closes_parent_descriptor_copies(

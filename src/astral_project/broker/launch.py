@@ -44,7 +44,7 @@ def prepare_worker_launch(
     if any(descriptor < 0 for descriptor in (runtime, stream, log)):
         raise _error("worker runtime, stream, or log descriptor is invalid")
     descriptor = create_sealed_execution_plan(
-        ExecutionPlanV1.from_namespace_plan(pinned_sources.plan)
+        ExecutionPlanV1.from_pinned_sources(pinned_sources)
     )
     try:
         launch_fds = WorkerLaunchFds(

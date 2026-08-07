@@ -31,11 +31,11 @@ def _plan() -> ExecutionPlanV1:
                 "/project",
                 AccessMode.READ_ONLY,
                 ExportKind.DIRECTORY,
-                SourceIdentity(8, 42, 7, "ext4", ExportKind.DIRECTORY),
+                SourceIdentity(8, 42, "ext4", ExportKind.DIRECTORY),
             ),
         ),
     )
-    return ExecutionPlanV1.from_namespace_plan(build_namespace_plan(grant))
+    return ExecutionPlanV1(build_namespace_plan(grant).exports, (7,))
 
 
 def test_plan_has_no_source_path_and_uses_fixed_descriptor_slots() -> None:

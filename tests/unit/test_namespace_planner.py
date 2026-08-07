@@ -27,7 +27,7 @@ def _export(target: str, *, inode: int = 1, mode: AccessMode = AccessMode.READ_O
         virtual_target=target,
         access_mode=mode,
         kind=ExportKind.DIRECTORY,
-        source_identity=SourceIdentity(inode, inode, inode, "ext4", ExportKind.DIRECTORY),
+        source_identity=SourceIdentity(inode, inode, "ext4", ExportKind.DIRECTORY),
     )
 
 

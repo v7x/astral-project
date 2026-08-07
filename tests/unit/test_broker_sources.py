@@ -19,7 +19,6 @@ def _identity(root: Path, source: Path) -> SourceIdentity:
         return SourceIdentity(
             device=resolved.identity.device,
             inode=resolved.identity.inode,
-            mount_id=resolved.identity.mount_id,
             filesystem_type=resolved.identity.filesystem_type,
             object_type=resolved.identity.kind,
         )
