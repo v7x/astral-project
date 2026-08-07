@@ -20,7 +20,8 @@ profile aspr-broker /usr/libexec/astral-project/aspr-broker flags=(attach_discon
   /run/astral-project/** rw,
   /proc/*/{uid_map,gid_map,setgroups} rw,
   /proc/** r,
-  deny network,
+  unix (accept, getattr, receive, send) type=stream,
+  deny network inet,
 }
 
 profile aspr-namespace-setup /usr/libexec/astral-project/aspr-mount-worker flags=(attach_disconnected) {
