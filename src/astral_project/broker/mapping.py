@@ -19,6 +19,7 @@ from astral_project.session.broker import WORKER_FD_LAYOUT
 
 _RELOCATION_FD_FLOOR: Final = 75
 _MAPPING_HANDSHAKE_TIMEOUT_SECONDS: Final = 2.0
+_STAGING_ROOT: Final = Path("/run/astral-project/staging")
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +64,7 @@ class WorkerProcess:
     """One native worker after mapping continuation; parent owns reaping."""
 
     pid: int
+    staging_path: Path | None = None
     _reaped: bool = field(default=False, init=False, repr=False)
 
     def wait(
@@ -81,10 +83,12 @@ class WorkerProcess:
             waited_pid, status = os.waitpid(self.pid, os.WNOHANG)
             if waited_pid == self.pid:
                 self._reaped = True
+                self._cleanup_staging()
                 return status
             if deadline is not None and time.monotonic() >= deadline:
                 _terminate_and_reap(self.pid)
                 self._reaped = True
+                self._cleanup_staging()
                 raise _error("worker exceeded supervisor deadline")
             time.sleep(0.01)
 
@@ -92,6 +96,17 @@ class WorkerProcess:
         if not self._reaped:
             _terminate_and_reap(self.pid)
             self._reaped = True
+            self._cleanup_staging()
+
+    def _cleanup_staging(self) -> None:
+        if self.staging_path is None:
+            return
+        try:
+            self.staging_path.rmdir()
+        except FileNotFoundError:
+            pass
+        except OSError as error:
+            raise _error("worker staging cleanup failed", error) from error
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,16 +161,29 @@ class MappingWorker:
         try:
             if _read_mapping_ready(ready_read) != b"R":
                 raise _error("namespace worker did not enter mapping wait")
+            staging = _create_worker_staging(child, uid=uid, gid=gid)
             _write_identity_map(child, uid=uid, gid=gid)
             if os.write(continue_write, b"C") != 1:
                 raise _error("namespace worker continuation write failed")
-            return WorkerProcess(child)
+            return WorkerProcess(child, staging)
         except Exception:
             _terminate_and_reap(child)
             raise
         finally:
             os.close(ready_read)
             os.close(continue_write)
+
+
+def _create_worker_staging(pid: int, *, uid: int, gid: int) -> Path:
+    """Root precreates exact staging path before mapped child proceeds."""
+    path = _STAGING_ROOT / str(pid)
+    try:
+        _STAGING_ROOT.mkdir(mode=0o710, exist_ok=True)
+        path.mkdir(mode=0o700)
+        os.chown(path, uid, gid)
+        return path
+    except OSError as error:
+        raise _error("could not create worker staging directory", error) from error
 
 
 def _read_mapping_ready(descriptor: int) -> bytes:

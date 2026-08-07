@@ -37,6 +37,7 @@ profile aspr-namespace-setup /usr/libexec/astral-project/aspr-mount-worker flags
   /proc/thread-self/attr/exec w,
   /proc/** r,
   change_profile -> aspr-sftp-v1,
+  allow mount,
   deny network,
 }
 

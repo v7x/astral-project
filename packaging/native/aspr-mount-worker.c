@@ -28,7 +28,7 @@
 #define LOG 7
 #define SOURCE_BASE 10
 #define RUNTIME 74
-#define STAGING_BASE "/run/astral-project/staging"
+#define STAGING_BASE "/run/astral-project/staging/"
 #define STAGING_MAX 128
 static char staging[STAGING_MAX];
 #define RUNTIME_TARGET "/.astral-project-runtime"
@@ -118,7 +118,7 @@ int main(int argc,char **argv) {
  if(argc!=1) return 64;
  if(prctl(PR_SET_PDEATHSIG,SIGKILL,0,0,0)) die("parent death signal");
  if(getppid()==1) bad("broker parent already exited");
- if(snprintf(staging,sizeof(staging),"%s.%ld",STAGING_BASE,(long)getpid())>=((int)sizeof(staging))) bad("staging path too long");
+ if(snprintf(staging,sizeof(staging),"%s%ld",STAGING_BASE,(long)getpid())>=((int)sizeof(staging))) bad("staging path too long");
  if(unshare(CLONE_NEWUSER|CLONE_NEWNS)) die("unshare");
  sync_map();
  { int seals=fcntl(PLAN,F_GET_SEALS); if(seals<0) die("F_GET_SEALS"); if((seals&(F_SEAL_WRITE|F_SEAL_SHRINK|F_SEAL_GROW|F_SEAL_SEAL))!=(F_SEAL_WRITE|F_SEAL_SHRINK|F_SEAL_GROW|F_SEAL_SEAL)) bad("plan unsealed"); }
@@ -130,7 +130,7 @@ int main(int argc,char **argv) {
  if(memcmp(p,"ASPRPLN1",8)||u32(p+8)!=1||(count=u32(p+12))==0||count>MAX_ENTRIES) bad("plan header invalid");
  if(mount(NULL,"/",NULL,MS_REC|MS_PRIVATE,NULL)) die("private mounts");
  if(mkdir(staging,0700)&&errno!=EEXIST) die("mkdir worker staging");
- if(mount("tmpfs",staging,"tmpfs",MS_NOSUID|MS_NODEV,"mode=0700")) die("staging tmpfs");
+ if(mount("tmpfs",staging,"tmpfs",MS_NOSUID|MS_NODEV,"mode=0700,uid=0,gid=0")) die("staging tmpfs");
  for(i=0;i<count;i++) { uint32_t slot; unsigned char access,kind; uint16_t len; char target[STAGING_MAX+MAX_TARGET+1];
   if(o+ENTRY>n) bad("plan truncated");
   slot=u32(p+o);access=p[o+4];kind=p[o+5];len=u16(p+o+32);
