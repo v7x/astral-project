@@ -16,6 +16,7 @@ from astral_project.broker.client import request_namespace
 from astral_project.broker.executor import BrokerSessionExecutor
 from astral_project.broker.mapping import MappingWorker
 from astral_project.broker.server import BrokerAuthority, BrokerPaths, BrokerServer
+from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.core.ids import GrantId, HostId, IssuerKeyId
 from astral_project.crypto.grants import (
     AccessMode,
@@ -223,6 +224,56 @@ def test_executor_path_returns_ready_and_preserves_raw_stream_descriptor(
         stream_worker.close()
         if executor.descriptor >= 0:
             os.close(executor.descriptor)
+        server.close()
+
+
+def test_authenticated_executor_failure_is_audited_and_returns_terminal_rejection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    authority, signed = _authority()
+    rejections: list[tuple[str, AstralError]] = []
+
+    class Executor:
+        def start(self, *_: object, **__: object) -> object:
+            raise AstralError(
+                ErrorCode.PATH_RESOLUTION,
+                "pinned source does not match signed source identity",
+                "broker source descriptor was rejected",
+                "worker authority requires a root-owned descriptor",
+                "issue a current grant",
+            )
+
+    server = BrokerServer(
+        BrokerPaths(tmp_path / "broker.sock"),
+        authority,
+        executor=cast(BrokerSessionExecutor, Executor()),
+        active_session_sink=lambda *_: None,
+        rejection_sink=lambda stage, error: rejections.append((stage, error)),
+        clock=lambda: 150,
+    )
+    monkeypatch.setattr("astral_project.broker.server.os.geteuid", lambda: 0)
+    monkeypatch.setattr(
+        "astral_project.broker.server._peer_credentials",
+        lambda connection: PeerCredentials(pid=1, uid=1000, gid=1000),
+    )
+    server.start()
+    stream_client, stream_worker = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        thread = _serve(server)
+        result = request_namespace(
+            tmp_path / "broker.sock", _request(signed), stream_descriptor=stream_worker.fileno()
+        )
+        thread.join(timeout=1)
+        assert not thread.is_alive()
+        assert isinstance(result, NamespaceRejectedV1)
+        assert result.stage == "worker_start"
+        assert result.safe_message == "broker request could not be completed"
+        assert len(rejections) == 1
+        assert rejections[0][0] == "worker_start"
+        assert rejections[0][1].message == "pinned source does not match signed source identity"
+    finally:
+        stream_client.close()
+        stream_worker.close()
         server.close()
 
 

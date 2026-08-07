@@ -76,6 +76,7 @@ class BrokerServer:
         stream_handoff_sink: Callable[[int], None] | None = None,
         executor: BrokerSessionExecutor | None = None,
         active_session_sink: Callable[[bytes, ActiveWorkerSession, int], None] | None = None,
+        rejection_sink: Callable[[str, AstralError], None] | None = None,
     ) -> None:
         self.paths = paths
         self.authority = authority
@@ -92,6 +93,7 @@ class BrokerServer:
         self._stream_handoff_sink = stream_handoff_sink
         self._executor = executor
         self._active_session_sink = active_session_sink
+        self._rejection_sink = rejection_sink if rejection_sink is not None else lambda _, __: None
         self._listener: socket.socket | None = None
 
     def start(self, *, inherited_listener: socket.socket | None = None) -> None:
@@ -128,15 +130,19 @@ class BrokerServer:
             request: CreateNamespaceV1 | None = None
             peer: PeerCredentials | None = None
             stream_descriptor = -1
+            stage = "peer_authentication"
             try:
                 connection.settimeout(BROKER_IO_TIMEOUT_SECONDS)
                 peer = _peer_credentials(connection)
                 require_expected_peer(
                     peer, uid=self.authority.expected_peer_uid, gid=self.authority.expected_peer_gid
                 )
+                stage = "request_read"
                 request, stream_descriptor = _read_request(connection)
+                stage = "grant_validation"
                 self._validate(request)
                 if self._executor is not None:
+                    stage = "worker_start"
                     active = self._executor.start(
                         request.signed_grant.grant,
                         stream_descriptor=stream_descriptor,
@@ -145,6 +151,7 @@ class BrokerServer:
                     )
                     stream_descriptor = -1
                     assert self._active_session_sink is not None
+                    stage = "worker_registration"
                     self._active_session_sink(
                         request.session_id, active, request.signed_grant.grant.expires_at
                     )
@@ -195,8 +202,29 @@ class BrokerServer:
                         )
                     )
                 return
-            except AstralError:
+            except AstralError as error:
                 # Never emit a parser oracle to an unauthenticated or partial request.
+                if request is not None and peer is not None:
+                    self._connection_audit_sink(
+                        BrokerConnectionAuditV1(
+                            event_time=self._clock(),
+                            peer_uid=peer.uid,
+                            failure=BrokerFailureCode.WORKER_FAILED,
+                            stage=stage,
+                        )
+                    )
+                    self._rejection_sink(stage, error)
+                    _write_response(
+                        connection,
+                        NamespaceRejectedV1(
+                            request_id=request.request_id,
+                            session_id=request.session_id,
+                            stable_error_code=BrokerFailureCode.BACKEND_UNAVAILABLE,
+                            stage=stage,
+                            retryable=False,
+                            safe_message="broker request could not be completed",
+                        ),
+                    )
                 return
             finally:
                 if stream_descriptor >= 0:

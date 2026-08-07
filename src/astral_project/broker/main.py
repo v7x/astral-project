@@ -30,6 +30,11 @@ def main() -> None:
             mapping_worker=MappingWorker(config.mount_worker),
         ),
         active_session_sink=registry.register_from_server,
+        rejection_sink=lambda stage, error: print(
+            f"astral broker rejection stage={stage} code={error.code.name} message={error.message}",
+            file=sys.stderr,
+            flush=True,
+        ),
     )
     server.start(inherited_listener=take_systemd_listener())
     try:
