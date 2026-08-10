@@ -70,7 +70,17 @@ class ActiveSessionRegistry:
         if session is None:
             return
         try:
-            session.worker.supervise(timeout_seconds=max(0.01, session.expires_at - self._clock()))
+            result = session.worker.supervise(
+                timeout_seconds=max(0.01, session.expires_at - self._clock())
+            )
+            if result.exit_code not in {0, None} or result.signal is not None:
+                print(
+                    "astral worker termination "
+                    f"exit_code={result.exit_code} signal={result.signal} "
+                    f"stderr={result.stderr.decode('utf-8', 'replace')!r} "
+                    f"stderr_truncated={result.stderr_truncated}",
+                    flush=True,
+                )
         finally:
             with self._lock:
                 self._sessions.pop(session_id, None)

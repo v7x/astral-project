@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import os
+import stat
 from dataclasses import dataclass, field
 
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.crypto.grants import Grant, GrantExport
 from astral_project.namespace.planner import NamespacePlan, PlannedExport, build_namespace_plan
+from astral_project.server import linux
 from astral_project.server.path_resolver import (
     ResolvedSource,
     TrustedRoot,
@@ -71,9 +73,20 @@ def pin_grant_sources(grant: Grant, ceiling: ServerCeilingV1) -> PinnedSources:
                 _require_safe_broker_topology(source, root_path, ceiling)
                 _require_signed_identity(source, grant_export)
                 revalidate_source_identity(source)
-                descriptor = source.descriptor
-                source.descriptor = -1
-                pinned.append(PinnedSource(descriptor, export, source.identity.mount_id))
+                # A detached clone survives worker CLONE_NEWNS.  Kernel 7.0 rejects
+                # OPEN_TREE_CLONE|AT_EMPTY_PATH against inherited mount FDs after
+                # that transition; clone while broker still owns source mount.
+                descriptor = linux.clone_mount(source.descriptor)
+                clone_identity = linux.statx_descriptor(descriptor)
+                if (
+                    clone_identity.device != source.identity.device
+                    or clone_identity.inode != source.identity.inode
+                    or stat.S_IFMT(clone_identity.mode)
+                    != (stat.S_IFREG if source.identity.kind.value == "file" else stat.S_IFDIR)
+                ):
+                    os.close(descriptor)
+                    raise _error("broker detached mount clone changed source identity")
+                pinned.append(PinnedSource(descriptor, export, clone_identity.mount_id))
             finally:
                 source.close()
         return PinnedSources(plan=plan, sources=tuple(pinned))

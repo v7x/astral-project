@@ -74,6 +74,7 @@ def test_verified_runtime_descriptor_transfers_to_prepared_launch(
     monkeypatch.setattr(
         "astral_project.broker.launch.open_verified_runtime_closure", lambda *_: runtime_read
     )
+    monkeypatch.setattr("astral_project.broker.launch.linux.clone_mount", os.dup)
     try:
         with prepare_worker_launch_with_verified_runtime(
             pinned,
@@ -82,7 +83,7 @@ def test_verified_runtime_descriptor_transfers_to_prepared_launch(
             stream=stream_read,
             log=log_write,
         ) as prepared:
-            assert prepared.launch_fds.runtime == runtime_read
+            assert prepared.launch_fds.runtime != runtime_read
         with pytest.raises(OSError):
             os.fstat(runtime_read)
     finally:

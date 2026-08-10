@@ -47,4 +47,6 @@ find "$pkg/usr/libexec/astral-project" -type f -exec chmod 0755 {} +
 find "$runtime" -type d -exec chmod 0755 {} +
 find "$runtime" -type f -exec chmod 0644 {} +
 find "$pkg/usr/share/doc/astral-project" "$pkg/etc/astral-project" "$pkg/lib/systemd/system" "$pkg/usr/lib/sysusers.d" "$pkg/usr/lib/tmpfiles.d" "$pkg/etc/apparmor.d" -type f -exec chmod 0644 {} +
-dpkg-deb --build --root-owner-group "$pkg" "$out"
+# Ubuntu 26.04 VM zstd decompressor faults on this package closure; gzip avoids
+# that host defect while preserving dpkg's deterministic archive construction.
+dpkg-deb --build --root-owner-group --compression=gzip "$pkg" "$out"

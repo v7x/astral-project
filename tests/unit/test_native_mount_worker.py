@@ -35,7 +35,6 @@ def test_mount_worker_uses_only_fixed_fd_abi_and_descriptor_syscalls() -> None:
         "SOURCE_BASE 10",
         "F_GET_SEALS",
         "SYS_statx",
-        "SYS_open_tree",
         "SYS_mount_setattr",
         "SYS_move_mount",
         "F_GET_SEALS",
@@ -64,6 +63,16 @@ def test_mount_worker_uses_only_fixed_fd_abi_and_descriptor_syscalls() -> None:
     assert "dup2(STREAM,STDERR_FILENO)" not in source
     assert "dup2(LOG,STDERR_FILENO)" in source
     assert "caller-controlled" not in source
+    assert "SYS_open_tree" not in source
+
+
+def test_broker_clones_pinned_mounts_before_worker_mount_namespace() -> None:
+    source = (PROJECT_ROOT / "src" / "astral_project" / "broker" / "sources.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "linux.clone_mount(source.descriptor)" in source
+    assert "linux.statx_descriptor(descriptor)" in source
 
 
 def test_worker_verifies_source_identities_before_private_mount_namespace() -> None:

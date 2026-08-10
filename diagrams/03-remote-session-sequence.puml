@@ -1,0 +1,48 @@
+@startuml
+title Astral Project — Capability-Scoped Remote Session
+skinparam shadowing false
+
+participant "rclone" as RC
+participant "aspr-transport" as T
+participant "asprd" as D
+participant "OpenSSH" as SSH
+participant "aspr-server" as RS
+participant "Safe resolver" as SR
+participant "Pinned staging tree" as MT
+participant "bubblewrap" as BW
+participant "sftp-server" as SF
+database "Granted objects" as FS
+
+RC -> T : exec external SSH command: -s sftp
+T -> T : reject host, user, options,\nforwarding, or non-SFTP command
+T -> D : OpenSftpStream(environment-bound capability)
+D -> D : authorize session; load signed grant
+D -> SSH : exec exact command aspr-channel-v1
+SSH -> RS : restricted key starts forced command
+D -> RS : uint32 length + canonical CBOR preface\n(version, operation, nonce, signed grant)
+
+group Fail-closed validation before path work
+  RS -> RS : validate frame and exact fields
+  RS -> RS : verify signature, issuer, host ID,\nhost-key fingerprint, remote user, time, revocation
+  RS -> RS : intersect grant with server policy ceiling
+end
+
+RS -> SR : resolve enumerated sources safely
+SR -> SR : open beneath approved root; reject\nsymlink, traversal, race, and identity mismatch
+SR -> MT : attach detached mounts from pinned descriptors
+RS -> BW : launch fixed generated argv with staging tree
+BW -> SF : exec vetted SFTP runtime in empty namespace
+RS --> D : ready response echoing nonce
+D --> T : connected byte stream
+T --> RC : transparent SFTP stream
+
+loop Until expiry, revocation, cancellation, or failure
+  RC -> SF : SFTP request
+  SF -> FS : kernel-enforced granted operation
+  FS --> SF : data/status
+  SF --> RC : SFTP response
+end
+
+RS -> SF : terminate child and drain/abort per policy
+@enduml
+

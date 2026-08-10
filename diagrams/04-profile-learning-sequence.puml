@@ -1,0 +1,46 @@
+@startuml
+title Astral Project — Projected-HOME Learning and Approval
+skinparam shadowing false
+
+participant "Agent harness\n(untrusted)" as A
+participant "Optional observer\n(diagnostic only)" as O
+participant "aspr-homed\n(enforcement point)" as F
+participant "asprd\napproval broker" as D
+participant "Trusted terminal\ncontroller" as U
+database "Host HOME /\nprofile backing" as H
+
+A -> O : attempt path operation
+O --> D : diagnostic intended full path
+note right of O
+Failure or absence of the observer
+never enlarges access.
+end note
+
+A -> F : lookup/read/write/readdir
+F -> F : match path, scope, mode,\nand operation class
+
+alt Existing rule authorizes operation
+  F -> H : safely open approved backing object
+  H --> F : handle/data
+  F --> A : continue operation
+else Existing rule denies operation
+  F --> A : EACCES or ENOENT; audit
+else Unknown component or operation
+  F -> D : pending request
+  D -> U : display trusted prompt + provenance
+  U -> D : deny/hide, allow once, persist,\nor opaque traversal + exact leaf
+  D -> F : session rule and optional profile draft
+  alt Approved within finite timeout
+    F -> H : safely open approved backing object
+    H --> F : handle/data
+    F --> A : continue operation
+  else Denied or timed out
+    F --> A : fail closed
+  end
+end
+
+note over A,U
+The agent cannot access the administrative approval channel
+and cannot approve its own request.
+end note
+@enduml

@@ -178,7 +178,8 @@ def _create_worker_staging(pid: int, *, uid: int, gid: int) -> Path:
     """Root precreates exact staging path before mapped child proceeds."""
     path = _STAGING_ROOT / str(pid)
     try:
-        _STAGING_ROOT.mkdir(mode=0o710, exist_ok=True)
+        _STAGING_ROOT.mkdir(mode=0o711, exist_ok=True)
+        _STAGING_ROOT.chmod(0o711)
         path.mkdir(mode=0o700)
         os.chown(path, uid, gid)
         return path

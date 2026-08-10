@@ -60,7 +60,10 @@ def _export(source: Path, identity: SourceIdentity, target: str) -> GrantExport:
     )
 
 
-def test_pin_grant_sources_keeps_descriptors_in_plan_slot_order(tmp_path: Path) -> None:
+def test_pin_grant_sources_keeps_descriptors_in_plan_slot_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("astral_project.broker.sources.linux.clone_mount", os.dup)
     root = tmp_path / "root"
     root.mkdir()
     first, second = root / "first", root / "second"
@@ -85,7 +88,10 @@ def test_pin_grant_sources_keeps_descriptors_in_plan_slot_order(tmp_path: Path) 
         assert os.fstat(pinned.sources[1].descriptor).st_nlink == 0
 
 
-def test_pin_grant_sources_rejects_identity_replacement(tmp_path: Path) -> None:
+def test_pin_grant_sources_rejects_identity_replacement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("astral_project.broker.sources.linux.clone_mount", os.dup)
     root = tmp_path / "root"
     root.mkdir()
     source = root / "source"

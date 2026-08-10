@@ -1,0 +1,76 @@
+@startuml
+title Astral Project — Target Deployment
+skinparam shadowing false
+
+node "Local Linux host" as Local {
+  node "Trusted user domain" as Trusted {
+    artifact "Fixed Python 3.12+ runtime\n-I, sanitized PYTHON*" as LocalRuntime
+    component "asprd" as Daemon
+    component "rclone" as Rclone
+    component "aspr-transport" as Transport
+    component "aspr-homed" as Homed
+    database "XDG state\nSQLite, profiles, audit" as State
+    folder "Host HOME" as HostHome
+    folder "Verified rclone mounts" as Mounts
+    socket "main.sock" as MainSocket
+    socket "private transport.sock" as PrivateSocket
+  }
+
+  node "Local bubblewrap sandbox" #FFE0E0 as Sandbox {
+    component "Agent harness" as Agent
+    folder "/home/<user>\nprojected FUSE view" as Projected
+    folder "Declared project mounts" as Projects
+    folder "Pre-mounted remote views" as SandboxMounts
+    socket "/run/astral-project/session.sock\nlimited to one grant + expiry" as SessionSocket
+  }
+}
+
+cloud "Network" as Net
+
+node "Enrolled remote Linux host" as Remote {
+  component "OpenSSH server\nrestricted key + forced command" as SSHD
+  artifact "Verified remote runtime bundle" as RemoteRuntime
+  component "aspr-server supervisor" as Server
+  folder "Descriptor-pinned staging tree" as Staging
+  node "Final remote bubblewrap namespace" #E2F4E2 as RemoteSandbox {
+    component "sftp-server" as SFTP
+    folder "/exports/<export-id>" as Exports
+  }
+  folder "Selected host files/directories" as Sources
+}
+
+LocalRuntime -- Daemon
+Daemon -- State
+Daemon -- MainSocket
+Daemon -- Rclone
+Rclone -- Transport
+Transport -- PrivateSocket
+PrivateSocket -- Daemon
+Homed -- HostHome
+Homed -- Projected
+Daemon -- Homed
+Daemon -- Mounts
+Mounts -- SandboxMounts
+Daemon -- SessionSocket
+Agent -- Projected
+Agent -- Projects
+Agent -- SandboxMounts
+Agent -- SessionSocket
+
+Daemon --> Net : OpenSSH client; exact\naspr-channel-v1 command
+Net --> SSHD
+SSHD --> Server : forced command
+RemoteRuntime -- Server
+Server --> Staging
+Sources --> Staging : pinned descriptor-based mounts
+Staging --> Exports
+Server --> SFTP : supervise expiry/revocation
+SFTP --> Exports
+
+note right of Sandbox
+The sandbox receives neither MainSocket
+nor PrivateSocket. Remote mounts are
+constructed before sandbox launch.
+end note
+@enduml
+

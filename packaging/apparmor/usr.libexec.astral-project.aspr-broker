@@ -22,6 +22,8 @@ profile aspr-broker /usr/libexec/astral-project/aspr-broker flags=(attach_discon
   /proc/*/{uid_map,gid_map,setgroups} rw,
   /proc/** r,
   unix (accept, getattr, receive, send) type=stream,
+  # Temporary Packet 15F diagnostic allowance; replace after detached-clone proof.
+  allow mount,
   deny network inet,
 }
 
@@ -37,8 +39,14 @@ profile aspr-namespace-setup /usr/libexec/astral-project/aspr-mount-worker flags
   /var/lib/astral-project/runtime/** r,
   /run/astral-project/** rw,
   /proc/thread-self/attr/exec w,
-  /proc/** r,
+  /proc/*/attr/exec w,
+  /proc/*/task/*/attr/exec w,
+  # Temporary Packet 15F transition diagnostic; replace after positive proof.
+  /proc/** rw,
   change_profile -> aspr-sftp-v1,
+  pivot_root oldroot=/run/astral-project/staging/**/oldroot/ /run/astral-project/staging/**/,
+  umount /oldroot/,
+  /oldroot/ w,
   allow mount,
   deny network,
 }

@@ -64,16 +64,13 @@ static void make_target(char *p,unsigned char kind) {
  if(kind==2) { if(mkdir(p,0700)&&errno!=EEXIST) die("mkdir target"); }
  else { int fd=open(p,O_CREAT|O_EXCL|O_CLOEXEC,0600); if(fd<0&&errno!=EEXIST) die("create target"); if(fd>=0) close(fd); }
 }
-static void mount_one(int source,char *target,unsigned char access,unsigned char noexec) {
- int tree=syscall(SYS_open_tree,source,"",OPEN_TREE_CLONE|OPEN_TREE_CLOEXEC|AT_EMPTY_PATH);
+static void mount_one(int mount_fd,char *target,unsigned char access,unsigned char noexec) {
  struct mount_attr a={.attr_set=MOUNT_ATTR_NOSUID|MOUNT_ATTR_NODEV};
- if(tree<0) die("open_tree");
  if(access==1) a.attr_set|=MOUNT_ATTR_RDONLY;
  else if(access!=2) bad("access invalid");
  if(noexec) a.attr_set|=MOUNT_ATTR_NOEXEC;
- if(syscall(SYS_mount_setattr,tree,"",AT_EMPTY_PATH,&a,sizeof(a))) die("mount_setattr");
- if(syscall(SYS_move_mount,tree,"",AT_FDCWD,target,MOVE_MOUNT_F_EMPTY_PATH)) die("move_mount");
- close(tree);
+ if(syscall(SYS_mount_setattr,mount_fd,"",AT_EMPTY_PATH,&a,sizeof(a))) die("mount_setattr");
+ if(syscall(SYS_move_mount,mount_fd,"",AT_FDCWD,target,MOVE_MOUNT_F_EMPTY_PATH)) die("move_mount");
 }
 static void attach_runtime(void) {
  struct stat st; char target[STAGING_MAX+sizeof(RUNTIME_TARGET)];
@@ -114,13 +111,19 @@ static void run_fixed_sftp(void) {
  execve(argv[0],argv,envp); die("exec fixed sftp");
 }
 int main(int argc,char **argv) {
- struct stat f; unsigned char *p,*seen; size_t n,o=HEADER; uint32_t count,i; (void)argv;
+ struct stat f; unsigned char *p,*seen; size_t n,o=HEADER; uint32_t count,i; char reenter[32]; (void)argv;
  if(argc!=1) return 64;
  if(prctl(PR_SET_PDEATHSIG,SIGKILL,0,0,0)) die("parent death signal");
  if(getppid()==1) bad("broker parent already exited");
  if(snprintf(staging,sizeof(staging),"%s%ld",STAGING_BASE,(long)getpid())>=((int)sizeof(staging))) bad("staging path too long");
  if(unshare(CLONE_NEWUSER)) die("unshare user namespace");
  sync_map();
+ /* Retain pre-created descriptor-selected staging cwd before mapped identity loses host path traversal. */
+ if(chdir(staging)) die("enter worker staging");
+ if(snprintf(reenter,sizeof(reenter),"../%ld",(long)getpid())>=((int)sizeof(reenter))) bad("staging reentry path too long");
+ strcpy(staging,".");
+ if(setresgid(0,0,0)) die("set mapped gid");
+ if(setresuid(0,0,0)) die("set mapped uid");
  { int seals=fcntl(PLAN,F_GET_SEALS); if(seals<0) die("F_GET_SEALS"); if((seals&(F_SEAL_WRITE|F_SEAL_SHRINK|F_SEAL_GROW|F_SEAL_SEAL))!=(F_SEAL_WRITE|F_SEAL_SHRINK|F_SEAL_GROW|F_SEAL_SEAL)) bad("plan unsealed"); }
  require_fd(STREAM); require_fd(LOG); require_fd(RUNTIME);
  if(fstat(PLAN,&f)||f.st_size<HEADER||f.st_size>65536) bad("plan size invalid");
@@ -140,8 +143,10 @@ int main(int argc,char **argv) {
  if(o!=n) bad("plan trailing data");
  if(unshare(CLONE_NEWNS)) die("unshare mount namespace");
  if(mount(NULL,"/",NULL,MS_REC|MS_PRIVATE,NULL)) die("private mounts");
- if(mkdir(staging,0700)&&errno!=EEXIST) die("mkdir worker staging");
- if(mount("tmpfs",staging,"tmpfs",MS_NOSUID|MS_NODEV,"mode=0700")) die("staging tmpfs");
+ /* Broker created current directory root-owned and empty before mapping. */
+ if(mount("tmpfs",staging,"tmpfs",MS_NOSUID|MS_NODEV,"mode=0700,uid=0,gid=0")) die("staging tmpfs");
+ /* CWD still names covered host leaf; resolve new tmpfs via its parent mount. */
+ if(chdir(reenter)) die("reenter staging tmpfs");
  o=HEADER; memset(seen,0,MAX_ENTRIES);
  for(i=0;i<count;i++) { uint32_t slot; unsigned char access,kind; uint16_t len; char target[STAGING_MAX+MAX_TARGET+1];
   if(o+ENTRY>n) bad("plan truncated");

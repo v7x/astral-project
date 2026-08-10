@@ -1,0 +1,73 @@
+@startuml
+title Astral Project — Target Component Architecture
+left to right direction
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+skinparam shadowing false
+
+actor "Trusted human" as Human
+
+package "Local trusted boundary" #DDEBFF {
+  component "aspr CLI" as CLI
+  component "asprd\nlocal authority daemon" as Daemon
+  database "SQLite state\nand audit" as State
+  component "rclone" as Rclone
+  component "aspr-transport" as Transport
+  component "aspr-homed\nFUSE policy filesystem" as Homed
+  component "Local bubblewrap\npolicy compiler/launcher" as LocalBwrap
+  collections "Signing key +\nSSH transport key" as Keys
+}
+
+package "Local untrusted boundary" #FFE0E0 {
+  component "Agent harness\nand descendants" as Agent
+  component "Sandbox aspr client" as SandboxCLI
+  interface "Narrow session API\nDescribeSession, RunLs,\nGetRemoteMounts, GetExpiry,\nCloseOwnSession" as SessionAPI
+  folder "Projected HOME" as ProjectedHome
+  folder "Pre-mounted\nremote views" as RemoteViews
+}
+
+cloud "OpenSSH authenticated channel" as SSH
+
+package "Remote trusted boundary" #E2F4E2 {
+  component "aspr-server\nforced-command supervisor" as Server
+  component "Safe resolver +\ndescriptor pinning" as Resolver
+  folder "Private staging\nmount tree" as Staging
+  component "Remote bubblewrap\nnamespace builder" as RemoteBwrap
+  component "OpenSSH\nsftp-server" as SFTP
+  folder "Explicitly granted\nremote objects" as Granted
+  collections "Issuer keys +\nserver policy ceiling" as Ceiling
+}
+
+Human --> CLI
+CLI --> Daemon : main control API
+Daemon --> State
+Daemon --> Keys
+Daemon --> Rclone : supervise
+Rclone --> Transport : external SSH\n"-s sftp" only
+Transport --> Daemon : private OpenSftpStream API
+Daemon --> SSH : fixed command\naspr-channel-v1
+SSH --> Server : framed preface + signed grant
+Server --> Ceiling : validate issuer, host, user,\ntime, revocation, extensions
+Server --> Resolver
+Resolver --> Staging : attach pinned objects
+Staging --> RemoteBwrap
+RemoteBwrap --> SFTP : fixed argv
+SFTP --> Granted : kernel-enforced RO/RW access
+
+Daemon --> Homed : supervise + session policy
+Homed --> ProjectedHome : FUSE mount
+Daemon --> LocalBwrap : compile fixed policy
+LocalBwrap --> Agent : launch
+Agent --> ProjectedHome : ordinary filesystem calls
+Daemon --> RemoteViews : rclone mounts before launch
+Agent --> RemoteViews : ordinary filesystem calls
+SandboxCLI --> SessionAPI
+SessionAPI --> Daemon : grant-bound bearer capability
+
+note bottom of Agent
+No SSH keys, /dev/fuse, raw rclone config,
+main daemon socket, private transport socket,
+generic mount authority, or profile approval power.
+end note
+@enduml
+

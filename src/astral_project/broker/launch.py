@@ -11,6 +11,7 @@ from astral_project.broker.mapping import WorkerLaunchFds
 from astral_project.broker.sources import PinnedSources
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.runtime.closure import RuntimeManifestV1, open_verified_runtime_closure
+from astral_project.server import linux
 
 
 @dataclass(slots=True)
@@ -73,7 +74,13 @@ def prepare_worker_launch_with_verified_runtime(
     log: int,
 ) -> PreparedWorkerLaunch:
     """Open and transfer verified root-owned runtime descriptor into launch ownership."""
-    runtime = open_verified_runtime_closure(runtime_root, runtime_manifest)
+    verified_runtime = open_verified_runtime_closure(runtime_root, runtime_manifest)
+    try:
+        runtime = linux.clone_mount(verified_runtime)
+    except Exception:
+        os.close(verified_runtime)
+        raise
+    os.close(verified_runtime)
     try:
         prepared = prepare_worker_launch(pinned_sources, runtime=runtime, stream=stream, log=log)
     except Exception:
