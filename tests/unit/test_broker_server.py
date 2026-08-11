@@ -227,6 +227,64 @@ def test_executor_path_returns_ready_and_preserves_raw_stream_descriptor(
         server.close()
 
 
+def test_replayed_grant_and_client_nonce_pair_is_rejected_before_second_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    authority, signed = _authority()
+
+    class Active:
+        effective_exports_digest = b"e" * 32
+        runtime_manifest_digest = b"m" * 32
+
+    class Executor:
+        calls = 0
+        descriptors: list[int] = []
+
+        def start(self, grant: object, *, stream_descriptor: int, **_: object) -> Active:
+            self.calls += 1
+            self.descriptors.append(stream_descriptor)
+            return Active()
+
+    executor = Executor()
+    server = BrokerServer(
+        BrokerPaths(tmp_path / "broker.sock"),
+        authority,
+        executor=cast(BrokerSessionExecutor, executor),
+        active_session_sink=lambda *_: None,
+        clock=lambda: 150,
+    )
+    monkeypatch.setattr("astral_project.broker.server.os.geteuid", lambda: 0)
+    monkeypatch.setattr(
+        "astral_project.broker.server._peer_credentials",
+        lambda connection: PeerCredentials(pid=1, uid=1000, gid=1000),
+    )
+    server.start()
+    streams = [socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM) for _ in range(2)]
+    try:
+        first_thread = _serve(server)
+        first = request_namespace(
+            tmp_path / "broker.sock", _request(signed), stream_descriptor=streams[0][1].fileno()
+        )
+        first_thread.join(timeout=1)
+        assert first.__class__.__name__ == "NamespaceReadyV1"
+
+        second_thread = _serve(server)
+        second = request_namespace(
+            tmp_path / "broker.sock", _request(signed), stream_descriptor=streams[1][1].fileno()
+        )
+        second_thread.join(timeout=1)
+        assert isinstance(second, NamespaceRejectedV1)
+        assert second.stage == "grant_validation"
+        assert executor.calls == 1
+    finally:
+        for pair in streams:
+            pair[0].close()
+            pair[1].close()
+        for descriptor in executor.descriptors:
+            os.close(descriptor)
+        server.close()
+
+
 def test_authenticated_executor_failure_is_audited_and_returns_terminal_rejection(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

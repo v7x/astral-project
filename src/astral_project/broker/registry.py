@@ -70,9 +70,18 @@ class ActiveSessionRegistry:
         if session is None:
             return
         try:
-            result = session.worker.supervise(
-                timeout_seconds=max(0.01, session.expires_at - self._clock())
-            )
+            try:
+                result = session.worker.supervise(
+                    timeout_seconds=max(0.01, session.expires_at - self._clock())
+                )
+            except AstralError:
+                # WorkerProcess.wait kills and reaps at the expiry deadline before
+                # reporting the timeout. Retrying terminate is idempotent and makes
+                # any broken supervision path fail loudly rather than orphan authority.
+                session.worker.terminate()
+                return
+            if result is None:
+                return
             if result.exit_code not in {0, None} or result.signal is not None:
                 print(
                     "astral worker termination "

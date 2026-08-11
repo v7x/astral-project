@@ -52,7 +52,7 @@ class BrokerSessionExecutor:
         """Pin, seal, map, and start worker. Every parent copy closes after fork."""
         if stream_descriptor < 0:
             raise _error("broker stream descriptor is invalid")
-        pinned = pin_grant_sources(grant, self.ceiling)
+        pinned = pin_grant_sources(grant, self.ceiling, target_uid=peer_uid, target_gid=peer_gid)
         logs = WorkerLogPipe.create()
         prepared: PreparedWorkerLaunch | None = None
         try:

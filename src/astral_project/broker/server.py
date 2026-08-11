@@ -31,6 +31,7 @@ from astral_project.session.broker import (
     NamespaceReadyV1,
     NamespaceRejectedV1,
     PeerCredentials,
+    ReplayLedger,
     WorkerResult,
     WorkerResultV1,
     require_expected_peer,
@@ -77,6 +78,7 @@ class BrokerServer:
         executor: BrokerSessionExecutor | None = None,
         active_session_sink: Callable[[bytes, ActiveWorkerSession, int], None] | None = None,
         rejection_sink: Callable[[str, AstralError], None] | None = None,
+        replay_ledger: ReplayLedger | None = None,
     ) -> None:
         self.paths = paths
         self.authority = authority
@@ -85,6 +87,7 @@ class BrokerServer:
             connection_audit_sink if connection_audit_sink is not None else lambda _: None
         )
         self._clock = clock if clock is not None else lambda: int(time.time())
+        self._replay_ledger = replay_ledger if replay_ledger is not None else ReplayLedger()
         self._mapping_worker = mapping_worker
         if executor is not None and (
             active_session_sink is None or stream_handoff_sink is not None
@@ -141,6 +144,8 @@ class BrokerServer:
                 request, stream_descriptor = _read_request(connection)
                 stage = "grant_validation"
                 self._validate(request)
+                self._replay_ledger.issue(request.signed_grant, request.client_nonce, now=self._clock())
+                self._replay_ledger.consume(request.signed_grant, request.client_nonce, now=self._clock())
                 if self._executor is not None:
                     stage = "worker_start"
                     active = self._executor.start(

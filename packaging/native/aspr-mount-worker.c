@@ -17,6 +17,7 @@
 #include <sys/mount.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <sys/syscall.h>
 #include <sys/sysmacros.h>
 #include <unistd.h>
@@ -32,7 +33,7 @@
 #define STAGING_MAX 128
 static char staging[STAGING_MAX];
 #define RUNTIME_TARGET "/.astral-project-runtime"
-#define APPARMOR_EXEC "/proc/thread-self/attr/exec"
+#define APPARMOR_EXEC "/proc/thread-self/attr/current"
 #define APPARMOR_PROFILE "aspr-sftp-v1"
 #define HEADER 16
 #define ENTRY 34
@@ -78,6 +79,18 @@ static void attach_runtime(void) {
  if(snprintf(target,sizeof(target),"%s%s",staging,RUNTIME_TARGET)>=((int)sizeof(target))) bad("runtime target too long");
  make_target(target,2); mount_one(RUNTIME,target,1,0);
 }
+static void attach_runtime_etc(void) {
+ if(mkdir("./etc",0755)&&errno!=EEXIST) die("mkdir etc");
+ if(mount("./.astral-project-runtime/etc","./etc",NULL,MS_BIND,NULL)) die("bind runtime etc");
+}
+static void make_synthetic_devices(void) {
+ int fd;
+ if(mkdir("./dev",0755)&&errno!=EEXIST) die("mkdir dev");
+ /* sftp-server requires this fixed sink; no host /dev is exposed after pivot. */
+ fd=open("./dev/null",O_CREAT|O_RDWR|O_CLOEXEC,0666);
+ if(fd<0) die("create synthetic null");
+ if(close(fd)) die("close synthetic null");
+}
 static void enter_synthetic_root(void) {
  char oldroot[STAGING_MAX+sizeof("/oldroot")];
  if(snprintf(oldroot,sizeof(oldroot),"%s/oldroot",staging)>=((int)sizeof(oldroot))) bad("oldroot target too long");
@@ -88,9 +101,13 @@ static void enter_synthetic_root(void) {
  if(umount2("/oldroot",MNT_DETACH)) die("umount oldroot");
  if(rmdir("/oldroot")) die("rmdir oldroot");
 }
-static void arm_apparmor_transition(void) {
- const char transition[]="exec " APPARMOR_PROFILE; int fd=open(APPARMOR_EXEC,O_WRONLY|O_CLOEXEC);
+static int open_apparmor_transition_control(void) {
+ int fd=open(APPARMOR_EXEC,O_WRONLY|O_CLOEXEC);
  if(fd<0) die("open AppArmor exec attribute");
+ return fd;
+}
+static void enter_apparmor_profile(int fd) {
+ const char transition[]="changeprofile " APPARMOR_PROFILE;
  if(write(fd,transition,sizeof(transition)-1)!=(ssize_t)(sizeof(transition)-1)) die("write AppArmor exec attribute");
  if(close(fd)) die("close AppArmor exec attribute");
 }
@@ -101,9 +118,14 @@ static void discard_setup_authority(void) {
  if(prctl(PR_CAP_AMBIENT,PR_CAP_AMBIENT_CLEAR_ALL,0,0,0)) die("clear ambient capabilities");
  for(cap=0;cap<=CAP_LAST_CAP;cap++) if(prctl(PR_CAPBSET_DROP,cap,0,0,0)) die("drop capability bounding set");
  if(syscall(SYS_capset,&header,&data)) die("capset");
+}
+static void set_no_new_privs(void) {
  if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)) die("no_new_privs");
 }
 static void run_fixed_sftp(void) {
+ struct statvfs runtime_stat;
+ if(statvfs("/.astral-project-runtime",&runtime_stat)) die("statvfs runtime");
+ if(runtime_stat.f_flag&ST_NOEXEC) bad("runtime mount is noexec");
  char *const argv[]={"/.astral-project-runtime/ld.so","--library-path","/.astral-project-runtime/lib","/.astral-project-runtime/sftp-server","-e","-l","INFO",NULL};
  char *const envp[]={"HOME=/","LANG=C","PATH=/usr/bin:/bin",NULL};
  if(dup2(STREAM,STDIN_FILENO)<0||dup2(STREAM,STDOUT_FILENO)<0||dup2(LOG,STDERR_FILENO)<0) die("dup workload channels");
@@ -111,7 +133,7 @@ static void run_fixed_sftp(void) {
  execve(argv[0],argv,envp); die("exec fixed sftp");
 }
 int main(int argc,char **argv) {
- struct stat f; unsigned char *p,*seen; size_t n,o=HEADER; uint32_t count,i; char reenter[32]; (void)argv;
+ struct stat f; unsigned char *p,*seen; size_t n,o=HEADER; uint32_t count,i; char reenter[32]; int apparmor_control; (void)argv;
  if(argc!=1) return 64;
  if(prctl(PR_SET_PDEATHSIG,SIGKILL,0,0,0)) die("parent death signal");
  if(getppid()==1) bad("broker parent already exited");
@@ -160,9 +182,14 @@ int main(int argc,char **argv) {
  if(o!=n) bad("plan trailing data");
  if(fcntl(PLAN,F_SETFD,FD_CLOEXEC)||fcntl(RUNTIME,F_SETFD,FD_CLOEXEC)) die("set setup close-on-exec");
  attach_runtime();
- arm_apparmor_transition();
+ attach_runtime_etc();
+ make_synthetic_devices();
+ /* /proc vanishes at pivot; retain only fixed control FD until final transition. */
+ apparmor_control=open_apparmor_transition_control();
  enter_synthetic_root();
  discard_setup_authority();
+ enter_apparmor_profile(apparmor_control);
+ set_no_new_privs();
  run_fixed_sftp();
  return 111;
 }

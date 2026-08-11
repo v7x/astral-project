@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+
+case "${1:-}" in
+  remove|deconfigure)
+    # Remove interpreter-generated files before dpkg checks package directories.
+    if [ -d /usr/lib/astral-project/python ]; then
+      find /usr/lib/astral-project/python -type d -name __pycache__ -prune -exec rm -rf -- {} +
+      find /usr/lib/astral-project/python -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete
+    fi
+    ;;
+esac
+
+exit 0

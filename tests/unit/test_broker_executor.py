@@ -58,7 +58,7 @@ def test_executor_starts_worker_and_closes_parent_descriptor_copies(
             return WorkerProcess(child)
 
     worker = Worker()
-    monkeypatch.setattr("astral_project.broker.executor.pin_grant_sources", lambda *_: pinned)
+    monkeypatch.setattr("astral_project.broker.executor.pin_grant_sources", lambda *_args, **_kwargs: pinned)
     monkeypatch.setattr(
         "astral_project.broker.executor.prepare_worker_launch_with_verified_runtime",
         lambda *_args, **_kwargs: Prepared(),

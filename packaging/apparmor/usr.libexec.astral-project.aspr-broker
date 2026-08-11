@@ -5,6 +5,7 @@ profile aspr-broker /usr/libexec/astral-project/aspr-broker flags=(attach_discon
   capability chown,
   capability dac_override,
   capability fowner,
+  capability kill,
   capability setgid,
   capability setuid,
   capability setpcap,
@@ -22,8 +23,7 @@ profile aspr-broker /usr/libexec/astral-project/aspr-broker flags=(attach_discon
   /proc/*/{uid_map,gid_map,setgroups} rw,
   /proc/** r,
   unix (accept, getattr, receive, send) type=stream,
-  # Temporary Packet 15F diagnostic allowance; replace after detached-clone proof.
-  allow mount,
+  signal (send) set=(kill) peer=aspr-sftp-v1,
   deny network inet,
 }
 
@@ -38,27 +38,35 @@ profile aspr-namespace-setup /usr/libexec/astral-project/aspr-mount-worker flags
   /usr/libexec/astral-project/aspr-mount-worker rix,
   /var/lib/astral-project/runtime/** r,
   /run/astral-project/** rw,
-  /proc/thread-self/attr/exec w,
-  /proc/*/attr/exec w,
-  /proc/*/task/*/attr/exec w,
-  # Temporary Packet 15F transition diagnostic; replace after positive proof.
-  /proc/** rw,
+  /proc/thread-self/attr/current w,
+  /proc/*/attr/current w,
+  /proc/*/task/*/attr/current w,
   change_profile -> aspr-sftp-v1,
   pivot_root oldroot=/run/astral-project/staging/**/oldroot/ /run/astral-project/staging/**/,
   umount /oldroot/,
   /oldroot/ w,
-  allow mount,
+  mount options=(rw,rprivate) -> /,
+  mount fstype=tmpfs options=(rw,nosuid,nodev) tmpfs -> /run/astral-project/staging/**,
+  # Detached mount-FD sources have no pathname; all targets remain staging-bound.
+  mount -> /run/astral-project/staging/**,
   deny network,
 }
 
 profile aspr-sftp-v1 flags=(attach_disconnected) {
   #include <abstractions/base>
   /usr/libexec/astral-project/aspr-mount-worker rix,
-  /.astral-project-runtime/ld.so rix,
-  /.astral-project-runtime/sftp-server rix,
-  /.astral-project-runtime/lib/** r,
+  /.astral-project-runtime/ld.so rixm,
+  /.astral-project-runtime/sftp-server rixm,
+  /.astral-project-runtime/lib/** mr,
   /.astral-project-runtime/etc/** r,
+  # AppArmor names detached clone files by their verified backing closure.
+  /var/lib/astral-project/runtime/sftp_v1/*/ld.so rixm,
+  /var/lib/astral-project/runtime/sftp_v1/*/sftp-server rixm,
+  /var/lib/astral-project/runtime/sftp_v1/*/lib/** mr,
+  /var/lib/astral-project/runtime/sftp_v1/*/etc/** r,
   /** r,
+  signal (receive) set=(kill) peer=aspr-broker,
+  deny userns,
   deny network,
   deny capability,
   deny mount,

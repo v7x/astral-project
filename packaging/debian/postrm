@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+case "${1:-}" in
+  purge)
+    # Python may create root-owned bytecode beside packaged modules. It is
+    # rebuildable package state, never administrator or user data.
+    rm -rf -- /usr/lib/astral-project/python
+    ;;
+esac
+
+exit 0

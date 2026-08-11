@@ -43,6 +43,7 @@ def test_active_installer_publishes_and_reopens_exact_verified_closure(tmp_path:
     loaded = load_active_runtime_closure(runtime_root, manifest.digest())
 
     assert closure.name == manifest.digest()
+    assert closure.stat().st_mode & 0o777 == 0o755
     assert loaded.canonical_bytes() == manifest.canonical_bytes()
 
 

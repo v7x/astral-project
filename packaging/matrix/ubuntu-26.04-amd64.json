@@ -1,8 +1,9 @@
 {
   "architecture": "amd64",
+  "evidence": "docs/packet-15f-ubuntu-26.04-evidence.md",
   "gate": "packet15f",
   "release": "26.04",
-  "result": "pending",
+  "result": "passed",
   "required": [
     "package-install",
     "systemd-fd3",

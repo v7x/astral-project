@@ -66,6 +66,26 @@ def test_mount_worker_uses_only_fixed_fd_abi_and_descriptor_syscalls() -> None:
     assert "SYS_open_tree" not in source
 
 
+def test_final_transition_precedes_no_new_privs_and_exec() -> None:
+    source = SOURCE.read_text(encoding="utf-8")
+
+    assert source.index("enter_apparmor_profile(apparmor_control)") < source.index("set_no_new_privs()")
+    assert source.index("set_no_new_privs()") < source.index("run_fixed_sftp()")
+    assert "runtime mount is noexec" in source
+
+
+def test_packaged_apparmor_has_no_packet15f_diagnostic_allowances() -> None:
+    profile = (PROJECT_ROOT / "packaging" / "apparmor" / "usr.libexec.astral-project.aspr-broker").read_text(encoding="utf-8")
+
+    assert "allow mount," not in profile
+    assert "/proc/** rw," not in profile
+    assert "mount -> /run/astral-project/staging/**," in profile
+    assert "  capability kill," in profile
+    assert "  deny userns," in profile
+    assert "signal (send) set=(kill) peer=aspr-sftp-v1," in profile
+    assert "signal (receive) set=(kill) peer=aspr-broker," in profile
+
+
 def test_broker_clones_pinned_mounts_before_worker_mount_namespace() -> None:
     source = (PROJECT_ROOT / "src" / "astral_project" / "broker" / "sources.py").read_text(
         encoding="utf-8"

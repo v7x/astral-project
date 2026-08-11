@@ -15,6 +15,8 @@ requirements="$stage/runtime-requirements.txt"
 runtime="$pkg/usr/lib/astral-project/python"
 mkdir -p "$pkg/DEBIAN" "$pkg/usr/libexec/astral-project" "$runtime" "$pkg/usr/share/doc/astral-project" "$pkg/etc/astral-project" "$pkg/lib/systemd/system" "$pkg/usr/lib/sysusers.d" "$pkg/usr/lib/tmpfiles.d" "$pkg/etc/apparmor.d"
 cp "$root/packaging/debian/postinst" "$pkg/DEBIAN/postinst"
+cp "$root/packaging/debian/prerm" "$pkg/DEBIAN/prerm"
+cp "$root/packaging/debian/postrm" "$pkg/DEBIAN/postrm"
 cp "$root/packaging/debian/conffiles" "$pkg/DEBIAN/conffiles"
 printf '%s\n' \
   'Package: astral-project' \
@@ -42,7 +44,7 @@ cp "$root/packaging/systemd/"* "$pkg/lib/systemd/system/"
 cp "$root/packaging/sysusers.d/"* "$pkg/usr/lib/sysusers.d/"
 cp "$root/packaging/tmpfiles.d/"* "$pkg/usr/lib/tmpfiles.d/"
 cp "$root/packaging/apparmor/"* "$pkg/etc/apparmor.d/"
-chmod 0755 "$pkg/DEBIAN/postinst"
+chmod 0755 "$pkg/DEBIAN/postinst" "$pkg/DEBIAN/prerm" "$pkg/DEBIAN/postrm"
 find "$pkg/usr/libexec/astral-project" -type f -exec chmod 0755 {} +
 find "$runtime" -type d -exec chmod 0755 {} +
 find "$runtime" -type f -exec chmod 0644 {} +

@@ -250,6 +250,9 @@ class RuntimeClosureBuilder:
                 _copy_verified(item, target)
             (temporary / "manifest.cbor").write_bytes(manifest.canonical_bytes())
             (temporary / "manifest.toml").write_bytes(manifest.toml_bytes())
+            # The mapped workload must traverse the detached closure mount after
+            # dropping broker DAC override; closure contents remain root-owned.
+            os.chmod(temporary, 0o755)
             _fsync_tree(temporary)
             os.replace(temporary, destination)
             _fsync_directory(runtime_root)
