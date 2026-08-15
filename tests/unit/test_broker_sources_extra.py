@@ -8,8 +8,14 @@ import pytest
 
 from astral_project.broker import sources
 from astral_project.core.errors import AstralError
-from astral_project.crypto.grants import ExportKind, SourceIdentity
-from astral_project.server.path_resolver import MountTopology, ResolvedSource
+from astral_project.crypto.grants import AccessMode, ExportKind, SourceIdentity
+from astral_project.server.path_resolver import (
+    MountTopology,
+    ResolvedSource,
+)
+from astral_project.server.path_resolver import (
+    SourceIdentity as ResolvedIdentity,
+)
 
 
 def test_pinned_sources_rejects_plan_mismatch() -> None:
@@ -29,15 +35,46 @@ def test_pinned_sources_close_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> 
     assert closed == [55]
 
 
+def test_source_helpers_accept_valid_root_identity_and_export() -> None:
+    root = SimpleNamespace(canonical_root="/root", nested_mount_policy="allow")
+    ceiling = SimpleNamespace(source_roots=(root,))
+    identity = SourceIdentity(1, 2, "ext4", ExportKind.FILE)
+    resolved_identity = ResolvedIdentity(1, 2, 3, "ext4", ExportKind.FILE)
+    source = ResolvedSource("/root/file", 3, resolved_identity, (), False)
+    sources._require_safe_broker_topology(source, "/root", ceiling)  # type: ignore[arg-type]
+    sources._require_signed_identity(
+        source,
+        SimpleNamespace(canonical_source="/root/file", source_identity=identity),  # type: ignore[arg-type]
+    )
+    planned = SimpleNamespace(
+        virtual_target="/target",
+        access_mode=AccessMode.READ_ONLY,
+        kind="file",
+        identity=identity,
+    )
+    exported = SimpleNamespace(
+        virtual_target="/target",
+        access_mode=AccessMode.READ_ONLY,
+        kind=ExportKind.FILE,
+        source_identity=identity,
+    )
+    result = sources._grant_export_for_plan_export(
+        SimpleNamespace(exports=(exported,)),  # type: ignore[arg-type]
+        planned,  # type: ignore[arg-type]
+    )
+    assert result.virtual_target == "/target"
+    assert sources._root_for_source("/root/file", ceiling) == "/root"  # type: ignore[arg-type]
+
+
 def test_source_validation_rejects_wrong_root_filesystem_and_identity() -> None:
     root = SimpleNamespace(canonical_root="/root", nested_mount_policy="forbid")
     ceiling = SimpleNamespace(source_roots=(root,))
-    identity = SourceIdentity(1, 2, "xfs", ExportKind.FILE)
-    source = ResolvedSource("/root/file", 3, identity, (), False)  # type: ignore[arg-type]
+    identity = ResolvedIdentity(1, 2, 3, "xfs", ExportKind.FILE)
+    source = ResolvedSource("/root/file", 3, identity, (), False)
     with pytest.raises(AstralError):
         sources._require_safe_broker_topology(source, "/root", ceiling)  # type: ignore[arg-type]
-    identity = SourceIdentity(1, 2, "ext4", ExportKind.FILE)
-    source = ResolvedSource("/root/file", 3, identity, (MountTopology(1, 0, "/", "ext4"),), False)  # type: ignore[arg-type]
+    identity = ResolvedIdentity(1, 2, 3, "ext4", ExportKind.FILE)
+    source = ResolvedSource("/root/file", 3, identity, (MountTopology(1, 0, "/", "ext4"),), False)
     with pytest.raises(AstralError):
         sources._require_safe_broker_topology(source, "/root", ceiling)  # type: ignore[arg-type]
     export = SimpleNamespace(
