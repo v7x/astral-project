@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
 
@@ -220,6 +221,28 @@ def test_root_owned_server_ceiling_is_independent_grant_check() -> None:
             Grant.from_payload({**signed.grant.to_payload(), "server_policy_hash": b"x" * 32}),
             ceiling,
         )
+    for invalid in (
+        replace(ceiling, allowed_issuers=(IssuerKeyId("00000000-0000-4000-8000-000000000004"),)),
+        replace(ceiling, max_ttl_seconds=1),
+        replace(
+            ceiling,
+            source_roots=(
+                SourceRootCeilingV1("/other", AccessMode.READ_ONLY, (ExportKind.DIRECTORY,)),
+            ),
+        ),
+        replace(
+            ceiling,
+            source_roots=(
+                SourceRootCeilingV1("/source", AccessMode.READ_ONLY, (ExportKind.FILE,)),
+            ),
+        ),
+    ):
+        with pytest.raises(AstralError):
+            validate_grant_against_ceiling(signed.grant, invalid)
+    malformed = ceiling.to_payload()
+    malformed["allowed_issuers"] = ["not-a-uuid"]
+    with pytest.raises(AstralError):
+        ServerCeilingV1.from_cbor(canonical_dumps(malformed))
 
 
 @pytest.mark.parametrize(
