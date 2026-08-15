@@ -96,6 +96,59 @@ def test_source_validation_rejects_wrong_root_filesystem_and_identity() -> None:
         )
 
 
+def test_target_source_handoff_child_sends_pinned_descriptors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Exit0(BaseException):
+        pass
+
+    class Exit1(BaseException):
+        pass
+
+    class Endpoint:
+        def __init__(self) -> None:
+            self.sent = False
+
+        def close(self) -> None:
+            return None
+
+        def sendmsg(self, *_args: object) -> None:
+            self.sent = True
+
+        def send(self, _data: bytes) -> None:
+            self.sent = True
+
+    parent, child = Endpoint(), Endpoint()
+    pinned = SimpleNamespace(
+        sources=(SimpleNamespace(descriptor=7),),
+        close=lambda: None,
+    )
+    exits: list[int] = []
+    monkeypatch.setattr(
+        "astral_project.broker.sources.socket.socketpair", lambda *_args: (parent, child)
+    )
+    monkeypatch.setattr("astral_project.broker.sources.os.fork", lambda: 0)
+    monkeypatch.setattr("astral_project.broker.sources.os.setgroups", lambda _groups: None)
+    monkeypatch.setattr("astral_project.broker.sources.os.setresgid", lambda *_args: None)
+    monkeypatch.setattr("astral_project.broker.sources.os.setresuid", lambda *_args: None)
+    monkeypatch.setattr(sources, "_pin_grant_sources", lambda *_args, **_kwargs: pinned)
+
+    def exit_process(code: int) -> None:
+        exits.append(code)
+        raise Exit0 if code == 0 else Exit1
+
+    monkeypatch.setattr("astral_project.broker.sources.os._exit", exit_process)
+    with pytest.raises(Exit1):
+        sources._pin_grant_sources_as_target(
+            SimpleNamespace(exports=(object(),)),  # type: ignore[arg-type]
+            SimpleNamespace(),  # type: ignore[arg-type]
+            1,
+            1,
+        )
+    assert exits == [0, 1]
+    assert child.sent
+
+
 def test_target_source_handoff_rejects_malformed_rights(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
