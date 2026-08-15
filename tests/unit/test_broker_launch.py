@@ -6,6 +6,7 @@ import fcntl
 import os
 from contextlib import suppress
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -16,6 +17,7 @@ from astral_project.broker.launch import (
 from astral_project.broker.sources import PinnedSource, PinnedSources
 from astral_project.crypto.grants import AccessMode, ExportKind, SourceIdentity
 from astral_project.namespace.planner import NamespacePlan, PlannedExport
+from astral_project.runtime.closure import RuntimeManifestV1
 from astral_project.session.broker import WORKER_FD_LAYOUT
 
 
@@ -97,6 +99,43 @@ def test_verified_runtime_descriptor_transfers_to_prepared_launch(
         ):
             with suppress(OSError):
                 os.close(descriptor)
+
+
+def test_prepare_worker_launch_rejects_negative_descriptor() -> None:
+    pinned = _pinned_source(os.open("/dev/null", os.O_RDONLY))
+    try:
+        with pytest.raises(Exception, match="descriptor is invalid"):
+            prepare_worker_launch(pinned, runtime=-1, stream=1, log=2)
+    finally:
+        pinned.close()
+
+
+def test_verified_runtime_clone_failure_closes_descriptor(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    source = os.open("/dev/null", os.O_RDONLY)
+    pinned = _pinned_source(source)
+    runtime = os.open("/dev/null", os.O_RDONLY)
+    monkeypatch.setattr(
+        "astral_project.broker.launch.open_verified_runtime_closure", lambda *_: runtime
+    )
+    monkeypatch.setattr(
+        "astral_project.broker.launch.linux.clone_mount",
+        lambda *_: (_ for _ in ()).throw(OSError("clone")),
+    )
+    try:
+        with pytest.raises(OSError):
+            prepare_worker_launch_with_verified_runtime(
+                pinned,
+                runtime_root=tmp_path,
+                runtime_manifest=cast(RuntimeManifestV1, object()),
+                stream=1,
+                log=2,
+            )
+        with pytest.raises(OSError):
+            os.fstat(runtime)
+    finally:
+        pinned.close()
 
 
 def test_prepare_worker_launch_rejects_aliased_broker_descriptors() -> None:
