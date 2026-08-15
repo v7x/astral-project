@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import struct
+import subprocess
 from io import BytesIO
 
 import pytest
@@ -63,6 +64,34 @@ def test_smoke_rejects_bad_workload_response(
     )
     values = iter(responses)
     monkeypatch.setattr(smoke, "_read_exact", lambda *_args: next(values))
+    with pytest.raises(AstralError):
+        smoke._run_handshake(["sftp"], 1)
+
+
+def test_smoke_translates_process_start_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "astral_project.runtime.smoke.subprocess.Popen",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("missing")),
+    )
+    with pytest.raises(AstralError):
+        smoke._run_handshake(["sftp"], 1)
+
+
+def test_smoke_kills_process_when_termination_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Stuck(_Process):
+        calls = 0
+
+        def communicate(self, **_kwargs: object) -> tuple[bytes, bytes]:
+            self.calls += 1
+            if self.calls == 1:
+                raise subprocess.TimeoutExpired("sftp", 1)
+            return b"", b""
+
+    process = Stuck()
+    monkeypatch.setattr(
+        "astral_project.runtime.smoke.subprocess.Popen", lambda *_args, **_kwargs: process
+    )
+    monkeypatch.setattr(smoke, "_read_exact", lambda *_args: struct.pack(">I", 5))
     with pytest.raises(AstralError):
         smoke._run_handshake(["sftp"], 1)
 

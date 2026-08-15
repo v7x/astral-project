@@ -58,13 +58,16 @@ def run_closure_only_sftp_handshake(runtime: Path, *, timeout_seconds: float = 5
 def _run_handshake(command: list[str], timeout_seconds: float) -> int:
     if timeout_seconds <= 0:
         raise _error("SFTP smoke timeout is invalid")
-    process = subprocess.Popen(
-        command,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env={"HOME": "/", "LANG": "C", "PATH": "/usr/bin:/bin"},
-    )
+    try:
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env={"HOME": "/", "LANG": "C", "PATH": "/usr/bin:/bin"},
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise _error("fixed workload handshake failed", str(error)) from error
     try:
         assert process.stdin is not None
         assert process.stdout is not None
