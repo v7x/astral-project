@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -93,6 +94,20 @@ def test_root_path_validation_rejects_missing_unsafe_and_nonregular(tmp_path: Pa
         config._require_root_owned_regular_file(directory)
 
 
+def test_root_path_validation_rejects_unsafe_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    cases = [
+        SimpleNamespace(st_uid=1, st_mode=0o644),
+        SimpleNamespace(st_uid=0, st_mode=0o666),
+        SimpleNamespace(st_uid=0, st_mode=0o120777),
+    ]
+    for details in cases:
+        monkeypatch.setattr(
+            "astral_project.broker.config.Path.lstat", lambda _path, details=details: details
+        )
+        with pytest.raises(AstralError):
+            config._require_root_owned_path(Path("/config"))
+
+
 def test_private_field_helpers() -> None:
     assert config._absolute({"x": "/tmp/x"}, "x") == Path("/tmp/x")
     assert config._digest({"x": "a" * 64}, "x") == "a" * 64
@@ -141,12 +156,76 @@ def test_load_authority_validates_typed_inputs(
     assert authority.server_ceiling is ceiling
 
 
-def test_load_authority_rejects_bad_transport(monkeypatch: pytest.MonkeyPatch) -> None:
+def _authority_raw(**updates: object) -> dict[str, object]:
+    raw: dict[str, object] = {
+        "ceiling_path": "/ceiling",
+        "expected_peer_uid": 1000,
+        "expected_peer_gid": 1000,
+        "host_id": "00000000-0000-4000-8000-000000000001",
+        "issuer_keys": {},
+        "remote_user": "user",
+        "ssh_host_key_fingerprint": "SHA256:test",
+        "transport_key_ids": ["transport"],
+        "version": 1,
+    }
+    raw.update(updates)
+    return raw
+
+
+@pytest.mark.parametrize(
+    "updates",
+    [
+        {"issuer_keys": "bad"},
+        {"transport_key_ids": "bad"},
+        {"transport_key_ids": [1]},
+        {"version": 2},
+    ],
+)
+def test_load_authority_rejects_malformed_collections_and_version(
+    monkeypatch: pytest.MonkeyPatch, updates: dict[str, object]
+) -> None:
     monkeypatch.setattr(config, "_require_root_owned_regular_file", Mock())
+    monkeypatch.setattr("astral_project.broker.config.Path.read_bytes", lambda _path: b"ceiling")
     monkeypatch.setattr(
         config,
         "load_toml_config",
-        lambda *_args, **_kwargs: {"ceiling_path": "/ceiling", "transport_key_ids": "bad"},
+        lambda *_args, **_kwargs: _authority_raw(**updates),
+    )
+    monkeypatch.setattr(
+        "astral_project.broker.config.ServerCeilingV1.from_cbor", lambda _value: Mock()
+    )
+    with pytest.raises(AstralError) as error:
+        config.load_broker_authority(Path("/authority.toml"))
+    assert error.value.code is ErrorCode.CONFIG_PARSE
+
+
+def test_load_authority_rejects_non_string_issuer_entries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(config, "_require_root_owned_regular_file", Mock())
+    monkeypatch.setattr("astral_project.broker.config.Path.read_bytes", lambda _path: b"ceiling")
+    monkeypatch.setattr(
+        config,
+        "load_toml_config",
+        lambda *_args, **_kwargs: _authority_raw(issuer_keys={1: "bad", "key": 1}),
+    )
+    monkeypatch.setattr(
+        "astral_project.broker.config.ServerCeilingV1.from_cbor", lambda _value: Mock()
+    )
+    with pytest.raises(AstralError):
+        config.load_broker_authority(Path("/authority.toml"))
+
+
+def test_load_authority_rejects_bad_transport(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "_require_root_owned_regular_file", Mock())
+    monkeypatch.setattr("astral_project.broker.config.Path.read_bytes", lambda _path: b"ceiling")
+    monkeypatch.setattr(
+        config,
+        "load_toml_config",
+        lambda *_args, **_kwargs: _authority_raw(transport_key_ids="bad"),
+    )
+    monkeypatch.setattr(
+        "astral_project.broker.config.ServerCeilingV1.from_cbor", lambda _value: Mock()
     )
     with pytest.raises(AstralError) as error:
         config.load_broker_authority(Path("/authority.toml"))

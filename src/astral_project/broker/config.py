@@ -97,12 +97,13 @@ def load_broker_authority(path: Path) -> BrokerAuthority:
     try:
         ceiling = ServerCeilingV1.from_cbor(ceiling_path.read_bytes())
         keys_value = raw["issuer_keys"]
-        if not isinstance(keys_value, dict):
+        if not isinstance(keys_value, dict) or not all(
+            isinstance(key, str) and isinstance(value, str) for key, value in keys_value.items()
+        ):
             raise ValueError("issuer_keys")
         keys = {
             IssuerKeyId(key): public_key_from_bytes(base64.b64decode(value, validate=True))
             for key, value in keys_value.items()
-            if isinstance(key, str) and isinstance(value, str)
         }
         transport = raw["transport_key_ids"]
         if not isinstance(transport, list) or not all(
