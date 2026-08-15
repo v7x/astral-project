@@ -39,6 +39,14 @@ def test_runtime_metadata_rejects_invalid_digest_mode_resolution(tmp_path: Path)
             closure.RuntimeInput("file", source, **kwargs)
 
 
+def test_runtime_manifest_rejects_missing_required_file(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.write_bytes(b"x")
+    files = tuple(closure.RuntimeInput(name, source) for name in ("ld.so", "sftp-server"))
+    with pytest.raises(AstralError):
+        closure.RuntimeManifestV1("x86_64", "glibc", files)
+
+
 def test_runtime_manifest_rejects_bad_cbor_entries(tmp_path: Path) -> None:
     manifest = _manifest(tmp_path)
     payload = manifest.payload()
@@ -56,6 +64,18 @@ def test_runtime_manifest_rejects_bad_cbor_entries(tmp_path: Path) -> None:
 
 
 def test_runtime_dependency_and_elf_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "astral_project.runtime.closure.subprocess.run",
+        lambda *_args, **_kwargs: SimpleNamespace(stdout="x (NEEDED) malformed"),
+    )
+    with pytest.raises(AstralError):
+        closure._read_elf_metadata(tmp_path / "source")
+    monkeypatch.setattr(
+        "astral_project.runtime.closure.subprocess.run",
+        lambda *_args, **_kwargs: SimpleNamespace(stdout=""),
+    )
+    with pytest.raises(AstralError):
+        closure._read_elf_metadata(tmp_path / "source")
     source = tmp_path / "source"
     source.write_bytes(b"x")
     monkeypatch.setattr(
