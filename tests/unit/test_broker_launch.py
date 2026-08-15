@@ -115,6 +115,38 @@ def test_verified_runtime_descriptor_transfers_to_prepared_launch(
                 os.close(descriptor)
 
 
+def test_verified_runtime_prepare_failure_closes_cloned_runtime(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    source = os.open("/dev/null", os.O_RDONLY)
+    pinned = _pinned_source(source)
+    verified = os.open("/dev/null", os.O_RDONLY)
+    cloned = os.dup(verified)
+    monkeypatch.setattr(
+        "astral_project.broker.launch.open_verified_runtime_closure", lambda *_: verified
+    )
+    monkeypatch.setattr("astral_project.broker.launch.linux.clone_mount", lambda _fd: cloned)
+    monkeypatch.setattr(
+        "astral_project.broker.launch.prepare_worker_launch",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("prepare")),
+    )
+    try:
+        with pytest.raises(OSError, match="prepare"):
+            prepare_worker_launch_with_verified_runtime(
+                pinned,
+                runtime_root=tmp_path,
+                runtime_manifest=cast(RuntimeManifestV1, object()),
+                stream=1,
+                log=2,
+            )
+        with pytest.raises(OSError):
+            os.fstat(cloned)
+    finally:
+        pinned.close()
+        with suppress(OSError):
+            os.close(verified)
+
+
 def test_prepare_worker_launch_rejects_negative_descriptor() -> None:
     pinned = _pinned_source(os.open("/dev/null", os.O_RDONLY))
     try:
