@@ -77,6 +77,49 @@ def test_executor_closes_pinned_and_logs_when_launch_fails(
             os.close(stream_write)
 
 
+def test_executor_closes_prepared_launch_when_worker_start_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stream_read, stream_write = os.pipe()
+    pinned = _pinned(os.open("/dev/null", os.O_RDONLY))
+    prepared_closed = False
+
+    class Prepared:
+        launch_fds = cast(WorkerLaunchFds, object())
+
+        def close(self) -> None:
+            nonlocal prepared_closed
+            prepared_closed = True
+            pinned.close()
+
+    class Worker:
+        def start(self, **_kwargs: object) -> WorkerProcess:
+            raise RuntimeError("worker start")
+
+    monkeypatch.setattr(
+        "astral_project.broker.executor.pin_grant_sources", lambda *_args, **_kwargs: pinned
+    )
+    monkeypatch.setattr(
+        "astral_project.broker.executor.prepare_worker_launch_with_verified_runtime",
+        lambda *_args, **_kwargs: Prepared(),
+    )
+    executor = BrokerSessionExecutor(
+        ceiling=cast(ServerCeilingV1, None),
+        runtime_root=tmp_path,
+        runtime_manifest=cast(RuntimeManifestV1, None),
+        mapping_worker=cast(MappingWorker, Worker()),
+    )
+    try:
+        with pytest.raises(RuntimeError, match="worker start"):
+            executor.start(cast(Grant, None), stream_descriptor=stream_read, peer_uid=1, peer_gid=1)
+        assert prepared_closed
+        with pytest.raises(OSError):
+            os.fstat(stream_read)
+    finally:
+        with suppress(OSError):
+            os.close(stream_write)
+
+
 def test_executor_starts_worker_and_closes_parent_descriptor_copies(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
