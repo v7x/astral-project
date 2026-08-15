@@ -7,9 +7,24 @@ from pathlib import Path
 import pytest
 
 from astral_project.core.errors import AstralError, ErrorCode
-from astral_project.host.records import Capability, CapabilityStatus, HostRecord, ProbeReport
+from astral_project.host.records import (
+    Capability,
+    CapabilityStatus,
+    HostRecord,
+    ProbeReport,
+    _string,
+    _toml_string,
+)
 
 FIXTURES = Path(__file__).parents[1] / "fixtures" / "hosts"
+
+
+def test_host_record_string_helpers_cover_control_escapes() -> None:
+    assert _toml_string('\\"\n\r\t\x01') == '"\\\\\\"\\n\\r\\t\\u0001"'
+    with pytest.raises(AstralError):
+        _string({"field": ""}, "field")
+    with pytest.raises(AstralError):
+        _string({"field": 1}, "field")
 
 
 def test_supported_and_restricted_fixtures_round_trip(tmp_path: Path) -> None:
