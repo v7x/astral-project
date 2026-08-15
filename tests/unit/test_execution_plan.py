@@ -4,10 +4,16 @@ from __future__ import annotations
 
 import fcntl
 import os
+from dataclasses import replace
 
 import pytest
 
-from astral_project.broker.execution_plan import ExecutionPlanV1, create_sealed_execution_plan
+from astral_project.broker.execution_plan import (
+    ExecutionPlanV1,
+    _kind,
+    create_sealed_execution_plan,
+)
+from astral_project.core.errors import AstralError
 from astral_project.core.ids import GrantId, HostId, IssuerKeyId
 from astral_project.crypto.grants import AccessMode, ExportKind, Grant, GrantExport, SourceIdentity
 from astral_project.namespace.planner import build_namespace_plan
@@ -44,6 +50,32 @@ def test_plan_has_no_source_path_and_uses_fixed_descriptor_slots() -> None:
     assert payload.startswith(b"ASPRPLN1")
     assert b"/secret/source" not in payload
     assert b"/project" in payload
+
+
+@pytest.mark.parametrize(
+    "mount_ids",
+    [(), (0,), (1, 2)],
+)
+def test_plan_rejects_invalid_mount_shape(mount_ids: tuple[int, ...]) -> None:
+    with pytest.raises(AstralError):
+        ExecutionPlanV1(_plan().exports, mount_ids)
+
+
+def test_plan_encodes_write_access_and_file_kind() -> None:
+    export = replace(
+        _plan().exports[0],
+        access_mode=AccessMode.READ_WRITE,
+        kind=ExportKind.FILE.value,
+        identity=SourceIdentity(8, 42, "ext4", ExportKind.FILE),
+    )
+    payload = ExecutionPlanV1((export,), (7,)).to_bytes()
+    assert payload[20] == 2
+    assert payload[21] == 1
+
+
+def test_plan_rejects_unknown_kind() -> None:
+    with pytest.raises(AstralError):
+        _kind("unknown")
 
 
 def test_memfd_plan_is_fully_sealed() -> None:
