@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+import astral_project.server.path_resolver as resolver
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.crypto.grants import ExportKind
 from astral_project.server import linux
@@ -17,8 +18,26 @@ from astral_project.server.path_resolver import (
     _filesystem_name,
     _parse_mountinfo,
     _relative_to_root,
+    _resolution_error,
     resolve_source,
 )
+
+
+def test_path_resolution_error_codes_and_missing_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    with pytest.raises(AstralError):
+        TrustedRoot.open(str(tmp_path / "missing"))
+    assert _resolution_error("x", OSError(38, "nosys")).code is ErrorCode.PATH_UNSUPPORTED
+    assert _resolution_error("x", OSError(1, "denied")).code is ErrorCode.PATH_RESOLUTION
+    monkeypatch.setattr(
+        resolver,
+        "open",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("mountinfo")),
+        raising=False,
+    )
+    with pytest.raises(AstralError):
+        resolver._nested_mounts("/root", 1)
 
 
 def test_resolve_regular_file_returns_pinned_descriptor(tmp_path: Path) -> None:
