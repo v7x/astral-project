@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import array
 import socket
 from types import SimpleNamespace
 
@@ -147,6 +148,144 @@ def test_target_source_handoff_child_sends_pinned_descriptors(
         )
     assert exits == [0, 1]
     assert child.sent
+
+
+def test_target_source_handoff_rejects_unsupported_control_and_closes_rights(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Endpoint:
+        def close(self) -> None:
+            return None
+
+    parent, child = Endpoint(), Endpoint()
+    descriptor = 7
+    closed: list[int] = []
+    monkeypatch.setattr(
+        "astral_project.broker.sources.socket.socketpair", lambda *_args: (parent, child)
+    )
+    monkeypatch.setattr("astral_project.broker.sources.os.fork", lambda: 123)
+    monkeypatch.setattr("astral_project.broker.sources.os.waitpid", lambda *_args: (123, 0))
+    monkeypatch.setattr("astral_project.broker.sources.os.close", closed.append)
+    monkeypatch.setattr(
+        parent,
+        "recvmsg",
+        lambda *_args: (
+            b"bad",
+            [
+                (socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [descriptor]).tobytes()),
+                (1, 2, b""),
+            ],
+            0,
+            None,
+        ),
+        raising=False,
+    )
+    with pytest.raises(AstralError):
+        sources._pin_grant_sources_as_target(
+            SimpleNamespace(exports=(object(),)),  # type: ignore[arg-type]
+            SimpleNamespace(),  # type: ignore[arg-type]
+            1,
+            1,
+        )
+    assert descriptor in closed
+
+
+def test_target_source_handoff_closes_clones_on_clone_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Endpoint:
+        def close(self) -> None:
+            return None
+
+    parent, child = Endpoint(), Endpoint()
+    closed: list[int] = []
+    exports = (SimpleNamespace(kind="file", identity=SimpleNamespace(device=1, inode=2)),) * 2
+    raw = SimpleNamespace(
+        plan=SimpleNamespace(),
+        sources=(
+            SimpleNamespace(descriptor=7, export=exports[0]),
+            SimpleNamespace(descriptor=8, export=exports[1]),
+        ),
+        close=lambda: None,
+    )
+    monkeypatch.setattr(
+        "astral_project.broker.sources.socket.socketpair", lambda *_args: (parent, child)
+    )
+    monkeypatch.setattr("astral_project.broker.sources.os.fork", lambda: 123)
+    monkeypatch.setattr("astral_project.broker.sources.os.waitpid", lambda *_args: (123, 0))
+    monkeypatch.setattr("astral_project.broker.sources.os.close", closed.append)
+    monkeypatch.setattr(sources, "_pin_from_descriptors", lambda *_args: raw)
+    monkeypatch.setattr(
+        "astral_project.broker.sources.linux.clone_mount", lambda descriptor: descriptor + 10
+    )
+    calls = [0]
+
+    def fail_second(_descriptor: int) -> int:
+        calls[0] += 1
+        if calls[0] == 2:
+            raise OSError("clone")
+        return 17
+
+    monkeypatch.setattr("astral_project.broker.sources.linux.clone_mount", fail_second)
+    payload = array.array("i", [7, 8]).tobytes()
+    monkeypatch.setattr(
+        parent,
+        "recvmsg",
+        lambda *_args: (b"O", [(socket.SOL_SOCKET, socket.SCM_RIGHTS, payload)], 0, None),
+        raising=False,
+    )
+    with pytest.raises(OSError):
+        sources._pin_grant_sources_as_target(
+            SimpleNamespace(exports=exports),  # type: ignore[arg-type]
+            SimpleNamespace(),  # type: ignore[arg-type]
+            1,
+            1,
+        )
+    assert 17 in closed
+
+
+def test_target_source_handoff_closes_clones_on_identity_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Endpoint:
+        def close(self) -> None:
+            return None
+
+    parent, child = Endpoint(), Endpoint()
+    closed: list[int] = []
+    export = SimpleNamespace(kind="file", identity=SimpleNamespace(device=1, inode=2))
+    raw = SimpleNamespace(
+        plan=SimpleNamespace(),
+        sources=(SimpleNamespace(descriptor=7, export=export),),
+        close=lambda: None,
+    )
+    monkeypatch.setattr(
+        "astral_project.broker.sources.socket.socketpair", lambda *_args: (parent, child)
+    )
+    monkeypatch.setattr("astral_project.broker.sources.os.fork", lambda: 123)
+    monkeypatch.setattr("astral_project.broker.sources.os.waitpid", lambda *_args: (123, 0))
+    monkeypatch.setattr("astral_project.broker.sources.os.close", closed.append)
+    monkeypatch.setattr(sources, "_pin_from_descriptors", lambda *_args: raw)
+    monkeypatch.setattr("astral_project.broker.sources.linux.clone_mount", lambda _descriptor: 17)
+    monkeypatch.setattr(
+        "astral_project.broker.sources.linux.statx_descriptor",
+        lambda _descriptor: SimpleNamespace(device=9, inode=2, mode=0o100644, mount_id=1),
+    )
+    payload = array.array("i", [7]).tobytes()
+    monkeypatch.setattr(
+        parent,
+        "recvmsg",
+        lambda *_args: (b"O", [(socket.SOL_SOCKET, socket.SCM_RIGHTS, payload)], 0, None),
+        raising=False,
+    )
+    with pytest.raises(AstralError):
+        sources._pin_grant_sources_as_target(
+            SimpleNamespace(exports=(export,)),  # type: ignore[arg-type]
+            SimpleNamespace(),  # type: ignore[arg-type]
+            1,
+            1,
+        )
+    assert 17 in closed
 
 
 def test_target_source_handoff_rejects_malformed_rights(
