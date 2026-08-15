@@ -246,6 +246,11 @@ def test_root_owned_server_ceiling_is_independent_grant_check() -> None:
             Grant.from_payload({**signed.grant.to_payload(), "server_policy_hash": b"x" * 32}),
             ceiling,
         )
+    with pytest.raises(AstralError):
+        validate_grant_against_ceiling(
+            replace(signed.grant, exports=(signed.grant.exports[0], signed.grant.exports[0])),
+            ceiling,
+        )
     for invalid in (
         replace(ceiling, allowed_issuers=(IssuerKeyId("00000000-0000-4000-8000-000000000004"),)),
         replace(ceiling, max_ttl_seconds=1),
@@ -268,6 +273,17 @@ def test_root_owned_server_ceiling_is_independent_grant_check() -> None:
     malformed["allowed_issuers"] = ["not-a-uuid"]
     with pytest.raises(AstralError):
         ServerCeilingV1.from_cbor(canonical_dumps(malformed))
+    malformed_root = ceiling.to_payload()
+    malformed_root["source_roots"] = [
+        {
+            "allowed_kinds": ["directory"],
+            "canonical_root": 1,
+            "maximum_access": "ro",
+            "nested_mount_policy": "forbid",
+        }
+    ]
+    with pytest.raises(AstralError):
+        ServerCeilingV1.from_cbor(canonical_dumps(malformed_root))
 
 
 @pytest.mark.parametrize(
