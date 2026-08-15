@@ -56,7 +56,7 @@ def test_runtime_manifest_rejects_bad_file_values_and_inconsistent_bytes(
     with pytest.raises(AstralError):
         closure.RuntimeManifestV1.from_cbor(canonical_dumps(payload), closure_root=tmp_path)
     payload = manifest.payload()
-    payload["files"][0]["destination"] = "../escape"  # type: ignore[call-overload, index]
+    payload["files"][0]["destination"] = "/escape"  # type: ignore[call-overload, index]
     with pytest.raises(AstralError):
         closure.RuntimeManifestV1.from_cbor(canonical_dumps(payload), closure_root=tmp_path)
     data = manifest.canonical_bytes()

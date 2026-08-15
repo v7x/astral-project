@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+import astral_project.session.ceiling as ceiling_module
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.core.ids import GrantId, HostId, IssuerKeyId, SessionId
 from astral_project.crypto.cbor import canonical_dumps
@@ -295,6 +296,15 @@ def test_root_owned_server_ceiling_is_independent_grant_check() -> None:
     ]
     with pytest.raises(AstralError):
         ServerCeilingV1.from_cbor(canonical_dumps(malformed_access))
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(
+        ceiling_module, "IssuerKeyId", lambda _value: (_ for _ in ()).throw(ValueError("id"))
+    )
+    try:
+        with pytest.raises(AstralError):
+            ServerCeilingV1.from_cbor(ceiling.canonical_bytes())
+    finally:
+        monkeypatch.undo()
 
 
 @pytest.mark.parametrize(
