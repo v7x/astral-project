@@ -103,6 +103,25 @@ def test_unenrolled_issuer_is_rejected() -> None:
     )
 
 
+def test_authenticated_verification_callback_runs_before_dispatch() -> None:
+    request, trust = signed_request()
+    observed: list[RemoteSessionRequestV1] = []
+    assert (
+        run_ssh_entry(
+            "transport-1",
+            stdin=framed(request),
+            stdout=BytesIO(),
+            stderr=StringIO(),
+            environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_COMMAND},
+            trust=trust,
+            now=150,
+            after_verification=observed.append,
+        )
+        == 0
+    )
+    assert observed == [request]
+
+
 def test_broker_dispatch_bridges_authenticated_stream(monkeypatch: pytest.MonkeyPatch) -> None:
     request, trust = signed_request()
     stream = object()
