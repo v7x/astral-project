@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,7 @@ from astral_project.host.enrollment import (
     enroll,
     verify_host_fingerprint,
 )
-from astral_project.host.records import HostRecord
+from astral_project.host.records import CapabilityStatus, HostRecord
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "hosts" / "supported.toml"
 
@@ -171,6 +172,34 @@ def test_enrollment_reports_incomplete_rollback(tmp_path: Path) -> None:
             control_file=ControlFileIdentity(1, "a" * 64, 1),
         )
     assert error.value.dependency_error == "remove bundle"
+
+
+@pytest.mark.parametrize("evidence", ["unsupported", "/one;/two"])
+def test_enrollment_rejects_ambiguous_or_unsupported_authorized_keys(
+    tmp_path: Path, evidence: str
+) -> None:
+    record = HostRecord.load(FIXTURE)
+    capabilities = tuple(
+        replace(
+            item,
+            status=CapabilityStatus.UNSUPPORTED if evidence == "unsupported" else item.status,
+            evidence=evidence,
+        )
+        if item.name == "authorized_keys"
+        else item
+        for item in record.probe.capabilities
+    )
+    record = replace(record, probe=replace(record.probe, capabilities=capabilities))
+    with pytest.raises(AstralError):
+        enroll(
+            record,
+            Remote(),
+            bundle=b"bundle",
+            issuer_key=b"i" * 32,
+            transport_key_id="id",
+            private_key_path=tmp_path / "key",
+            control_file=ControlFileIdentity(1, "a" * 64, 1),
+        )
 
 
 def test_bad_key_and_control_identity_fail() -> None:
