@@ -284,6 +284,17 @@ def test_root_owned_server_ceiling_is_independent_grant_check() -> None:
     ]
     with pytest.raises(AstralError):
         ServerCeilingV1.from_cbor(canonical_dumps(malformed_root))
+    malformed_access = ceiling.to_payload()
+    malformed_access["source_roots"] = [
+        {
+            "allowed_kinds": ["directory"],
+            "canonical_root": "/source",
+            "maximum_access": "invalid",
+            "nested_mount_policy": "forbid",
+        }
+    ]
+    with pytest.raises(AstralError):
+        ServerCeilingV1.from_cbor(canonical_dumps(malformed_access))
 
 
 @pytest.mark.parametrize(
