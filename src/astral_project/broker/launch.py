@@ -44,9 +44,7 @@ def prepare_worker_launch(
     """Seal plan then bind only broker-owned descriptors to fixed worker ABI."""
     if any(descriptor < 0 for descriptor in (runtime, stream, log)):
         raise _error("worker runtime, stream, or log descriptor is invalid")
-    descriptor = create_sealed_execution_plan(
-        ExecutionPlanV1.from_pinned_sources(pinned_sources)
-    )
+    descriptor = create_sealed_execution_plan(ExecutionPlanV1.from_pinned_sources(pinned_sources))
     try:
         launch_fds = WorkerLaunchFds(
             sealed_plan=descriptor,

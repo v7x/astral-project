@@ -59,6 +59,19 @@ def test_broker_launcher_uses_isolated_no_site_startup() -> None:
     assert "/usr/bin/python3 -I -S -c" in launcher
     assert "/usr/lib/astral-project/python" in launcher
     assert "PYTHONPATH" not in launcher
+    result = subprocess.run(
+        [
+            "/usr/bin/python3",
+            "-I",
+            "-S",
+            "-c",
+            "import sys; sys.path.insert(0, 'src'); import astral_project; print(sys.path)",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "site-packages" not in result.stdout
 
 
 def test_source_root_renderer_is_packaged_and_provisioned() -> None:

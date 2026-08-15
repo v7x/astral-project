@@ -73,7 +73,7 @@ Packet 16 exercises and integrates Packet 15. It does not casually redesign or w
 
 The broker, signed-grant, target-user-DAC, descriptor-pinning, sealed-plan, synthetic-root, fixed-workload, authority-removal, and fail-closed model is portable Linux remote security architecture. systemd and AppArmor are current Ubuntu 26.04 host integration/confinement realization, not protocol authorities and not caller-selectable request fields. Future Debian, Fedora, and Rocky Linux ports may require different packaging, service integration, MAC policy, runtime closure, or kernel evidence, but may not use weaker fallback. SELinux, Landlock, seccomp, OpenRC, RPM packaging, and generic backend abstractions are deferred work requiring evidence and, where appropriate, ADRs.
 
-Current support is evidence-based per distribution/release/architecture. Ubuntu 26.04 amd64 is certified. Ubuntu 24.04 amd64 is uncertified after the failed packaged gate in `docs/packet-15f-ubuntu-24.04-evidence.md`. Debian, Fedora, and Rocky Linux are future portability targets, not current support claims or Packet 16 requirements.
+Current support is evidence-based per distribution/release/architecture. Ubuntu 26.04 amd64 is certified. Ubuntu 24.04 amd64 is uncertified after the failed packaged final-profile socket-denial gate in `docs/packet-15f-ubuntu-24.04-evidence.md`. Debian, Fedora, and Rocky Linux are future portability targets, not current support claims or Packet 16 requirements.
 
 ## 4. Packet definitions
 
@@ -300,7 +300,7 @@ Normal operation thereafter requires no `sudo`, no administrator approval, and n
 
 ### Objective
 
-Prove the completed administrator-bootstrapped backend on explicitly tested targets. Ubuntu 26.04 amd64 passed. Ubuntu 24.04 amd64 remains failed/uncertified because packaged AppArmor integration denied required Python/source access; VM-only diagnostic rerun is not acceptance evidence.
+Prove the completed administrator-bootstrapped backend on explicitly tested targets. Ubuntu 26.04 amd64 passed. Ubuntu 24.04 amd64 remains failed/uncertified because final-profile socket creation was not denied under its AppArmor semantics; VM-only diagnostic changes are not acceptance evidence.
 
 ### Required host evidence
 

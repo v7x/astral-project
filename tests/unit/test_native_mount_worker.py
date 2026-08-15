@@ -69,13 +69,17 @@ def test_mount_worker_uses_only_fixed_fd_abi_and_descriptor_syscalls() -> None:
 def test_final_transition_precedes_no_new_privs_and_exec() -> None:
     source = SOURCE.read_text(encoding="utf-8")
 
-    assert source.index("enter_apparmor_profile(apparmor_control)") < source.index("set_no_new_privs()")
+    assert source.index("enter_apparmor_profile(apparmor_control)") < source.index(
+        "set_no_new_privs()"
+    )
     assert source.index("set_no_new_privs()") < source.index("run_fixed_sftp()")
     assert "runtime mount is noexec" in source
 
 
 def test_packaged_apparmor_has_no_packet15f_diagnostic_allowances() -> None:
-    profile = (PROJECT_ROOT / "packaging" / "apparmor" / "usr.libexec.astral-project.aspr-broker").read_text(encoding="utf-8")
+    profile = (
+        PROJECT_ROOT / "packaging" / "apparmor" / "usr.libexec.astral-project.aspr-broker"
+    ).read_text(encoding="utf-8")
 
     assert "allow mount," not in profile
     assert "/proc/** rw," not in profile

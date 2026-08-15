@@ -1,6 +1,6 @@
 # Packet 15F Ubuntu 24.04 evidence
 
-Status: **failed / uncertified** on 2026-08-15. This record is not a certification claim.
+Status: **failed / uncertified** on 2026-08-15. Clean packaged startup remediation passed; full certification remains blocked by final-workload socket-creation denial on Ubuntu 24.04 AppArmor semantics.
 
 ## Target and package
 
@@ -8,54 +8,39 @@ Status: **failed / uncertified** on 2026-08-15. This record is not a certificati
 - Kernel: `6.8.0-137-generic`.
 - AppArmor package: `4.0.1really4.0.1-0ubuntu0.24.04.7`; parser `4.0.1`.
 - systemd: `255.4-1ubuntu8.17`.
+- Repository commit used to build: `b65a8ad`.
 - Package: `astral-project 0.1.0`.
-- Debian SHA-256: `2d2c07b878a90e5cd82c19851242feb6f9a43eb54df92615169f9a5bced36075`.
+- Debian SHA-256: `fc03982ddbd633ad75724c816841734adf1797a851e40f2ca8794a45d68fc5de`.
 - Filesystem: `/dev/vda2`, `ext4`, `rw,relatime`.
 - Runtime manifest digest: `d4747062e4854443c29a61171fb133b6f77722eb2185168d3256659eae7bb4ce`.
 - Broker configuration SHA-256: `efbb2f29eeb82fdf504df3043d6a7cbda0576237362b4229699bc57a9e1ade2f`.
-- User-ceiling SHA-256: `ecb7b4d349820adfa21201989389f0322fdc6885e9d2c4c57395a63e8bc412b7`.
+- Server-ceiling tree SHA-256: `12f66c554a3b140d355e9d75692c95d9d8da7d3c412f60ef4a41fa8a06855409`.
 - Loaded profiles: `aspr-broker`, `aspr-namespace-setup`, `aspr-sftp-v1`; all `enforce`.
+- AppArmor status JSON SHA-256: `4b7575fcbe46d3ae3b82917fb9dbd3777a48c3f091fce2fdeb4a03777aeeba5b`.
 
-## Gate result
+## Remediation results
 
-Packaged preflight passed and wrote `/var/lib/astral-project/evidence/packet15f.json`.
-The first positive request under the packaged AppArmor policy failed closed:
+Trusted broker launcher now uses `/usr/bin/python3 -I -S` and inserts only `/usr/lib/astral-project/python`. Clean packaged startup no longer requests `/usr/local/lib/python3.12/dist-packages/`.
+
+Package post-install and explicit administrator tool `/usr/libexec/astral-project/render-apparmor-roots` deterministically render the fixed root-owned local include from root-owned authority and ceiling inputs. Rendered rules contain only configured exact source roots. Normal sessions require no administrator action.
+
+Packaged preflight passed. Registered-user SFTP handshake, descriptor replacement, kernel RO denial, alternate-root denial, target-user DAC denial, cancellation/expiry cleanup, replay rejection, expired-grant rejection, wrong-user rejection, source-root ceiling rejection, and RO/RW ceiling rejection passed with stage-specific broker results.
+
+## Remaining failure
+
+Final confined-profile probe output:
 
 ```text
-NamespaceRejectedV1(... stable_error_code=backend_unavailable,
-    stage='worker_start', safe_message='broker request could not be completed')
+mount=passed errno=13
+open_tree=passed errno=1
+mount_setattr=passed errno=1
+move_mount=passed errno=1
+chroot=passed errno=13
+pivot_root=passed errno=1
+unix_socket=FAILED rc=4 errno=0
+network_socket=FAILED rc=4 errno=0
 ```
 
-Broker journal and kernel audit identified first failing stage:
+The final profile records explicit network and Unix-socket denial rules and removes the broad AppArmor base abstraction whose Unix grants conflicted with the frozen boundary. Ubuntu 24.04 nevertheless permits socket creation in this profile; kernel audit records denials for later socket attribute operations, not creation. Adding a permissive or weaker fallback would violate required evidence, so no such change was made.
 
-```text
-apparmor="DENIED" profile="aspr-broker"
-name="/usr/local/lib/python3.12/dist-packages/"
-requested_mask="r"
-
-apparmor="DENIED" profile="aspr-broker"
-name="/home/testuser/astral-gate-source/"
-fsuid=1002 ouid=1002
-```
-
-The packaged profile lacks the Ubuntu 24.04 Python site-path allowance and administrator-generated source-root include. No global policy or security invariant was weakened.
-
-## Diagnostic-only rerun
-
-For diagnosis only, an exact local AppArmor rule for `/usr/local/lib/python3.12/dist-packages/**` and the administrator source-root include were loaded on the disposable VM. This was VM drift, not acceptance evidence. Under that diagnostic policy:
-
-- registered-user SFTP handshake: passed;
-- descriptor replacement after pinning: passed;
-- kernel read-only export write denial: passed;
-- alternate-root denial: passed;
-- target-user DAC denial after source ownership change: passed;
-- expiry supervision cleanup: passed;
-- replay: first request passed, identical replay rejected at `grant_validation`;
-- expired grant: rejected at `grant_validation`;
-- wrong remote user: rejected at `grant_validation`.
-
-The diagnostic result does not convert the packaged artifact to a pass. UID/GID mismatch and unregistered-peer cases were not promoted to acceptance because packaged positive setup failed before those dependent tests; they remain required for any rerun.
-
-## Classification
-
-Concrete cause: **AppArmor/package integration on Ubuntu 24.04**, not a mount API failure or a frozen Packet 15 security-boundary failure. Ubuntu 24.04 remains uncertified. Remediation requires a reviewed packaging/AppArmor change and a fresh packaged gate; no Packet 16 support claim is made for 24.04.
+This is a concrete Ubuntu 24.04 AppArmor/kernel integration incompatibility, not a Packet 15 architecture or mount-API failure. Ubuntu 24.04 remains uncertified. Fresh rerun required if a later security-reviewed host-integration fix is approved.

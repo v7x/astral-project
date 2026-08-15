@@ -15,7 +15,7 @@ Current POC matrix:
 | Ubuntu 26.04 amd64 | certified | `docs/packet-15f-ubuntu-26.04-evidence.md` |
 | Ubuntu 24.04 amd64 | uncertified; packaged gate failed | `docs/packet-15f-ubuntu-24.04-evidence.md` |
 
-Ubuntu 24.04 failure is an AppArmor/package integration failure: packaged `aspr-broker` was denied access to the Ubuntu 24.04 Python site path and administrator source-root include. Diagnostic VM-only policy additions allowed the substantive path, descriptor, DAC, SFTP, and lifecycle checks, but do not count as acceptance. No weaker fallback is permitted.
+Ubuntu 24.04 packaged startup/source-root integration was remediated: `python3 -I -S` removes ambient site access and the package renders exact root-owned source-root rules. Full certification still fails because Ubuntu 24.04 permits final-profile socket creation despite explicit AppArmor denial rules; mount, namespace, alternate-root, DAC, SFTP, lifecycle, and ceiling checks pass. No weaker fallback is permitted. See `docs/packet-15f-ubuntu-24.04-evidence.md`.
 
 Packet 16 is not blocked for this POC by Ubuntu 24.04 uncertainty. It begins on certified Ubuntu 26.04 amd64 and must preserve Packet 15 boundary.
 

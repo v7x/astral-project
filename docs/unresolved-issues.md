@@ -14,7 +14,7 @@ These are implemented and evidenced for Ubuntu 26.04 amd64. They are frozen inpu
 - cancellation and expiry supervision;
 - Ubuntu 26.04 AppArmor/systemd packaged evidence.
 
-Ubuntu 24.04 packaged integration was remediated in source during this closure pass and requires fresh certification evidence. It is not certified until its clean packaged Packet 15F gate passes.
+Ubuntu 24.04 packaged startup and source-root integration are remediated and pass. It remains uncertified because the final-profile socket-creation negative control fails under Ubuntu 24.04 AppArmor semantics; see its exact evidence record. No weaker fallback is permitted.
 
 ## Packet 16 — genuinely remaining
 

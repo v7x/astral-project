@@ -2,7 +2,7 @@
 
 ## Status
 
-Packet 15F passed for Ubuntu 26.04 amd64. Ubuntu 24.04 was previously uncertified because packaged AppArmor/startup integration denied the Python site path and administrator source-root include; remediation is in current source and requires a fresh packaged gate.
+Packet 15F passed for Ubuntu 26.04 amd64. Ubuntu 24.04 packaged startup/source-root remediation now passes, but full gate remains uncertified because final-profile socket creation is not denied under Ubuntu 24.04 AppArmor semantics. Exact evidence is retained.
 
 Evidence:
 

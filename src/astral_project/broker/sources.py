@@ -57,7 +57,11 @@ class PinnedSources:
 
 
 def pin_grant_sources(
-    grant: Grant, ceiling: ServerCeilingV1, *, target_uid: int | None = None, target_gid: int | None = None
+    grant: Grant,
+    ceiling: ServerCeilingV1,
+    *,
+    target_uid: int | None = None,
+    target_gid: int | None = None,
 ) -> PinnedSources:
     """Resolve under target DAC, then clone descriptors only in the broker."""
     if target_uid is None or target_gid is None:
@@ -65,7 +69,9 @@ def pin_grant_sources(
     return _pin_grant_sources_as_target(grant, ceiling, target_uid, target_gid)
 
 
-def _pin_grant_sources(grant: Grant, ceiling: ServerCeilingV1, *, clone_mounts: bool) -> PinnedSources:
+def _pin_grant_sources(
+    grant: Grant, ceiling: ServerCeilingV1, *, clone_mounts: bool
+) -> PinnedSources:
     """Open signed sources only beneath root-owned roots; never reopen after pinning."""
     validate_grant_against_ceiling(grant, ceiling)
     plan = build_namespace_plan(grant)
@@ -98,7 +104,9 @@ def _pin_grant_sources(grant: Grant, ceiling: ServerCeilingV1, *, clone_mounts: 
                         raise _error("broker detached mount clone changed source identity")
                     pinned.append(PinnedSource(descriptor, export, clone_identity.mount_id))
                 else:
-                    pinned.append(PinnedSource(os.dup(source.descriptor), export, source.identity.mount_id))
+                    pinned.append(
+                        PinnedSource(os.dup(source.descriptor), export, source.identity.mount_id)
+                    )
             finally:
                 source.close()
         return PinnedSources(plan=plan, sources=tuple(pinned))
@@ -127,7 +135,16 @@ def _pin_grant_sources_as_target(
             os.setresuid(uid, uid, uid)
             pinned = _pin_grant_sources(grant, ceiling, clone_mounts=False)
             try:
-                child.sendmsg([b"O"], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [item.descriptor for item in pinned.sources]))])
+                child.sendmsg(
+                    [b"O"],
+                    [
+                        (
+                            socket.SOL_SOCKET,
+                            socket.SCM_RIGHTS,
+                            array.array("i", [item.descriptor for item in pinned.sources]),
+                        )
+                    ],
+                )
             finally:
                 pinned.close()
             os._exit(0)
@@ -201,11 +218,19 @@ def _pin_grant_sources_as_target(
         raise
 
 
-def _pin_from_descriptors(grant: Grant, ceiling: ServerCeilingV1, descriptors: list[int]) -> PinnedSources:
+def _pin_from_descriptors(
+    grant: Grant, ceiling: ServerCeilingV1, descriptors: list[int]
+) -> PinnedSources:
     plan = build_namespace_plan(grant)
     if len(descriptors) != len(plan.exports):
         raise _error("target-user resolver returned wrong descriptor count")
-    return PinnedSources(plan=plan, sources=tuple(PinnedSource(fd, export, 0) for fd, export in zip(descriptors, plan.exports, strict=True)))
+    return PinnedSources(
+        plan=plan,
+        sources=tuple(
+            PinnedSource(fd, export, 0)
+            for fd, export in zip(descriptors, plan.exports, strict=True)
+        ),
+    )
 
 
 def _grant_export_for_plan_export(grant: Grant, planned: PlannedExport) -> GrantExport:
