@@ -12,7 +12,10 @@ from astral_project.session.ceiling import (
     ServerCeilingV1,
     SourceRootCeilingV1,
     _bytes,
+    _path,
+    _roots,
     _strings,
+    _under,
     paths_overlap,
 )
 
@@ -94,3 +97,12 @@ def test_ceiling_payload_type_validation_and_component_overlap() -> None:
         _strings({}, "missing")
     with pytest.raises(AstralError):
         _bytes({}, "missing")
+    assert _under("/source/file", "/source")
+    assert _under("/file", "/")
+    assert not _under("/source", "/source")
+    with pytest.raises(AstralError):
+        _roots((), "roots", require_nonempty=True)
+    with pytest.raises(AstralError):
+        _roots(("/b", "/a"), "roots", require_nonempty=False)
+    with pytest.raises(AstralError):
+        _path("relative", "root")
