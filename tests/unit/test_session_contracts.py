@@ -101,6 +101,27 @@ def _remote() -> RemoteSessionRequestV1:
     return RemoteSessionRequestV1(opened.session_id, b"s" * 32, opened.signed_grant)
 
 
+def test_session_from_cbor_rejects_unknown_operations_and_types() -> None:
+    opened = _open()
+    payload = opened.to_payload()
+    payload["operation"] = "other"
+    with pytest.raises(AstralError):
+        OpenSessionV1.from_cbor(canonical_dumps(payload))
+    payload = opened.to_payload()
+    payload["signed_grant"] = b"bad"
+    with pytest.raises(AstralError):
+        OpenSessionV1.from_cbor(canonical_dumps(payload))
+    remote = _remote()
+    payload = remote.to_payload()
+    payload["operation"] = "other"
+    with pytest.raises(AstralError):
+        RemoteSessionRequestV1.from_cbor(canonical_dumps(payload))
+    payload = remote.to_payload()
+    payload["session_nonce"] = "bad"
+    with pytest.raises(AstralError):
+        RemoteSessionRequestV1.from_cbor(canonical_dumps(payload))
+
+
 def test_session_contracts_reject_invalid_versions_and_frames() -> None:
     opened = _open()
     with pytest.raises(AstralError):
