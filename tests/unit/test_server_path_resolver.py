@@ -39,6 +39,15 @@ def test_path_resolution_error_codes_and_missing_root(
     )
     with pytest.raises(AstralError):
         resolver._nested_mounts("/root", 1)
+    monkeypatch.setattr(
+        resolver,
+        "open",
+        lambda *_args, **_kwargs: __import__("io").StringIO(
+            "35 25 0:31 / /root/project rw - nfs4 host:/export rw\n"
+        ),
+        raising=False,
+    )
+    assert resolver._nested_mounts("/root", 1)[0].mount_id == 35
 
 
 def test_revalidate_source_identity_rejects_errors_and_changes(
