@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import runpy
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -9,6 +10,13 @@ from unittest.mock import Mock
 import pytest
 
 from astral_project.broker import main as broker_main
+
+
+def test_module_entrypoint_calls_main(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("astral_project.broker.main.sys.argv", ["aspr-broker", "--unsafe"])
+    with pytest.raises(SystemExit) as error:
+        runpy.run_module("astral_project.broker.main", run_name="__main__")
+    assert error.value.code == 64
 
 
 def test_main_rejects_caller_arguments(monkeypatch: pytest.MonkeyPatch) -> None:
