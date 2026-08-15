@@ -32,6 +32,7 @@ def test_runtime_metadata_rejects_invalid_digest_mode_resolution(tmp_path: Path)
     for kwargs in (
         {"sha256": b"short"},
         {"mode": "bad"},
+        {"mode": True},
         {"resolution": "relative"},
     ):
         with pytest.raises(AstralError):

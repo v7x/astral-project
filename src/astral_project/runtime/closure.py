@@ -51,6 +51,7 @@ class RuntimeInput:
             not isinstance(self.sha256, bytes)
             or len(self.sha256) != 32
             or not isinstance(self.mode, int)
+            or isinstance(self.mode, bool)
             or not isinstance(self.resolution, str)
             or not self.resolution.startswith("/")
         ):
