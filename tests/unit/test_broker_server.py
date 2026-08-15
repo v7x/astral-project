@@ -175,6 +175,52 @@ def test_broker_authority_and_server_lifecycle_reject_invalid_state(
     inherited.close()
 
 
+def test_broker_server_start_cleans_listener_after_bind_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    authority, _ = _authority()
+    closed: list[bool] = []
+
+    class Listener:
+        def bind(self, _path: str) -> None:
+            raise OSError("bind")
+
+        def close(self) -> None:
+            closed.append(True)
+
+    monkeypatch.setattr("astral_project.broker.server.os.geteuid", lambda: 0)
+    monkeypatch.setattr("astral_project.broker.server.socket.socket", lambda *_args: Listener())
+    with pytest.raises(OSError):
+        BrokerServer(BrokerPaths(tmp_path / "broker.sock"), authority).start()
+    assert closed == [True]
+
+
+def test_broker_server_timeout_before_peer_authentication_is_silent() -> None:
+    authority, _ = _authority()
+    audits: list[BrokerConnectionAuditV1] = []
+
+    class Connection:
+        def __enter__(self) -> Connection:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def settimeout(self, _value: float) -> None:
+            raise TimeoutError
+
+    class Listener:
+        def accept(self) -> tuple[Connection, object]:
+            return Connection(), object()
+
+    server = BrokerServer(
+        BrokerPaths(Path("/tmp/broker.sock")), authority, connection_audit_sink=audits.append
+    )
+    server._listener = Listener()  # type: ignore[assignment]
+    server.serve_once()
+    assert audits == []
+
+
 def test_broker_server_start_rejects_missing_or_existing_socket(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -251,6 +297,20 @@ def test_broker_server_header_and_descriptor_helpers_accept_socket() -> None:
         peer.close()
         with suppress(OSError):
             os.close(descriptor)
+
+
+def test_broker_server_close_closes_adopted_listener() -> None:
+    authority, _ = _authority()
+    closed: list[bool] = []
+
+    class Listener:
+        def close(self) -> None:
+            closed.append(True)
+
+    server = BrokerServer(BrokerPaths(Path("/tmp/broker.sock")), authority)
+    server._listener = Listener()  # type: ignore[assignment]
+    server.close()
+    assert closed == [True]
 
 
 def test_broker_server_header_closes_partial_descriptor_on_truncation() -> None:
