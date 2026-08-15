@@ -316,6 +316,20 @@ def test_target_source_handoff_rejects_malformed_rights(
         )
 
 
+def test_pin_from_descriptors_rejects_wrong_descriptor_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        sources, "build_namespace_plan", lambda _grant: SimpleNamespace(exports=(object(),))
+    )
+    with pytest.raises(AstralError):
+        sources._pin_from_descriptors(
+            SimpleNamespace(exports=(object(),)),  # type: ignore[arg-type]
+            SimpleNamespace(),  # type: ignore[arg-type]
+            [],
+        )
+
+
 def test_source_helpers_require_unique_root_and_dac(monkeypatch: pytest.MonkeyPatch) -> None:
     ceiling = SimpleNamespace(
         source_roots=(
