@@ -19,6 +19,8 @@ def test_log_pipe_lifecycle_and_overflow(monkeypatch: pytest.MonkeyPatch) -> Non
         calls[0] += 1
         if calls[0] == 1:
             return b"x" * 70000
+        if calls[0] == 2:
+            return b"x"
         raise BlockingIOError
 
     monkeypatch.setattr(os, "read", fake_read)
@@ -27,6 +29,10 @@ def test_log_pipe_lifecycle_and_overflow(monkeypatch: pytest.MonkeyPatch) -> Non
     assert len(content) == 65536
     assert truncated
     logs.close()
+    logs.close()
+    monkeypatch.setattr(os, "close", lambda _descriptor: None)
+    logs.close_parent_write_descriptor()
+    logs.close_parent_write_descriptor()
     logs.drain()
     with pytest.raises(AstralError):
         logs.worker_write_descriptor()
