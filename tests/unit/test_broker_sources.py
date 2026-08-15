@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 import os
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
+from astral_project.broker import sources
 from astral_project.broker.sources import pin_grant_sources
 from astral_project.core.ids import GrantId, HostId, IssuerKeyId
 from astral_project.crypto.grants import AccessMode, ExportKind, Grant, GrantExport, SourceIdentity
+from astral_project.server import linux
 from astral_project.server.path_resolver import TrustedRoot, resolve_source
 from astral_project.session.ceiling import ServerCeilingV1, SourceRootCeilingV1
 
@@ -58,6 +61,41 @@ def _export(source: Path, identity: SourceIdentity, target: str) -> GrantExport:
         kind=ExportKind.FILE,
         source_identity=identity,
     )
+
+
+def test_pin_sources_without_mount_cloning_duplicates_pinned_descriptor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    source = root / "source"
+    source.write_text("content", encoding="utf-8")
+    grant, ceiling = _grant(root, (_export(source, _identity(root, source), "/project"),))
+    with sources._pin_grant_sources(grant, ceiling, clone_mounts=False) as pinned:
+        assert os.fstat(pinned.sources[0].descriptor).st_ino == source.stat().st_ino
+
+
+def test_pin_grant_sources_rejects_changed_clone_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    source = root / "source"
+    source.write_text("content", encoding="utf-8")
+    identity = _identity(root, source)
+    grant, ceiling = _grant(root, (_export(source, identity, "/project"),))
+    original_statx = linux.statx_descriptor
+    calls = [0]
+
+    def statx(descriptor: int) -> linux.StatxResult:
+        calls[0] += 1
+        result = original_statx(descriptor)
+        return replace(result, inode=result.inode + 1) if calls[0] == 3 else result
+
+    monkeypatch.setattr("astral_project.broker.sources.linux.clone_mount", os.dup)
+    monkeypatch.setattr("astral_project.broker.sources.linux.statx_descriptor", statx)
+    with pytest.raises(Exception, match="detached mount clone"):
+        pin_grant_sources(grant, ceiling)
 
 
 def test_pin_grant_sources_keeps_descriptors_in_plan_slot_order(
