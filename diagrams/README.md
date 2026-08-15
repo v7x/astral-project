@@ -1,6 +1,6 @@
 # Astral Project target-architecture UML
 
-These PlantUML models summarize Revision 3 of the proposed final architecture. They describe the intended stable system, not merely the packets presently implemented.
+These PlantUML models summarize current Packet 15 architecture and planned local-agent features. Remote diagrams describe implemented broker/worker execution, not a bubblewrap production backend.
 
 ## Diagram set
 
@@ -13,7 +13,7 @@ These PlantUML models summarize Revision 3 of the proposed final architecture. T
 
 The system establishes two independent boundaries:
 
-1. A signed grant limits remote visibility to enumerated paths and access modes. The remote helper pins those sources before constructing an otherwise empty namespace.
+1. A signed grant enters remote `aspr-server`/broker request. Root broker authenticates peer, independently checks grant and server ceiling, resolves sources under target-user DAC, pins descriptors, seals bounded plan, and delegates private synthetic-root construction to mapped namespace/mount worker. Fixed `sftp_v1` runs after setup-authority removal.
 2. An optional local sandbox hides unrelated host data. A FUSE projected home mediates every approved home-directory operation.
 
 The local daemon owns ambient authority. Neither the agent sandbox nor `aspr-transport` receives a signing key, SSH private key, unrestricted daemon socket, generic mount authority, or general remote-login capability.
@@ -28,5 +28,5 @@ plantuml -tsvg docs/architecture/uml/*.puml
 
 - `docs/architecture/plain-english/astral-project-final-architecture.md`, especially sections 4–6, 10–14, and 17–19.
 - `docs/protocol.md`.
-- Architecture decisions ADR-0003, ADR-0004, ADR-0007, ADR-0008, ADR-0009, ADR-0022, and ADR-0023.
+- Architecture decisions ADR-0003, ADR-0004, ADR-0007, ADR-0008, ADR-0009, ADR-0022, ADR-0023, and ADR-0024.
 

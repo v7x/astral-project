@@ -1,4 +1,4 @@
-"""Packet 15 root broker skeleton tests; no namespace or mount execution."""
+"""Packet 15 root broker protocol and supervised execution-boundary tests."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import os
 import socket
 import threading
 from pathlib import Path
-from typing import cast
+from typing import ClassVar, cast
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -238,7 +238,7 @@ def test_replayed_grant_and_client_nonce_pair_is_rejected_before_second_worker(
 
     class Executor:
         calls = 0
-        descriptors: list[int] = []
+        descriptors: ClassVar[list[int]] = []
 
         def start(self, grant: object, *, stream_descriptor: int, **_: object) -> Active:
             self.calls += 1

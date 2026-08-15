@@ -19,7 +19,7 @@ Supported architectures: Linux x86_64/amd64 and aarch64. Others fail with `ENOSY
 
 ## Present status
 
-Packet 12 wrappers passed x86_64 descriptor-resolution tests. Packet 13 mount syscall run is blocked by `EPERM` in present harness namespace. This is inconclusive evidence for enrolled host capability, not success and not a fallback trigger.
+Historical Packet 12/13 note: wrappers passed x86_64 descriptor-resolution tests; the development harness then blocked Packet 13 mount syscalls with `EPERM`. Packet 15C–15F later supplied enrolled-host descriptor-pinned execution evidence. This record does not authorize a pathname fallback.
 
 ## Reconsideration
 

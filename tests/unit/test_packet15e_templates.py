@@ -54,6 +54,28 @@ def test_systemd_units_verify_in_disposable_root(tmp_path: Path) -> None:
     )
 
 
+def test_broker_launcher_uses_isolated_no_site_startup() -> None:
+    launcher = (PACKAGING / "launchers" / "aspr-broker").read_text(encoding="utf-8")
+    assert "/usr/bin/python3 -I -S -c" in launcher
+    assert "/usr/lib/astral-project/python" in launcher
+    assert "PYTHONPATH" not in launcher
+
+
+def test_source_root_renderer_is_packaged_and_provisioned() -> None:
+    build = (PACKAGING / "debian" / "build-deb.sh").read_text(encoding="utf-8")
+    postinst = (PACKAGING / "debian" / "postinst").read_text(encoding="utf-8")
+    assert "render-apparmor-roots" in build
+    assert "render-apparmor-roots" in postinst
+    assert "apparmor_parser" not in postinst
+
+
+def test_deb_builder_handles_old_and_new_dpkg_deb() -> None:
+    build = (PACKAGING / "debian" / "build-deb.sh").read_text(encoding="utf-8")
+    assert "dpkg-deb --help" in build
+    assert "--compression=gzip" in build
+    assert 'dpkg-deb --build --root-owner-group "$pkg" "$out"' in build
+
+
 def test_packet15f_gate_has_fixed_paths_and_no_argument_surface() -> None:
     source = (PACKAGING / "tools" / "packet15f-gate.py").read_text(encoding="utf-8")
     assert 'EVIDENCE = Path("/var/lib/astral-project/evidence/packet15f.json")' in source

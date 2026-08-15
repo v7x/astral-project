@@ -1,2 +1,2 @@
 #!/bin/sh
-exec /usr/bin/python3 -I -c 'import runpy, sys; sys.path.insert(0, "/usr/lib/astral-project/python"); runpy.run_module("astral_project.broker.main", run_name="__main__")' --socket-activation
+exec /usr/bin/python3 -I -S -c 'import runpy, sys; sys.path.insert(0, "/usr/lib/astral-project/python"); runpy.run_module("astral_project.broker.main", run_name="__main__")' --socket-activation

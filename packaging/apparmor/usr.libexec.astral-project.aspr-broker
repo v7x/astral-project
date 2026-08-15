@@ -53,7 +53,8 @@ profile aspr-namespace-setup /usr/libexec/astral-project/aspr-mount-worker flags
 }
 
 profile aspr-sftp-v1 flags=(attach_disconnected) {
-  #include <abstractions/base>
+  # The final workload has explicit file rules below; no base abstraction,
+  # because its ambient Unix/network grants would defeat deny semantics.
   /usr/libexec/astral-project/aspr-mount-worker rix,
   /.astral-project-runtime/ld.so rixm,
   /.astral-project-runtime/sftp-server rixm,
@@ -68,6 +69,8 @@ profile aspr-sftp-v1 flags=(attach_disconnected) {
   signal (receive) set=(kill) peer=aspr-broker,
   deny userns,
   deny network,
+  deny network inet,
+  deny unix,
   deny capability,
   deny mount,
   deny /proc/** rwklx,

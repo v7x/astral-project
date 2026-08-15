@@ -1,5 +1,5 @@
 @startuml
-title Astral Project — Capability-Scoped Remote Session
+title Astral Project — Packet 15 Remote Session
 skinparam shadowing false
 
 participant "rclone" as RC
@@ -7,32 +7,35 @@ participant "aspr-transport" as T
 participant "asprd" as D
 participant "OpenSSH" as SSH
 participant "aspr-server" as RS
-participant "Safe resolver" as SR
-participant "Pinned staging tree" as MT
-participant "bubblewrap" as BW
-participant "sftp-server" as SF
+participant "root-owned broker" as B
+participant "target-user DAC resolver" as DAC
+participant "pinned descriptors + sealed plan" as Plan
+participant "mapped namespace/mount worker" as W
+participant "private synthetic root" as Root
+participant "fixed confined sftp_v1" as SF
 database "Granted objects" as FS
 
 RC -> T : exec external SSH command: -s sftp
-T -> T : reject host, user, options,\nforwarding, or non-SFTP command
+T -> T : reject host, user, options, forwarding,
+or non-SFTP command
 T -> D : OpenSftpStream(environment-bound capability)
 D -> D : authorize session; load signed grant
-D -> SSH : exec exact command aspr-channel-v1
+D -> SSH : exact command aspr-channel-v1
 SSH -> RS : restricted key starts forced command
-D -> RS : uint32 length + canonical CBOR preface\n(version, operation, nonce, signed grant)
-
-group Fail-closed validation before path work
-  RS -> RS : validate frame and exact fields
-  RS -> RS : verify signature, issuer, host ID,\nhost-key fingerprint, remote user, time, revocation
-  RS -> RS : intersect grant with server policy ceiling
-end
-
-RS -> SR : resolve enumerated sources safely
-SR -> SR : open beneath approved root; reject\nsymlink, traversal, race, and identity mismatch
-SR -> MT : attach detached mounts from pinned descriptors
-RS -> BW : launch fixed generated argv with staging tree
-BW -> SF : exec vetted SFTP runtime in empty namespace
-RS --> D : ready response echoing nonce
+D -> RS : bounded preface + signed grant
+RS -> B : broker request
+B -> B : SO_PEERCRED authentication
+B -> B : independent grant and server-ceiling validation
+B -> DAC : resolve sources under target-user DAC
+DAC -> Plan : pin source descriptors and identities
+B -> Plan : seal bounded internal execution plan
+Plan -> W : inherited descriptors + sealed plan
+W -> W : mapped namespace and mount construction
+W -> Root : build private synthetic root
+Root -> W : attach verified fixed runtime
+W -> W : remove setup authority; fixed transition
+W -> SF : exec confined OpenSSH sftp-server
+RS --> D : ready response
 D --> T : connected byte stream
 T --> RC : transparent SFTP stream
 
@@ -43,6 +46,5 @@ loop Until expiry, revocation, cancellation, or failure
   SF --> RC : SFTP response
 end
 
-RS -> SF : terminate child and drain/abort per policy
+B -> W : terminate and reap supervised worker
 @enduml
-

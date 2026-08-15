@@ -38,6 +38,7 @@ cc -std=c11 -O2 -Wall -Wextra -Werror "$root/packaging/native/aspr-mount-worker.
 cc -std=c11 -O2 -Wall -Wextra -Werror "$root/packaging/native/aspr-namespace-worker.c" -o "$pkg/usr/libexec/astral-project/aspr-namespace-worker"
 cp "$root/packaging/launchers/aspr-broker" "$pkg/usr/libexec/astral-project/aspr-broker"
 cp "$root/packaging/tools/packet15f-gate.py" "$pkg/usr/libexec/astral-project/packet15f-gate"
+cp "$root/packaging/tools/render-apparmor-roots.py" "$pkg/usr/libexec/astral-project/render-apparmor-roots"
 cp "$root/packaging/tools/ubuntu-matrix.py" "$pkg/usr/libexec/astral-project/ubuntu-matrix"
 cp "$root/packaging/config/broker.toml" "$pkg/etc/astral-project/broker.toml"
 cp "$root/packaging/systemd/"* "$pkg/lib/systemd/system/"
@@ -50,5 +51,10 @@ find "$runtime" -type d -exec chmod 0755 {} +
 find "$runtime" -type f -exec chmod 0644 {} +
 find "$pkg/usr/share/doc/astral-project" "$pkg/etc/astral-project" "$pkg/lib/systemd/system" "$pkg/usr/lib/sysusers.d" "$pkg/usr/lib/tmpfiles.d" "$pkg/etc/apparmor.d" -type f -exec chmod 0644 {} +
 # Ubuntu 26.04 VM zstd decompressor faults on this package closure; gzip avoids
-# that host defect while preserving dpkg's deterministic archive construction.
-dpkg-deb --build --root-owner-group --compression=gzip "$pkg" "$out"
+# that host defect. Ubuntu 24.04's dpkg-deb lacks --compression, so retain its
+# native deterministic builder rather than passing an unsupported flag.
+if dpkg-deb --help 2>&1 | grep -q -- '--compression'; then
+  dpkg-deb --build --root-owner-group --compression=gzip "$pkg" "$out"
+else
+  dpkg-deb --build --root-owner-group "$pkg" "$out"
+fi

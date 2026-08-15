@@ -5,6 +5,11 @@ case "${1:-}" in
   configure)
     systemd-sysusers /usr/lib/sysusers.d/astral-project.conf
     systemd-tmpfiles --create /usr/lib/tmpfiles.d/astral-project.conf
+    # Authority is administrator-owned and may not exist on first install.
+    # When present, render exact source-root rules before any profile reload.
+    if [ -f /etc/astral-project/authority.toml ]; then
+      /usr/libexec/astral-project/render-apparmor-roots
+    fi
     ;;
   *)
     exit 0

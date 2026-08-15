@@ -32,8 +32,9 @@ node "Enrolled remote Linux host" as Remote {
   artifact "Verified remote runtime bundle" as RemoteRuntime
   component "aspr-server supervisor" as Server
   folder "Descriptor-pinned staging tree" as Staging
-  node "Final remote bubblewrap namespace" #E2F4E2 as RemoteSandbox {
-    component "sftp-server" as SFTP
+  node "Root broker + namespace/mount worker" #E2F4E2 as RemoteSandbox {
+    component "private synthetic root" as SyntheticRoot
+    component "fixed confined sftp_v1" as SFTP
     folder "/exports/<export-id>" as Exports
   }
   folder "Selected host files/directories" as Sources
@@ -61,11 +62,13 @@ Daemon --> Net : OpenSSH client; exact\naspr-channel-v1 command
 Net --> SSHD
 SSHD --> Server : forced command
 RemoteRuntime -- Server
-Server --> Staging
-Sources --> Staging : pinned descriptor-based mounts
-Staging --> Exports
-Server --> SFTP : supervise expiry/revocation
+Server --> RemoteSandbox : broker request
+RemoteSandbox --> Staging : target-user DAC; pinned descriptors; sealed plan
+Sources --> Staging : descriptor-pinned sources
+Staging --> SyntheticRoot
+SyntheticRoot --> SFTP : fixed runtime; authority removed
 SFTP --> Exports
+Server --> SFTP : supervise expiry/revocation
 
 note right of Sandbox
 The sandbox receives neither MainSocket

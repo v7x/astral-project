@@ -1,1 +1,1 @@
-"""Root broker implementation. Packet 15 skeleton contains no namespace or mount code."""
+"""Root broker implementation and supervised Packet 15 execution boundary."""

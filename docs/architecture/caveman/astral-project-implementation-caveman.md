@@ -869,35 +869,23 @@ uv run pytest
 
 ---
 
-## Packet 15 — Root broker skeleton (no mounts)
+## Packet 15 — Root broker and remote worker (implemented)
 
-**Goal:** Start root-owned broker socket and authenticate peers. No namespace or mount call.
+**Goal:** Root-owned broker authenticates peers, independently validates signed grants and server ceilings, resolves sources under target-user DAC, consumes sealed bounded plans and inherited pinned descriptors, and supervises fixed `sftp_v1` execution.
 
-**Do:**
-
-1. Add system-owned Unix socket skeleton.
-2. Read and validate `SO_PEERCRED`.
-3. Accept only bounded broker operation schema.
-4. Emit stable audit result and failure schema.
-5. Reject every mount, command, descriptor, and execution request.
-
-**Stop when:** Authenticated broker skeleton has no mount syscall.
+**Status:** Completed through 15A–15F. This is no longer a skeleton. Bubblewrap is not production remote backend.
 
 ---
 
-## Packet 15A — Namespace creation and UID/GID mapping
+## Packet 15A — Namespace creation and UID/GID mapping (implemented)
 
-**Goal:** Broker-forked worker creates synchronized user/mount namespace and parent maps child IDs.
-
-**Stop when:** Mapping tests pass; no descriptor mount call.
+**Goal:** Broker-forked worker creates synchronized mapped namespace under broker supervision.
 
 ---
 
-## Packet 15B — Descriptor-pinned mount worker
+## Packet 15B — Descriptor-pinned mount worker (implemented)
 
-**Goal:** Worker consumes sealed plan and inherited descriptors for reviewed `open_tree` sequence.
-
-**Stop when:** Descriptor-pinning invariants pass.
+**Goal:** Worker consumes sealed plan and inherited descriptors for descriptor-based mount construction. No pathname reopen fallback.
 
 ---
 

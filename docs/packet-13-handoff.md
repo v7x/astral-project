@@ -1,4 +1,6 @@
-# Packet 13 handoff — 13A closed; 13B broker contract frozen
+# Historical Packet 13 handoff — 13A closed; 13B broker contract frozen
+
+> Historical record. Packet 15C–15F subsequently implemented and gated descriptor-pinned execution, runtime closure, synthetic-root construction, authority removal, and Ubuntu packaging. Current truth: `docs/15-continuation.md` and Packet 15F evidence.
 
 ## Packet 13A — permanent negative-control evidence
 

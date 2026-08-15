@@ -26,4 +26,13 @@ systemd-analyze verify --root=<disposable-root> astral-project-broker.socket ast
 
 Packet 15F package preflight source is `packaging/tools/packet15f-gate.py`; package installs it as `/usr/libexec/astral-project/packet15f-gate`. It has no arguments and writes only fixed evidence path.
 
+After administrator authority and ceiling files exist, render exact AppArmor source-root rules:
+
+```text
+sudo /usr/libexec/astral-project/render-apparmor-roots
+sudo apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-broker
+```
+
+Renderer reads only root-owned `/etc/astral-project/authority.toml` and its ceiling, writes only fixed root-owned local include, rejects unsafe inputs, and is idempotent. Normal sessions never require `sudo`.
+
 No package asset changes global AppArmor policy or user-namespace sysctls.

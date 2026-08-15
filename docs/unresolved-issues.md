@@ -1,45 +1,40 @@
 # Current Unresolved Issues
 
-## Packet 0
+## Resolved by Packet 15
 
-- Trusted-process isolated launcher gate not implemented. `-I`, fixed interpreter/app path, environment sanitization, and artifact-digest verification wait.
-- Lockfile protects resolution; runtime artifact verification absent.
+These are implemented and evidenced for Ubuntu 26.04 amd64. They are frozen inputs to Packet 16, not open design work:
 
-## Packet 1
+- descriptor-pinned source resolution and mount construction;
+- target-user DAC enforcement;
+- broker-side signed-grant and independent root-owned server-ceiling enforcement;
+- replay state and rejection;
+- fixed digest-verified `sftp_v1` runtime closure;
+- synthetic-root construction and setup-authority removal;
+- final workload mount, user-namespace, network, shell, and broker-state denial;
+- cancellation and expiry supervision;
+- Ubuntu 26.04 AppArmor/systemd packaged evidence.
 
-- Hidden `daemon`, `server`, `transport`, and `homed` dispatches are placeholders; they return unavailable.
-- CLI supports only `version`; public command tree waits later packets.
-- Git revision lookup uses normal `git` discovery; trusted fixed-launch environment not built.
+Ubuntu 24.04 packaged integration was remediated in source during this closure pass and requires fresh certification evidence. It is not certified until its clean packaged Packet 15F gate passes.
 
-## Packet 2
+## Packet 16 — genuinely remaining
 
-- UUID4 IDs intentionally unsortable. ADR-0002 records constraint.
-- Config loader enforces top-level unknown fields only; future nested schemas must enforce same rule.
-- Local path helpers use pathname operations; remote resolver is descriptor-pinned, but staging mount gate remains blocked in Packet 13.
+- complete SFTP operation matrix;
+- concurrent connections and coherent external modifications;
+- rename/overwrite, large-file, traversal, extension, hardlink, and symlink semantics;
+- stable SFTP error mapping;
+- expiry/revocation integration with functional client behavior;
+- remote preface integration;
+- rclone compatibility;
+- readiness semantics;
+- production logging.
 
-## Packet 3
+## Later product work
 
-- Immutable Python bytes and cryptography key objects cannot promise zeroization. Mutable temporary buffers clear.
-- Grants carry claimed source identity; remote revalidation and descriptor pinning absent until Packets 12–13.
-- No grant lifecycle, revocation, expiry session enforcement, or server policy yet.
+- transport and public lifecycle commands;
+- local agent bubblewrap sandbox;
+- projected-home/FUSE learner and approval UI;
+- audit hardening and attack-suite expansion;
+- filesystem, rclone, harness, and portability matrices;
+- packaging operations beyond current Ubuntu POC.
 
-## Packet 4
-
-- Database schema exists; repository APIs, lifecycle operations, audit policy, and revocation behavior remain unimplemented.
-- `audit_events` has no append-only enforcement yet; Packet 37 owns audit system.
-- WAL/SHM sidecars check during initialization, not after every later transaction-created sidecar.
-- Crash test proves uncommitted transaction recovery. Post-commit crash semantics lack separate test.
-- Destructive backups have no retention, restore command, or operator workflow yet.
-
-## Packet 13
-
-- Descriptor-pinned staging probe now reports each namespace, resolver, and mount-syscall stage. Remote AppArmor evidence is pending. Do not infer cause from outer `EPERM`, and do not continue to Packet 14 until probe passes on named enrolled host.
-- No pathname-reopen fallback is permitted.
-
-## Global gates still open
-
-- Python runtime injection gate.
-- Transport gate: Packets 10/11.
-- Descriptor-pinned mount gate: Packet 13.
-- SFTP runtime gate: Packet 16.
-- Integrated learner, attack suites, compatibility matrices, packaging, and operations.
+No weaker remote backend or pathname-reopen fallback is permitted. Any change to frozen Packet 15 invariants requires ADR/security review.

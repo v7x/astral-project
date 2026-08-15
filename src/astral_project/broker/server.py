@@ -1,7 +1,7 @@
-"""Packet 15 root broker skeleton.
+"""Packet 15 root-owned broker server.
 
-It authenticates Unix peers and validates bounded broker requests. It deliberately
-contains no descriptor, fork, namespace, mount, capability, or workload operation.
+It authenticates Unix peers, validates grants and server ceilings, and delegates
+bounded sealed plans plus inherited descriptors to supervised namespace workers.
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ class BrokerAuthority:
 
 
 class BrokerServer:
-    """Root-owned socket skeleton. Valid requests receive stable backend-unavailable result."""
+    """Root-owned broker socket and supervised Packet 15 execution boundary."""
 
     def __init__(
         self,
@@ -144,8 +144,12 @@ class BrokerServer:
                 request, stream_descriptor = _read_request(connection)
                 stage = "grant_validation"
                 self._validate(request)
-                self._replay_ledger.issue(request.signed_grant, request.client_nonce, now=self._clock())
-                self._replay_ledger.consume(request.signed_grant, request.client_nonce, now=self._clock())
+                self._replay_ledger.issue(
+                    request.signed_grant, request.client_nonce, now=self._clock()
+                )
+                self._replay_ledger.consume(
+                    request.signed_grant, request.client_nonce, now=self._clock()
+                )
                 if self._executor is not None:
                     stage = "worker_start"
                     active = self._executor.start(

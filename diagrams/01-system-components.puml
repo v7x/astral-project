@@ -29,11 +29,12 @@ package "Local untrusted boundary" #FFE0E0 {
 cloud "OpenSSH authenticated channel" as SSH
 
 package "Remote trusted boundary" #E2F4E2 {
-  component "aspr-server\nforced-command supervisor" as Server
-  component "Safe resolver +\ndescriptor pinning" as Resolver
-  folder "Private staging\nmount tree" as Staging
-  component "Remote bubblewrap\nnamespace builder" as RemoteBwrap
-  component "OpenSSH\nsftp-server" as SFTP
+  component "aspr-server\nforced-command request" as Server
+  component "Root-owned broker\npeer/grant/ceiling authority" as Broker
+  component "Target-user DAC\nsource resolver" as Resolver
+  folder "Pinned descriptors +\nsealed bounded plan" as Staging
+  component "Mapped namespace/mount\nworker + synthetic root" as RemoteWorker
+  component "Fixed confined\nsftp_v1" as SFTP
   folder "Explicitly granted\nremote objects" as Granted
   collections "Issuer keys +\nserver policy ceiling" as Ceiling
 }
@@ -47,11 +48,13 @@ Rclone --> Transport : external SSH\n"-s sftp" only
 Transport --> Daemon : private OpenSftpStream API
 Daemon --> SSH : fixed command\naspr-channel-v1
 SSH --> Server : framed preface + signed grant
-Server --> Ceiling : validate issuer, host, user,\ntime, revocation, extensions
-Server --> Resolver
-Resolver --> Staging : attach pinned objects
-Staging --> RemoteBwrap
-RemoteBwrap --> SFTP : fixed argv
+Server --> Broker : request signed grant
+Broker --> Ceiling : validate issuer, host, user,\ntime, replay, revocation, ceiling
+Broker --> Resolver : target-user DAC resolution
+Resolver --> Staging : pin source descriptors
+Broker --> Staging : seal bounded plan
+Staging --> RemoteWorker : inherited descriptors + plan
+RemoteWorker --> SFTP : synthetic root; fixed runtime; authority removed
 SFTP --> Granted : kernel-enforced RO/RW access
 
 Daemon --> Homed : supervise + session policy

@@ -80,7 +80,7 @@ class ActiveSessionRegistry:
                 # any broken supervision path fail loudly rather than orphan authority.
                 session.worker.terminate()
                 return
-            if result is None:
+            if not hasattr(result, "exit_code"):
                 return
             if result.exit_code not in {0, None} or result.signal is not None:
                 print(
