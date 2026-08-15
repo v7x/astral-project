@@ -47,6 +47,24 @@ def test_runtime_manifest_rejects_missing_required_file(tmp_path: Path) -> None:
         closure.RuntimeManifestV1("x86_64", "glibc", files)
 
 
+def test_runtime_manifest_rejects_bad_file_values_and_inconsistent_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest(tmp_path)
+    payload = manifest.payload()
+    payload["files"][0]["mode"] = "bad"  # type: ignore[call-overload, index]
+    with pytest.raises(AstralError):
+        closure.RuntimeManifestV1.from_cbor(canonical_dumps(payload), closure_root=tmp_path)
+    payload = manifest.payload()
+    payload["files"][0]["destination"] = "../escape"  # type: ignore[call-overload, index]
+    with pytest.raises(AstralError):
+        closure.RuntimeManifestV1.from_cbor(canonical_dumps(payload), closure_root=tmp_path)
+    data = manifest.canonical_bytes()
+    monkeypatch.setattr(closure.RuntimeManifestV1, "canonical_bytes", lambda _self: b"different")
+    with pytest.raises(AstralError):
+        closure.RuntimeManifestV1.from_cbor(data, closure_root=tmp_path)
+
+
 def test_runtime_manifest_rejects_bad_cbor_entries(tmp_path: Path) -> None:
     manifest = _manifest(tmp_path)
     payload = manifest.payload()
@@ -89,6 +107,42 @@ def test_runtime_multiarch_and_dependency_root_errors(
     )
     with pytest.raises(AstralError):
         closure._resolve_needed_libraries(("missing.so",), ())
+
+
+def test_runtime_discovery_skips_loader_and_rejects_collisions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    loader = tmp_path / "ld.so"
+    loader.write_bytes(b"loader")
+    server = tmp_path / "server"
+    server.write_bytes(b"server")
+    library = tmp_path / "libsame.so"
+    library.write_bytes(b"library")
+    monkeypatch.setattr(closure, "_read_elf_metadata", lambda _path: (loader, ("libsame.so",)))
+    monkeypatch.setattr(closure, "_resolve_needed_libraries", lambda *_args: (loader,))
+    monkeypatch.setattr(closure, "_trusted_regular_file", lambda path, _label: path)
+    manifest = closure.discover_sftp_runtime(
+        server, generated_directory=tmp_path / "identity", library_roots=(tmp_path,)
+    )
+    assert [item.destination for item in manifest.files].count("ld.so") == 1
+    monkeypatch.setattr(closure, "_resolve_needed_libraries", lambda *_args: (library, library))
+    with pytest.raises(AstralError):
+        closure.discover_sftp_runtime(
+            server, generated_directory=tmp_path / "other-identity", library_roots=(tmp_path,)
+        )
+
+
+def test_runtime_dependency_rejects_resolution_outside_approved_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / "lib.so").write_bytes(b"lib")
+    outside = tmp_path / "outside.so"
+    outside.write_bytes(b"outside")
+    monkeypatch.setattr(closure, "_trusted_regular_file", lambda *_args: outside)
+    with pytest.raises(AstralError):
+        closure._resolve_needed_libraries(("lib.so",), (root,))
 
 
 def test_runtime_dependency_and_elf_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
