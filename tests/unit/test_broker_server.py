@@ -7,6 +7,7 @@ import os
 import socket
 import threading
 from contextlib import suppress
+from dataclasses import replace
 from pathlib import Path
 from typing import ClassVar, cast
 
@@ -137,6 +138,20 @@ def _serve(server: BrokerServer) -> threading.Thread:
     return thread
 
 
+def test_broker_server_constructor_and_validation_reject_invalid_authority() -> None:
+    authority, signed = _authority()
+    with pytest.raises(AstralError):
+        BrokerServer(
+            BrokerPaths(Path("/tmp/broker.sock")),
+            authority,
+            executor=cast(BrokerSessionExecutor, object()),
+            active_session_sink=None,
+        )
+    no_issuer = replace(authority, trust=replace(authority.trust, issuer_keys={}))
+    with pytest.raises(AstralError):
+        BrokerServer(BrokerPaths(Path("/tmp/broker.sock")), no_issuer)._validate(_request(signed))
+
+
 def test_broker_authority_and_server_lifecycle_reject_invalid_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -171,6 +186,42 @@ def test_broker_server_start_rejects_missing_or_existing_socket(
     existing.write_text("x", encoding="ascii")
     with pytest.raises(AstralError):
         BrokerServer(BrokerPaths(existing), authority).start()
+
+
+def test_broker_read_request_closes_descriptor_on_invalid_frame(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    descriptor = os.open("/dev/null", os.O_RDONLY)
+    monkeypatch.setattr(
+        "astral_project.broker.server._read_header_with_stream_descriptor",
+        lambda _connection: ((0xFFFFFFFF).to_bytes(4, "big"), descriptor),
+    )
+    with pytest.raises(AstralError):
+        from astral_project.broker.server import _read_request
+
+        _read_request(cast(socket.socket, object()))
+    with pytest.raises(OSError):
+        os.fstat(descriptor)
+
+
+def test_broker_read_request_closes_descriptor_on_parse_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    descriptor = os.open("/dev/null", os.O_RDONLY)
+    monkeypatch.setattr(
+        "astral_project.broker.server._read_header_with_stream_descriptor",
+        lambda _connection: ((1).to_bytes(4, "big"), descriptor),
+    )
+    monkeypatch.setattr(
+        "astral_project.broker.server._read_exact",
+        lambda *_args: b"bad",
+    )
+    with pytest.raises(AstralError):
+        from astral_project.broker.server import _read_request
+
+        _read_request(cast(socket.socket, object()))
+    with pytest.raises(OSError):
+        os.fstat(descriptor)
 
 
 def test_broker_server_header_and_descriptor_helpers_accept_socket() -> None:
