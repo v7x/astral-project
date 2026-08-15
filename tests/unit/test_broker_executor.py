@@ -29,6 +29,45 @@ def _pinned(descriptor: int) -> PinnedSources:
     return PinnedSources(NamespacePlan((export,)), (PinnedSource(descriptor, export, 1),))
 
 
+def test_executor_rejects_negative_stream_descriptor(tmp_path: Path) -> None:
+    executor = BrokerSessionExecutor(
+        ceiling=cast(ServerCeilingV1, None),
+        runtime_root=tmp_path,
+        runtime_manifest=cast(RuntimeManifestV1, None),
+        mapping_worker=cast(MappingWorker, None),
+    )
+    with pytest.raises(Exception, match="stream descriptor is invalid"):
+        executor.start(cast(Grant, None), stream_descriptor=-1, peer_uid=1, peer_gid=1)
+
+
+def test_executor_closes_pinned_and_logs_when_launch_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stream_read, stream_write = os.pipe()
+    pinned = _pinned(os.open("/dev/null", os.O_RDONLY))
+    monkeypatch.setattr(
+        "astral_project.broker.executor.pin_grant_sources", lambda *_args, **_kwargs: pinned
+    )
+    monkeypatch.setattr(
+        "astral_project.broker.executor.prepare_worker_launch_with_verified_runtime",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("launch")),
+    )
+    executor = BrokerSessionExecutor(
+        ceiling=cast(ServerCeilingV1, None),
+        runtime_root=tmp_path,
+        runtime_manifest=cast(RuntimeManifestV1, None),
+        mapping_worker=cast(MappingWorker, None),
+    )
+    try:
+        with pytest.raises(RuntimeError):
+            executor.start(cast(Grant, None), stream_descriptor=stream_read, peer_uid=1, peer_gid=1)
+        with pytest.raises(OSError):
+            os.fstat(stream_read)
+    finally:
+        with suppress(OSError):
+            os.close(stream_write)
+
+
 def test_executor_starts_worker_and_closes_parent_descriptor_copies(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
