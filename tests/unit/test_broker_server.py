@@ -253,6 +253,50 @@ def test_broker_server_header_and_descriptor_helpers_accept_socket() -> None:
             os.close(descriptor)
 
 
+def test_broker_server_header_closes_partial_descriptor_on_truncation() -> None:
+    descriptor = os.open("/dev/null", os.O_RDONLY)
+
+    class Partial:
+        def recvmsg(
+            self, *_args: object
+        ) -> tuple[bytes, list[tuple[int, int, bytes]], int, object]:
+            return (
+                b"\x00\x00",
+                [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [descriptor]).tobytes())],
+                0,
+                None,
+            )
+
+        def recv(self, _length: int) -> bytes:
+            return b""
+
+    with pytest.raises(AstralError):
+        _read_header_with_stream_descriptor(Partial())  # type: ignore[arg-type]
+    with pytest.raises(OSError):
+        os.fstat(descriptor)
+
+
+def test_broker_server_header_closes_extra_descriptors() -> None:
+    descriptors = [os.open("/dev/null", os.O_RDONLY) for _ in range(2)]
+
+    class Extra:
+        def recvmsg(
+            self, *_args: object
+        ) -> tuple[bytes, list[tuple[int, int, bytes]], int, object]:
+            return (
+                (1).to_bytes(4, "big"),
+                [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", descriptors).tobytes())],
+                0,
+                None,
+            )
+
+    with pytest.raises(AstralError):
+        _read_header_with_stream_descriptor(Extra())  # type: ignore[arg-type]
+    for descriptor in descriptors:
+        with pytest.raises(OSError):
+            os.fstat(descriptor)
+
+
 def test_broker_server_header_translates_receive_error_and_closes_controls(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -336,6 +380,12 @@ def test_broker_server_header_closes_descriptor_when_validation_fails(
 
 
 def test_broker_server_descriptor_helpers_reject_bad_controls() -> None:
+    datagram = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    try:
+        with pytest.raises(AstralError):
+            _require_unix_stream_descriptor(datagram.fileno())
+    finally:
+        datagram.close()
     regular = os.open("/dev/null", os.O_RDONLY)
     try:
         with pytest.raises(AstralError):
