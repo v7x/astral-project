@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+import astral_project.host.enrollment as enrollment
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.host.enrollment import (
     ControlFileIdentity,
@@ -200,6 +201,15 @@ def test_enrollment_rejects_ambiguous_or_unsupported_authorized_keys(
             private_key_path=tmp_path / "key",
             control_file=ControlFileIdentity(1, "a" * 64, 1),
         )
+
+
+def test_remove_new_private_key_handles_missing_and_os_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    enrollment._remove_new_private_key(tmp_path / "missing")
+    monkeypatch.setattr(Path, "unlink", lambda _path: (_ for _ in ()).throw(OSError("no")))
+    with pytest.raises(AstralError):
+        enrollment._remove_new_private_key(tmp_path / "key")
 
 
 def test_bad_key_and_control_identity_fail() -> None:
