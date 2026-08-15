@@ -78,6 +78,27 @@ def test_plan_rejects_unknown_kind() -> None:
         _kind("unknown")
 
 
+def test_plan_serialization_rejects_defensively_corrupt_target() -> None:
+    export = _plan().exports[0]
+    object.__setattr__(export, "virtual_target", "")
+    with pytest.raises(AstralError):
+        ExecutionPlanV1((export,), (7,)).to_bytes()
+
+
+def test_sealed_plan_closes_descriptor_when_writing_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import astral_project.broker.execution_plan as module
+
+    closed: list[int] = []
+    monkeypatch.setattr("astral_project.broker.execution_plan.os.memfd_create", lambda *_args: 55)
+    monkeypatch.setattr("astral_project.broker.execution_plan.os.close", closed.append)
+    monkeypatch.setattr(module, "_write_all", lambda *_args: (_ for _ in ()).throw(OSError("no")))
+    with pytest.raises(OSError):
+        create_sealed_execution_plan(_plan())
+    assert closed == [55]
+
+
 def test_execution_plan_write_rejects_no_progress(monkeypatch: pytest.MonkeyPatch) -> None:
     import astral_project.broker.execution_plan as module
 
