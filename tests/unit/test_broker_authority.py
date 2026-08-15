@@ -108,9 +108,7 @@ def test_authority_atomic_write_translates_os_error(
 def test_authority_atomic_write_rejects_bad_final_mode(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(
-        "pathlib.Path.lstat", lambda _path: type("Details", (), {"st_mode": 0})()
-    )
+    monkeypatch.setattr("pathlib.Path.lstat", lambda _path: type("Details", (), {"st_mode": 0})())
     with pytest.raises(AstralError):
         authority._atomic_write(tmp_path / "authority.toml", b"data", 0o644)
 

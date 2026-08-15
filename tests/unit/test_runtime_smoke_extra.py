@@ -73,6 +73,7 @@ def test_closure_only_smoke_uses_fixed_unshare_command(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     observed: list[list[str]] = []
+
     def run(command: list[str], _timeout: float) -> int:
         observed.append(command)
         return 3
