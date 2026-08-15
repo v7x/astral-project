@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from astral_project.broker import authority
 from astral_project.broker.authority import AuthorityTomlV1, generate_vm_authority
 from astral_project.core.errors import AstralError
 from astral_project.core.ids import HostId, IssuerKeyId
@@ -90,6 +91,18 @@ def test_authority_rejects_unsafe_typed_values(tmp_path: Path) -> None:
         values.update(kwargs)
         with pytest.raises(AstralError):
             AuthorityTomlV1(**values)
+
+
+def test_authority_atomic_write_translates_os_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "authority.toml"
+    monkeypatch.setattr(
+        "astral_project.broker.authority.os.fchmod",
+        lambda *_: (_ for _ in ()).throw(OSError("denied")),
+    )
+    with pytest.raises(AstralError):
+        authority._atomic_write(path, b"data", 0o644)
 
 
 def test_authority_generation_rejects_same_path(tmp_path: Path) -> None:
