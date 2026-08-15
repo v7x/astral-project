@@ -189,6 +189,26 @@ def test_mapping_worker_rejects_negative_identity(monkeypatch: pytest.MonkeyPatc
         worker.start(uid=-1, gid=1)
 
 
+def test_mapping_worker_run_terminates_after_wait_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    details = SimpleNamespace(st_mode=stat.S_IFREG | stat.S_IXUSR, st_uid=0)
+    monkeypatch.setattr(Path, "lstat", lambda _path: details)
+    worker = mapping.MappingWorker(Path("/worker"))
+    process = WorkerProcess(1)
+    terminated: list[int] = []
+    monkeypatch.setattr(mapping.MappingWorker, "start", lambda _self, **_kwargs: process)
+    monkeypatch.setattr(
+        mapping.WorkerProcess, "wait", lambda _self: (_ for _ in ()).throw(RuntimeError("wait"))
+    )
+    monkeypatch.setattr(
+        mapping.WorkerProcess, "terminate", lambda self: terminated.append(self.pid)
+    )
+    with pytest.raises(RuntimeError):
+        worker.run(uid=1, gid=1)
+    assert terminated == [1]
+
+
 def test_mapping_worker_run_rejects_signaled_process(monkeypatch: pytest.MonkeyPatch) -> None:
     details = SimpleNamespace(st_mode=stat.S_IFREG | stat.S_IXUSR, st_uid=0)
     monkeypatch.setattr(Path, "lstat", lambda _path: details)
