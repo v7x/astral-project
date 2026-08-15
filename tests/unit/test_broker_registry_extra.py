@@ -45,6 +45,16 @@ def test_registry_rejects_expired_registration() -> None:
     assert worker.terminated_count == 1
 
 
+def test_registry_server_registration_and_missing_supervision() -> None:
+    worker = Worker()
+    registry = ActiveSessionRegistry(clock=lambda: 10)
+    registry.register_from_server(b"e" * 16, worker, 20)  # type: ignore[arg-type]
+    deadline = time.time() + 1
+    while registry.active_count() and time.time() < deadline:
+        time.sleep(0.01)
+    registry._supervise(b"missing")
+
+
 def test_registry_cancel_and_expire_missing_are_noops() -> None:
     registry = ActiveSessionRegistry(clock=lambda: 10)
     assert registry.cancel(b"a" * 16) is False
