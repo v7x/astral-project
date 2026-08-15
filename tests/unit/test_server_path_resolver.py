@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -38,6 +39,29 @@ def test_path_resolution_error_codes_and_missing_root(
     )
     with pytest.raises(AstralError):
         resolver._nested_mounts("/root", 1)
+
+
+def test_revalidate_source_identity_rejects_errors_and_changes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = SimpleNamespace(
+        descriptor=3,
+        identity=SimpleNamespace(device=1, inode=2, mount_id=3),
+    )
+    monkeypatch.setattr(
+        linux,
+        "statx_descriptor",
+        lambda _fd: (_ for _ in ()).throw(OSError("gone")),
+    )
+    with pytest.raises(AstralError):
+        resolver.revalidate_source_identity(source)  # type: ignore[arg-type]
+    monkeypatch.setattr(
+        linux,
+        "statx_descriptor",
+        lambda _fd: SimpleNamespace(device=9, inode=2, mount_id=3),
+    )
+    with pytest.raises(AstralError):
+        resolver.revalidate_source_identity(source)  # type: ignore[arg-type]
 
 
 def test_resolve_regular_file_returns_pinned_descriptor(tmp_path: Path) -> None:
