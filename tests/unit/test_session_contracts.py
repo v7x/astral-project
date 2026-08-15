@@ -55,6 +55,7 @@ from astral_project.session.contracts import (
     RemoteSessionReadyV1,
     RemoteSessionRejectedV1,
     RemoteSessionRequestV1,
+    _read_exact,
     read_remote_session_request,
     write_remote_session_request,
 )
@@ -98,6 +99,22 @@ def _open() -> OpenSessionV1:
 def _remote() -> RemoteSessionRequestV1:
     opened = _open()
     return RemoteSessionRequestV1(opened.session_id, b"s" * 32, opened.signed_grant)
+
+
+def test_session_contracts_reject_invalid_versions_and_frames() -> None:
+    opened = _open()
+    with pytest.raises(AstralError):
+        OpenSessionV1(opened.host_id, opened.session_id, opened.signed_grant, version=99)
+    with pytest.raises(AstralError):
+        RemoteSessionRequestV1(opened.session_id, b"short", opened.signed_grant)
+    with pytest.raises(AstralError):
+        RemoteSessionReadyV1(opened.session_id, b"short")
+    with pytest.raises(AstralError):
+        RemoteSessionRejectedV1(None, "")
+    with pytest.raises(AstralError):
+        _read_exact(BytesIO(b""), 1)
+    with pytest.raises(AstralError):
+        read_remote_session_request(BytesIO((0).to_bytes(4, "big")))
 
 
 def test_open_and_remote_session_schema_golden_round_trip() -> None:
