@@ -345,8 +345,9 @@ def _read_header_with_stream_descriptor(connection: socket.socket) -> tuple[byte
 
 
 def _require_unix_stream_descriptor(descriptor: int) -> None:
-    duplicate = socket.socket(fileno=os.dup(descriptor))
+    duplicate: socket.socket | None = None
     try:
+        duplicate = socket.socket(fileno=os.dup(descriptor))
         domain_option = getattr(socket, "SO_DOMAIN", None)
         if (
             domain_option is None
@@ -357,7 +358,8 @@ def _require_unix_stream_descriptor(descriptor: int) -> None:
     except OSError as error:
         raise _error("broker stream descriptor is invalid") from error
     finally:
-        duplicate.close()
+        if duplicate is not None:
+            duplicate.close()
 
 
 def _write_response(

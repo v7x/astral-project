@@ -6,6 +6,7 @@ import array
 import os
 import socket
 import threading
+from contextlib import suppress
 from pathlib import Path
 from typing import ClassVar, cast
 
@@ -19,7 +20,10 @@ from astral_project.broker.server import (
     BrokerAuthority,
     BrokerPaths,
     BrokerServer,
+    _peer_credentials,
     _read_exact,
+    _read_header_with_stream_descriptor,
+    _require_unix_stream_descriptor,
     _session_id_text,
     _write_response,
 )
@@ -167,6 +171,53 @@ def test_broker_server_start_rejects_missing_or_existing_socket(
     existing.write_text("x", encoding="ascii")
     with pytest.raises(AstralError):
         BrokerServer(BrokerPaths(existing), authority).start()
+
+
+def test_broker_server_header_and_descriptor_helpers_accept_socket() -> None:
+    local, peer = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+    descriptor = os.dup(peer.fileno())
+
+    class Connection:
+        def recvmsg(
+            self, *_args: object
+        ) -> tuple[bytes, list[tuple[int, int, bytes]], int, object]:
+            return (
+                (1).to_bytes(4, "big"),
+                [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [descriptor]).tobytes())],
+                0,
+                None,
+            )
+
+    try:
+        header, received = _read_header_with_stream_descriptor(Connection())  # type: ignore[arg-type]
+        assert header == (1).to_bytes(4, "big")
+        _require_unix_stream_descriptor(received)
+        os.close(received)
+        credentials = _peer_credentials(local)
+        assert credentials.pid > 0
+    finally:
+        local.close()
+        peer.close()
+        with suppress(OSError):
+            os.close(descriptor)
+
+
+def test_broker_server_descriptor_helpers_reject_bad_controls() -> None:
+    regular = os.open("/dev/null", os.O_RDONLY)
+    try:
+        with pytest.raises(AstralError):
+            _require_unix_stream_descriptor(regular)
+    finally:
+        os.close(regular)
+
+    class BadControl:
+        def recvmsg(
+            self, *_args: object
+        ) -> tuple[bytes, list[tuple[int, int, bytes]], int, object]:
+            return ((1).to_bytes(4, "big"), [(1, 2, b"")], 0, None)
+
+    with pytest.raises(AstralError):
+        _read_header_with_stream_descriptor(BadControl())  # type: ignore[arg-type]
 
 
 def test_broker_server_private_frame_helpers_reject_truncation() -> None:
