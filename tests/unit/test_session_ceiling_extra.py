@@ -6,8 +6,15 @@ import pytest
 
 from astral_project.core.errors import AstralError
 from astral_project.core.ids import IssuerKeyId
+from astral_project.crypto.cbor import canonical_dumps
 from astral_project.crypto.grants import AccessMode, ExportKind
-from astral_project.session.ceiling import ServerCeilingV1, SourceRootCeilingV1, paths_overlap
+from astral_project.session.ceiling import (
+    ServerCeilingV1,
+    SourceRootCeilingV1,
+    _bytes,
+    _strings,
+    paths_overlap,
+)
 
 ISSUER = IssuerKeyId("00000000-0000-4000-8000-000000000001")
 
@@ -79,3 +86,11 @@ def test_ceiling_payload_type_validation_and_component_overlap() -> None:
     assert paths_overlap("/a", "/a")
     assert paths_overlap("/a/b", "/a")
     assert not paths_overlap("/a/b", "/ab")
+    with pytest.raises(AstralError):
+        ServerCeilingV1.from_cbor(canonical_dumps({}))
+    with pytest.raises(AstralError):
+        ServerCeilingV1.from_cbor(canonical_dumps({**_ceiling().to_payload(), "source_roots": [1]}))
+    with pytest.raises(AstralError):
+        _strings({}, "missing")
+    with pytest.raises(AstralError):
+        _bytes({}, "missing")
