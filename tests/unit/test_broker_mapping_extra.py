@@ -91,6 +91,23 @@ def test_worker_fd_install_handles_relocation_and_aliases(monkeypatch: pytest.Mo
         mapping._install_worker_fds(3, 4, {5: 3})
 
 
+def test_worker_sync_fd_install_uses_common_mapping(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "astral_project.broker.mapping.fcntl.fcntl", lambda source, _op, _floor: source + 100
+    )
+    calls: list[tuple[int, int]] = []
+    monkeypatch.setattr(
+        mapping,
+        "os",
+        SimpleNamespace(
+            close=lambda _fd: None,
+            dup2=lambda source, destination, inheritable: calls.append((source, destination)),
+        ),
+    )
+    mapping._install_worker_sync_fds(3, 4)
+    assert calls
+
+
 def test_worker_fd_install_closes_relocated_fds_on_error(monkeypatch: pytest.MonkeyPatch) -> None:
     closed: list[int] = []
     monkeypatch.setattr("astral_project.broker.mapping.fcntl.fcntl", lambda *_args: 75)
@@ -154,6 +171,25 @@ def test_mapping_worker_rejects_unsafe_executable(
     monkeypatch.setattr(Path, "lstat", lambda _path: details)
     with pytest.raises(AstralError):
         mapping.MappingWorker(Path("/worker"))
+
+
+def test_mapping_worker_child_exec_failure_exits(monkeypatch: pytest.MonkeyPatch) -> None:
+    details = SimpleNamespace(st_mode=stat.S_IFREG | stat.S_IXUSR, st_uid=0)
+    monkeypatch.setattr(Path, "lstat", lambda _path: details)
+    monkeypatch.setattr("astral_project.broker.mapping.os.pipe2", lambda _flags: (10, 11))
+    monkeypatch.setattr("astral_project.broker.mapping.os.fork", lambda: 0)
+    monkeypatch.setattr("astral_project.broker.mapping.os.close", lambda _fd: None)
+    monkeypatch.setattr(mapping, "_install_worker_fds", lambda *_args: None)
+    monkeypatch.setattr(
+        "astral_project.broker.mapping.os.execve",
+        lambda *_args: (_ for _ in ()).throw(OSError("exec")),
+    )
+    monkeypatch.setattr(
+        "astral_project.broker.mapping.os._exit",
+        lambda _code: (_ for _ in ()).throw(RuntimeError("exit")),
+    )
+    with pytest.raises(RuntimeError, match="exit"):
+        mapping.MappingWorker(Path("/worker")).start(uid=1, gid=1)
 
 
 def test_mapping_worker_start_maps_parent_side(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -243,6 +279,12 @@ def test_mapping_worker_run_terminates_failed_process(monkeypatch: pytest.Monkey
         worker.run(uid=1, gid=1)
 
 
+def test_read_mapping_ready_returns_empty_handshake(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("astral_project.broker.mapping.select.select", lambda *_args: ([3], [], []))
+    monkeypatch.setattr("astral_project.broker.mapping.os.read", lambda *_args: b"")
+    assert mapping._read_mapping_ready(3) == b""
+
+
 def test_read_mapping_ready_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("astral_project.broker.mapping.select.select", lambda *_args: ([], [], []))
     with pytest.raises(AstralError):
@@ -252,19 +294,22 @@ def test_read_mapping_ready_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_write_identity_map_reports_setgroups_and_map_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    def fail_setgroups(path: Path, *_args: object, **_kwargs: object) -> None:
+        if path.name == "setgroups":
+            raise OSError("setgroups")
+
+    monkeypatch.setattr(Path, "write_text", fail_setgroups)
+    with pytest.raises(AstralError):
+        mapping._write_identity_map(1, uid=2, gid=3)
+
     calls = [0]
 
     def fail_map(path: Path, *_args: object, **_kwargs: object) -> None:
         calls[0] += 1
-        if calls[0] == 1:
-            raise OSError("setgroups")
-        raise OSError("map")
+        if calls[0] > 1:
+            raise OSError("map")
 
     monkeypatch.setattr(Path, "write_text", fail_map)
-    with pytest.raises(AstralError):
-        mapping._write_identity_map(1, uid=2, gid=3)
-
-    calls[0] = 1
     with pytest.raises(AstralError):
         mapping._write_identity_map(1, uid=2, gid=3)
 
