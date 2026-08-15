@@ -133,6 +133,42 @@ def _serve(server: BrokerServer) -> threading.Thread:
     return thread
 
 
+def test_broker_authority_and_server_lifecycle_reject_invalid_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    authority, _ = _authority()
+    with pytest.raises(AstralError):
+        BrokerAuthority(0, authority.expected_peer_gid, authority.server_ceiling, authority.trust)
+    server = BrokerServer(BrokerPaths(tmp_path / "broker.sock"), authority)
+    with pytest.raises(AstralError):
+        server.serve_once()
+    monkeypatch.setattr("astral_project.broker.server.os.geteuid", lambda: 0)
+    invalid = socket.socket(socket.AF_INET)
+    with pytest.raises(AstralError):
+        server.start(inherited_listener=invalid)
+    invalid.close()
+    assert server._listener is None
+    inherited = socket.socket(socket.AF_UNIX)
+    server.start(inherited_listener=inherited)
+    with pytest.raises(AstralError):
+        server.start(inherited_listener=inherited)
+    server.close()
+    inherited.close()
+
+
+def test_broker_server_start_rejects_missing_or_existing_socket(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    authority, _ = _authority()
+    monkeypatch.setattr("astral_project.broker.server.os.geteuid", lambda: 0)
+    with pytest.raises(AstralError):
+        BrokerServer(BrokerPaths(tmp_path / "missing" / "broker.sock"), authority).start()
+    existing = tmp_path / "broker.sock"
+    existing.write_text("x", encoding="ascii")
+    with pytest.raises(AstralError):
+        BrokerServer(BrokerPaths(existing), authority).start()
+
+
 def test_broker_server_private_frame_helpers_reject_truncation() -> None:
     class Connection:
         def __init__(self) -> None:
