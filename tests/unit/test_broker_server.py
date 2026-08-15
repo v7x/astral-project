@@ -202,6 +202,25 @@ def test_broker_server_header_and_descriptor_helpers_accept_socket() -> None:
             os.close(descriptor)
 
 
+def test_broker_server_header_rejects_missing_and_missing_descriptor() -> None:
+    class MissingHeader:
+        def recvmsg(
+            self, *_args: object
+        ) -> tuple[bytes, list[tuple[int, int, bytes]], int, object]:
+            return (b"", [], 0, None)
+
+    class MissingDescriptor:
+        def recvmsg(
+            self, *_args: object
+        ) -> tuple[bytes, list[tuple[int, int, bytes]], int, object]:
+            return ((1).to_bytes(4, "big"), [], 0, None)
+
+    with pytest.raises(AstralError):
+        _read_header_with_stream_descriptor(MissingHeader())  # type: ignore[arg-type]
+    with pytest.raises(AstralError):
+        _read_header_with_stream_descriptor(MissingDescriptor())  # type: ignore[arg-type]
+
+
 def test_broker_server_descriptor_helpers_reject_bad_controls() -> None:
     regular = os.open("/dev/null", os.O_RDONLY)
     try:
