@@ -63,6 +63,34 @@ def test_runtime_manifest_rejects_bad_cbor_entries(tmp_path: Path) -> None:
         closure.RuntimeManifestV1.from_cbor(canonical_dumps(payload), closure_root=tmp_path)
 
 
+def test_runtime_multiarch_and_dependency_root_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "astral_project.runtime.closure.subprocess.run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("dpkg")),
+    )
+    with pytest.raises(AstralError):
+        closure.ubuntu_library_roots()
+    monkeypatch.setattr(
+        "astral_project.runtime.closure.subprocess.run",
+        lambda *_args, **_kwargs: SimpleNamespace(stdout="bad/path\n"),
+    )
+    with pytest.raises(AstralError):
+        closure.ubuntu_library_roots()
+    monkeypatch.setattr(
+        "astral_project.runtime.closure.subprocess.run",
+        lambda *_args, **_kwargs: SimpleNamespace(stdout="x86_64-linux-gnu\n"),
+    )
+    assert closure.ubuntu_library_roots() == (
+        Path("/lib/x86_64-linux-gnu"),
+        Path("/usr/lib/x86_64-linux-gnu"),
+        Path("/lib64"),
+    )
+    with pytest.raises(AstralError):
+        closure._resolve_needed_libraries(("missing.so",), ())
+
+
 def test_runtime_dependency_and_elf_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "astral_project.runtime.closure.subprocess.run",
@@ -90,6 +118,18 @@ def test_runtime_dependency_and_elf_errors(tmp_path: Path, monkeypatch: pytest.M
         closure._resolve_needed_libraries(("missing.so",), (tmp_path,))
     with pytest.raises(AstralError):
         closure._trusted_regular_file(tmp_path, "directory")
+
+
+def test_runtime_root_validation_rejects_unsafe_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    details = SimpleNamespace(st_mode=0o40755, st_uid=1)
+    monkeypatch.setattr(Path, "lstat", lambda _path: details)
+    with pytest.raises(AstralError):
+        closure._require_root_owned_directory(tmp_path, "root")
+    details = SimpleNamespace(st_mode=0o40755 | 0o002, st_uid=0)
+    with pytest.raises(AstralError):
+        closure._require_root_owned_directory(tmp_path, "root")
 
 
 def test_runtime_copy_and_root_validation_errors(tmp_path: Path) -> None:
