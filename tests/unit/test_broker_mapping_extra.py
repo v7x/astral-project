@@ -213,6 +213,29 @@ def test_mapping_worker_start_maps_parent_side(monkeypatch: pytest.MonkeyPatch) 
     assert closed == [11, 10, 10, 11]
 
 
+def test_mapping_worker_start_reaps_on_continuation_write_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    details = SimpleNamespace(st_mode=stat.S_IFREG | stat.S_IXUSR, st_uid=0)
+    monkeypatch.setattr(Path, "lstat", lambda _path: details)
+    fake_os = SimpleNamespace(
+        O_CLOEXEC=1,
+        pipe2=lambda _flags: (10, 11),
+        fork=lambda: 99,
+        close=lambda _fd: None,
+        write=lambda _fd, _data: 0,
+    )
+    monkeypatch.setattr(mapping, "os", fake_os)
+    monkeypatch.setattr(mapping, "_read_mapping_ready", lambda _fd: b"R")
+    monkeypatch.setattr(mapping, "_create_worker_staging", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(mapping, "_write_identity_map", lambda *_args, **_kwargs: None)
+    reaped: list[int] = []
+    monkeypatch.setattr(mapping, "_terminate_and_reap", reaped.append)
+    with pytest.raises(AstralError):
+        mapping.MappingWorker(Path("/worker")).start(uid=1, gid=1)
+    assert reaped == [99]
+
+
 def test_mapping_worker_start_reaps_on_bad_handshake(monkeypatch: pytest.MonkeyPatch) -> None:
     details = SimpleNamespace(st_mode=stat.S_IFREG | stat.S_IXUSR, st_uid=0)
     monkeypatch.setattr(Path, "lstat", lambda _path: details)
