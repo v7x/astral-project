@@ -10,6 +10,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.core.ids import GrantId, HostId, IssuerKeyId, SessionId
+from astral_project.crypto.cbor import canonical_dumps
 from astral_project.crypto.grants import (
     AccessMode,
     ExportKind,
@@ -22,10 +23,13 @@ from astral_project.session.broker import (
     WORKER_FD_LAYOUT,
     BrokerAuditV1,
     BrokerBackendId,
+    BrokerConnectionAuditV1,
     BrokerFailureCode,
     CancelNamespaceV1,
     CancelReason,
     CreateNamespaceV1,
+    NamespaceCancelledV1,
+    NamespaceNotFoundV1,
     NamespaceReadyV1,
     NamespaceRejectedV1,
     PeerCredentials,
@@ -34,6 +38,11 @@ from astral_project.session.broker import (
     WorkerFdLayoutV1,
     WorkerResult,
     WorkerResultV1,
+    _boolean,
+    _bytes,
+    _optional_failure,
+    _string,
+    replay_key,
     require_expected_peer,
 )
 from astral_project.session.ceiling import (
@@ -317,3 +326,155 @@ def test_audit_and_worker_result_golden_schema() -> None:
     assert WorkerResultV1.from_cbor(worker.canonical_bytes()) == worker
     with pytest.raises(AstralError):
         WorkerResultV1(BrokerFailureCode.WORKER_FAILED, WorkerResult.PASSED, session_id)
+
+
+def test_connection_audit_and_terminal_result_validation() -> None:
+    audit = BrokerConnectionAuditV1(1, 1000, BrokerFailureCode.PEER_UNAUTHORIZED, "peer")
+    assert audit.stage == "peer"
+    with pytest.raises(AstralError):
+        BrokerConnectionAuditV1(-1, 1000, BrokerFailureCode.PROTOCOL_INVALID, "peer")
+    with pytest.raises(AstralError):
+        BrokerAuditV1(
+            1, None, _signed_grant().grant.grant_id, 1000, WorkerResult.FAILED, _open().session_id
+        )
+    with pytest.raises(AstralError):
+        BrokerAuditV1(
+            1,
+            None,
+            _signed_grant().grant.grant_id,
+            1000,
+            WorkerResult.PASSED,
+            _open().session_id,
+            99,
+        )
+    with pytest.raises(AstralError):
+        WorkerResultV1(None, WorkerResult.PASSED, _open().session_id, 99)
+
+
+def test_terminal_payload_helpers_reject_wrong_types() -> None:
+    with pytest.raises(AstralError):
+        _bytes({"x": "not-bytes"}, "x")
+    with pytest.raises(AstralError):
+        _string({"x": b"not-string"}, "x")
+    with pytest.raises(AstralError):
+        _boolean({"x": 1}, "x")
+    with pytest.raises(AstralError):
+        _optional_failure({"x": 1}, "x")
+    with pytest.raises(AstralError):
+        _optional_failure({"x": "unknown"}, "x")
+
+
+def test_protocol_constructor_rejects_invalid_bounds() -> None:
+    signed = _signed_grant().to_cbor()
+    base = CreateNamespaceV1(b"r" * 16, b"s" * 16, signed, b"n" * 32)
+    payload = base.to_payload()
+    payload.pop("session_id")
+    with pytest.raises(AstralError):
+        CreateNamespaceV1.from_cbor(canonical_dumps(payload))
+    payload = base.to_payload()
+    payload["protocol_version"] = 99
+    with pytest.raises(AstralError):
+        CreateNamespaceV1.from_cbor(canonical_dumps(payload))
+    payload = base.to_payload()
+    payload["requested_workload"] = "other"
+    with pytest.raises(AstralError):
+        CreateNamespaceV1.from_cbor(canonical_dumps(payload))
+    payload = base.to_payload()
+    payload["grant_envelope"] = b""
+    with pytest.raises(AstralError):
+        CreateNamespaceV1.from_cbor(canonical_dumps(payload))
+    signed_envelope = _signed_grant().to_cbor()
+    with pytest.raises(AstralError):
+        CreateNamespaceV1(b"r", b"s" * 16, signed_envelope, b"n" * 32)
+    with pytest.raises(AstralError):
+        CreateNamespaceV1(b"r" * 16, b"s" * 16, b"", b"n" * 32)
+    with pytest.raises(AstralError):
+        CreateNamespaceV1(b"r" * 16, b"s" * 16, signed_envelope, b"n")
+    with pytest.raises(AstralError):
+        CreateNamespaceV1(b"r" * 16, b"s" * 16, signed_envelope, b"n" * 32, "other")
+    with pytest.raises(AstralError):
+        CancelNamespaceV1(b"r", b"s" * 16, CancelReason.CLIENT_REQUEST)
+    with pytest.raises(AstralError):
+        PeerCredentials(-1, 1, 1)
+    with pytest.raises(AstralError):
+        NamespaceReadyV1(
+            b"r", b"s" * 16, BrokerBackendId.ADMIN_BOOTSTRAPPED_V1, b"e" * 32, b"m" * 32, 1
+        )
+    with pytest.raises(AstralError):
+        NamespaceRejectedV1(b"r" * 16, None, BrokerFailureCode.PLAN_INVALID, "", False, "message")
+    with pytest.raises(AstralError):
+        NamespaceCancelledV1(b"r", b"s" * 16)
+    with pytest.raises(AstralError):
+        NamespaceNotFoundV1(b"r" * 16, b"s", 1)
+    with pytest.raises(AstralError):
+        CancelNamespaceV1.from_cbor(
+            canonical_dumps(
+                {
+                    "protocol_version": 1,
+                    "reason": "unknown",
+                    "request_id": b"r" * 16,
+                    "session_id": b"s" * 16,
+                }
+            )
+        )
+    signed_grant = _signed_grant()
+    with pytest.raises(AstralError):
+        replay_key(signed_grant, b"short")
+    ledger = ReplayLedger()
+    with pytest.raises(AstralError):
+        ledger.issue(signed_grant, b"x" * 32, now=200)
+    with pytest.raises(AstralError):
+        ledger.consume(signed_grant, b"y" * 32, now=150)
+    with pytest.raises(AstralError):
+        ledger.revoke(signed_grant, b"z" * 32)
+
+
+def test_terminal_from_cbor_rejects_unsupported_enums_and_identifiers() -> None:
+    audit = BrokerAuditV1(
+        1,
+        BrokerFailureCode.PLAN_INVALID,
+        _signed_grant().grant.grant_id,
+        1,
+        WorkerResult.FAILED,
+        _open().session_id,
+    )
+    payload = audit.to_payload()
+    payload["result"] = "unknown"
+    with pytest.raises(AstralError):
+        BrokerAuditV1.from_cbor(canonical_dumps(payload))
+    worker = WorkerResultV1(BrokerFailureCode.PLAN_INVALID, WorkerResult.FAILED, _open().session_id)
+    payload = worker.to_payload()
+    payload["result"] = "unknown"
+    with pytest.raises(AstralError):
+        WorkerResultV1.from_cbor(canonical_dumps(payload))
+    ready = NamespaceReadyV1(
+        b"r" * 16, b"s" * 16, BrokerBackendId.ADMIN_BOOTSTRAPPED_V1, b"e" * 32, b"m" * 32, 1
+    )
+    payload = ready.to_payload()
+    payload["backend_id"] = "unknown"
+    with pytest.raises(AstralError):
+        NamespaceReadyV1.from_cbor(canonical_dumps(payload))
+    rejected = NamespaceRejectedV1(
+        b"r" * 16, None, BrokerFailureCode.PLAN_INVALID, "plan", False, "bad"
+    )
+    payload = rejected.to_payload()
+    payload["stable_error_code"] = "unknown"
+    with pytest.raises(AstralError):
+        NamespaceRejectedV1.from_cbor(canonical_dumps(payload))
+
+
+def test_terminal_response_variants_round_trip_and_invalid_fields() -> None:
+    request_id = b"r" * 16
+    session_id = b"s" * 16
+    cancelled = NamespaceCancelledV1(request_id, session_id)
+    missing = NamespaceNotFoundV1(request_id, session_id)
+    assert NamespaceCancelledV1.from_cbor(cancelled.canonical_bytes()) == cancelled
+    assert NamespaceNotFoundV1.from_cbor(missing.canonical_bytes()) == missing
+    rejected = NamespaceRejectedV1(
+        request_id, None, BrokerFailureCode.PLAN_INVALID, "plan", False, "bad plan"
+    )
+    assert NamespaceRejectedV1.from_cbor(rejected.canonical_bytes()) == rejected
+    payload = rejected.to_payload()
+    payload["session_id"] = "wrong"
+    with pytest.raises(AstralError):
+        NamespaceRejectedV1.from_cbor(canonical_dumps(payload))

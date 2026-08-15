@@ -1,0 +1,85 @@
+"""Focused source-pinning validation tests."""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+import pytest
+
+from astral_project.broker import sources
+from astral_project.core.errors import AstralError
+from astral_project.crypto.grants import ExportKind, SourceIdentity
+from astral_project.server.path_resolver import MountTopology, ResolvedSource
+
+
+def test_pinned_sources_rejects_plan_mismatch() -> None:
+    export = SimpleNamespace(descriptor_slot=0)
+    with pytest.raises(AstralError):
+        sources.PinnedSources(SimpleNamespace(exports=(export,)), ())  # type: ignore[arg-type]
+
+
+def test_pinned_sources_close_is_idempotent(monkeypatch: pytest.MonkeyPatch) -> None:
+    export = SimpleNamespace(descriptor_slot=0)
+    plan = SimpleNamespace(exports=(export,))
+    pinned = sources.PinnedSources(plan, (sources.PinnedSource(55, export, 1),))  # type: ignore[arg-type]
+    closed: list[int] = []
+    monkeypatch.setattr("astral_project.broker.sources.os.close", closed.append)
+    pinned.close()
+    pinned.close()
+    assert closed == [55]
+
+
+def test_source_validation_rejects_wrong_root_filesystem_and_identity() -> None:
+    root = SimpleNamespace(canonical_root="/root", nested_mount_policy="forbid")
+    ceiling = SimpleNamespace(source_roots=(root,))
+    identity = SourceIdentity(1, 2, "xfs", ExportKind.FILE)
+    source = ResolvedSource("/root/file", 3, identity, (), False)  # type: ignore[arg-type]
+    with pytest.raises(AstralError):
+        sources._require_safe_broker_topology(source, "/root", ceiling)  # type: ignore[arg-type]
+    identity = SourceIdentity(1, 2, "ext4", ExportKind.FILE)
+    source = ResolvedSource("/root/file", 3, identity, (MountTopology(1, 0, "/", "ext4"),), False)  # type: ignore[arg-type]
+    with pytest.raises(AstralError):
+        sources._require_safe_broker_topology(source, "/root", ceiling)  # type: ignore[arg-type]
+    export = SimpleNamespace(
+        canonical_source="/root/other",
+        source_identity=SourceIdentity(1, 2, "ext4", ExportKind.FILE),
+    )
+    with pytest.raises(AstralError):
+        sources._require_signed_identity(source, export)  # type: ignore[arg-type]
+    with pytest.raises(AstralError):
+        sources._grant_export_for_plan_export(
+            SimpleNamespace(exports=()),  # type: ignore[arg-type]
+            SimpleNamespace(  # type: ignore[arg-type]
+                virtual_target="/missing",
+                access_mode=ExportKind.FILE,
+                kind="file",
+                identity=identity,
+            ),
+        )
+
+
+def test_source_helpers_require_unique_root_and_dac(monkeypatch: pytest.MonkeyPatch) -> None:
+    ceiling = SimpleNamespace(
+        source_roots=(
+            SimpleNamespace(canonical_root="/root", nested_mount_policy="allow"),
+            SimpleNamespace(canonical_root="/root/sub", nested_mount_policy="allow"),
+        )
+    )
+    with pytest.raises(AstralError):
+        sources._root_for_source("/elsewhere", ceiling)  # type: ignore[arg-type]
+    with pytest.raises(AstralError):
+        sources._root_for_source("/root/sub/file", ceiling)  # type: ignore[arg-type]
+    with pytest.raises(AstralError):
+        sources._pin_from_descriptors(SimpleNamespace(exports=()), ceiling, [1])  # type: ignore[arg-type]
+    identity = SimpleNamespace(device=1, inode=2, filesystem_type="ext4", kind=ExportKind.DIRECTORY)
+    source = ResolvedSource("/root/dir", 3, identity, ())  # type: ignore[arg-type]
+    monkeypatch.setattr("astral_project.broker.sources.os.open", lambda *_args: 55)
+    closed: list[int] = []
+    monkeypatch.setattr("astral_project.broker.sources.os.close", closed.append)
+    sources._require_target_dac_access(source)
+    assert closed == [55]
+    monkeypatch.setattr(
+        "astral_project.broker.sources.os.open", lambda *_args: (_ for _ in ()).throw(OSError())
+    )
+    with pytest.raises(AstralError):
+        sources._require_target_dac_access(source)

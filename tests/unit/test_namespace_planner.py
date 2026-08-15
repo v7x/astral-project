@@ -9,11 +9,18 @@ import pytest
 
 from astral_project.core.errors import AstralError
 from astral_project.core.ids import GrantId, HostId, IssuerKeyId
+from astral_project.crypto.cbor import canonical_dumps
 from astral_project.crypto.grants import AccessMode, ExportKind, Grant, GrantExport, SourceIdentity
 from astral_project.namespace.planner import (
     INTERNAL_STAGING_ROOT,
     NamespacePlan,
+    PlannedExport,
+    _integer,
+    _list,
+    _mapping,
+    _mapping_item,
     _normalized_target,
+    _string,
     build_namespace_plan,
 )
 
@@ -94,3 +101,61 @@ def test_plan_rejects_ambiguous_or_reserved_targets(exports: tuple[GrantExport, 
 def test_target_normalizer_rejects_nul_before_native_plan_encoding() -> None:
     with pytest.raises(AstralError):
         _normalized_target("/bad\x00target")
+    with pytest.raises(AstralError):
+        _normalized_target("/" + "a" * 256)
+
+
+def test_namespace_plan_rejects_structural_and_schema_errors() -> None:
+    export = PlannedExport(
+        AccessMode.READ_ONLY,
+        0,
+        SourceIdentity(1, 1, "ext4", ExportKind.DIRECTORY),
+        ExportKind.DIRECTORY.value,
+        "/a",
+    )
+    with pytest.raises(AstralError):
+        PlannedExport(AccessMode.READ_ONLY, -1, export.identity, export.kind, "/a")
+    with pytest.raises(AstralError):
+        PlannedExport(AccessMode.READ_ONLY, 0, export.identity, ExportKind.FILE.value, "/a")
+    with pytest.raises(AstralError):
+        NamespacePlan((), format_version=2)
+    with pytest.raises(AstralError):
+        NamespacePlan((export,), staging_root="/tmp")
+    with pytest.raises(AstralError):
+        NamespacePlan((replace(export, descriptor_slot=1),))
+    with pytest.raises(AstralError):
+        NamespacePlan(
+            (
+                replace(export, virtual_target="/z"),
+                replace(export, descriptor_slot=1, virtual_target="/a"),
+            )
+        )
+
+    payload = export.to_payload()
+    payload["access_mode"] = "bad"
+    with pytest.raises(AstralError):
+        PlannedExport.from_payload(payload)
+    with pytest.raises(AstralError):
+        NamespacePlan.from_cbor(canonical_dumps([]))
+    malformed = NamespacePlan(exports=(export,)).to_payload()
+    malformed["exports"] = ["bad"]
+    with pytest.raises(AstralError):
+        NamespacePlan.from_cbor(canonical_dumps(malformed))
+    malformed["exports"] = export.to_payload()
+    with pytest.raises(AstralError):
+        NamespacePlan.from_cbor(canonical_dumps(malformed))
+
+
+def test_namespace_plan_helpers_reject_wrong_types() -> None:
+    with pytest.raises(AstralError):
+        _mapping({"x": 1}, "x")
+    with pytest.raises(AstralError):
+        _mapping_item(1, "item")
+    with pytest.raises(AstralError):
+        _list({"x": 1}, "x")
+    with pytest.raises(AstralError):
+        _string({"x": 1}, "x")
+    with pytest.raises(AstralError):
+        _integer({"x": True}, "x")
+    with pytest.raises(AstralError):
+        build_namespace_plan(_grant(()))

@@ -75,6 +75,51 @@ def test_worker_staging_cleanup_reports_unexpected_error(
         WorkerProcess(1, staging).terminate()
 
 
+def test_worker_fd_install_handles_relocation_and_aliases(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, int, int]] = []
+    monkeypatch.setattr(
+        "astral_project.broker.mapping.fcntl.fcntl", lambda source, _op, _floor: source + 100
+    )
+    fake_os = SimpleNamespace(
+        close=lambda fd: calls.append(("close", fd, 0)),
+        dup2=lambda source, destination, inheritable: calls.append(("dup2", source, destination)),
+    )
+    monkeypatch.setattr(mapping, "os", fake_os)
+    mapping._install_worker_fds(3, 4, {5: 10})
+    assert ("dup2", 103, 3) in calls
+    with pytest.raises(AstralError):
+        mapping._install_worker_fds(3, 4, {5: 3})
+
+
+def test_worker_fd_install_closes_relocated_fds_on_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    closed: list[int] = []
+    monkeypatch.setattr("astral_project.broker.mapping.fcntl.fcntl", lambda *_args: 75)
+    fake_os = SimpleNamespace(
+        close=closed.append,
+        dup2=lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("dup")),
+    )
+    monkeypatch.setattr(mapping, "os", fake_os)
+    with pytest.raises(OSError):
+        mapping._install_worker_fds(3, 4, {})
+    assert closed
+
+
+def test_create_staging_and_write_identity_map(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    root = tmp_path / "staging"
+    monkeypatch.setattr(mapping, "_STAGING_ROOT", root)
+    monkeypatch.setattr("astral_project.broker.mapping.os.chown", lambda *_args: None)
+    path = mapping._create_worker_staging(7, uid=10, gid=11)
+    assert path == root / "7"
+    writes: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        Path, "write_text", lambda self, text, **_kwargs: writes.append((str(self), text))
+    )
+    mapping._write_identity_map(7, uid=10, gid=11)
+    assert writes[-2:] == [("/proc/7/uid_map", "0 10 1\n"), ("/proc/7/gid_map", "0 11 1\n")]
+
+
 def test_mapping_worker_validates_executable(monkeypatch: pytest.MonkeyPatch) -> None:
     details = SimpleNamespace(st_mode=stat.S_IFREG | stat.S_IXUSR, st_uid=0)
     monkeypatch.setattr(Path, "lstat", lambda _path: details)
@@ -84,12 +129,76 @@ def test_mapping_worker_validates_executable(monkeypatch: pytest.MonkeyPatch) ->
     worker.run(uid=1, gid=1)
 
 
+@pytest.mark.parametrize(
+    "details",
+    [
+        SimpleNamespace(st_mode=stat.S_IFDIR | stat.S_IXUSR, st_uid=0),
+        SimpleNamespace(st_mode=stat.S_IFREG | stat.S_IXUSR, st_uid=1),
+        SimpleNamespace(st_mode=stat.S_IFREG | stat.S_IXUSR | 0o002, st_uid=0),
+    ],
+)
+def test_mapping_worker_rejects_unsafe_executable(
+    monkeypatch: pytest.MonkeyPatch, details: SimpleNamespace
+) -> None:
+    monkeypatch.setattr(Path, "lstat", lambda _path: details)
+    with pytest.raises(AstralError):
+        mapping.MappingWorker(Path("/worker"))
+
+
+def test_mapping_worker_start_maps_parent_side(monkeypatch: pytest.MonkeyPatch) -> None:
+    details = SimpleNamespace(st_mode=stat.S_IFREG | stat.S_IXUSR, st_uid=0)
+    monkeypatch.setattr(Path, "lstat", lambda _path: details)
+    closed: list[int] = []
+    fake_os = SimpleNamespace(
+        O_CLOEXEC=1,
+        pipe2=lambda _flags: (10, 11),
+        fork=lambda: 99,
+        close=closed.append,
+        write=lambda _fd, _data: 1,
+    )
+    monkeypatch.setattr(mapping, "os", fake_os)
+    monkeypatch.setattr(mapping, "_read_mapping_ready", lambda _fd: b"R")
+    monkeypatch.setattr(mapping, "_create_worker_staging", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(mapping, "_write_identity_map", lambda *_args, **_kwargs: None)
+    worker = mapping.MappingWorker(Path("/worker"))
+    process = worker.start(uid=1, gid=1)
+    assert process.pid == 99
+    assert closed == [11, 10, 10, 11]
+
+
+def test_mapping_worker_start_reaps_on_bad_handshake(monkeypatch: pytest.MonkeyPatch) -> None:
+    details = SimpleNamespace(st_mode=stat.S_IFREG | stat.S_IXUSR, st_uid=0)
+    monkeypatch.setattr(Path, "lstat", lambda _path: details)
+    fake_os = SimpleNamespace(
+        O_CLOEXEC=1, pipe2=lambda _flags: (10, 11), fork=lambda: 99, close=lambda _fd: None
+    )
+    monkeypatch.setattr(mapping, "os", fake_os)
+    monkeypatch.setattr(mapping, "_read_mapping_ready", lambda _fd: b"X")
+    reaped: list[int] = []
+    monkeypatch.setattr(mapping, "_terminate_and_reap", reaped.append)
+    with pytest.raises(AstralError):
+        mapping.MappingWorker(Path("/worker")).start(uid=1, gid=1)
+    assert reaped == [99]
+
+
 def test_mapping_worker_rejects_negative_identity(monkeypatch: pytest.MonkeyPatch) -> None:
     details = SimpleNamespace(st_mode=stat.S_IFREG | stat.S_IXUSR, st_uid=0)
     monkeypatch.setattr(Path, "lstat", lambda _path: details)
     worker = mapping.MappingWorker(Path("/worker"))
     with pytest.raises(AstralError):
         worker.start(uid=-1, gid=1)
+
+
+def test_mapping_worker_run_rejects_signaled_process(monkeypatch: pytest.MonkeyPatch) -> None:
+    details = SimpleNamespace(st_mode=stat.S_IFREG | stat.S_IXUSR, st_uid=0)
+    monkeypatch.setattr(Path, "lstat", lambda _path: details)
+    worker = mapping.MappingWorker(Path("/worker"))
+    process = WorkerProcess(1)
+    monkeypatch.setattr(mapping.MappingWorker, "start", lambda _self, **_kwargs: process)
+    monkeypatch.setattr(mapping.WorkerProcess, "wait", lambda _self: 1)
+    monkeypatch.setattr("astral_project.broker.mapping.os.WIFEXITED", lambda _status: False)
+    with pytest.raises(AstralError):
+        worker.run(uid=1, gid=1)
 
 
 def test_mapping_worker_run_terminates_failed_process(monkeypatch: pytest.MonkeyPatch) -> None:
