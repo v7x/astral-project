@@ -40,6 +40,25 @@ class _Libc:
         return self.result
 
 
+def test_linux_syscall_error_exposes_reviewable_evidence() -> None:
+    error = linux.LinuxSyscallError("openat2", "flags=1", errno.EPERM)
+    assert error.evidence() == {"errno": errno.EPERM, "flags": "flags=1", "syscall": "openat2"}
+
+
+def test_statx_rejects_missing_mount_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    class MissingMount(_Libc):
+        def syscall(self, number: int, *args: object) -> int:
+            result = super().syscall(number, *args)
+            if number == 2:
+                ctypes.cast(cast(Any, args[-1]), ctypes.POINTER(linux._Statx)).contents.mask = 0
+            return result
+
+    monkeypatch.setattr("astral_project.server.linux._libc", MissingMount())
+    monkeypatch.setattr(linux, "_syscalls", lambda: (1, 2, 3, 4, 5))
+    with pytest.raises(OSError, match="mount ID"):
+        linux.statx_descriptor(3)
+
+
 def test_syscall_wrappers_return_success(monkeypatch: pytest.MonkeyPatch) -> None:
     libc = _Libc()
     monkeypatch.setattr("astral_project.server.linux._libc", libc)
