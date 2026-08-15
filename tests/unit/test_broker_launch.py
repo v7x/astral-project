@@ -11,6 +11,7 @@ from typing import cast
 import pytest
 
 from astral_project.broker.launch import (
+    PreparedWorkerLaunch,
     prepare_worker_launch,
     prepare_worker_launch_with_verified_runtime,
 )
@@ -30,6 +31,19 @@ def _pinned_source(descriptor: int) -> PinnedSources:
         virtual_target="/project",
     )
     return PinnedSources(NamespacePlan((export,)), (PinnedSource(descriptor, export, 1),))
+
+
+def test_prepared_worker_launch_close_is_idempotent() -> None:
+    source = os.open("/dev/null", os.O_RDONLY)
+    pinned = _pinned_source(source)
+    descriptor = os.open("/dev/null", os.O_RDONLY)
+    launch = PreparedWorkerLaunch(cast(object, None), pinned, (descriptor,))  # type: ignore[arg-type]
+    launch.close()
+    launch.close()
+    with pytest.raises(OSError):
+        os.fstat(descriptor)
+    with pytest.raises(OSError):
+        os.fstat(source)
 
 
 def test_prepare_worker_launch_seals_plan_and_keeps_only_fixed_mapping() -> None:
