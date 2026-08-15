@@ -15,7 +15,14 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from astral_project.broker.client import request_namespace
 from astral_project.broker.executor import BrokerSessionExecutor
 from astral_project.broker.mapping import MappingWorker
-from astral_project.broker.server import BrokerAuthority, BrokerPaths, BrokerServer
+from astral_project.broker.server import (
+    BrokerAuthority,
+    BrokerPaths,
+    BrokerServer,
+    _read_exact,
+    _session_id_text,
+    _write_response,
+)
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.core.ids import GrantId, HostId, IssuerKeyId
 from astral_project.crypto.grants import (
@@ -124,6 +131,30 @@ def _serve(server: BrokerServer) -> threading.Thread:
     thread = threading.Thread(target=server.serve_once)
     thread.start()
     return thread
+
+
+def test_broker_server_private_frame_helpers_reject_truncation() -> None:
+    class Connection:
+        def __init__(self) -> None:
+            self.sent: bytes | None = None
+
+        def recv(self, _length: int) -> bytes:
+            return b""
+
+        def sendall(self, payload: bytes) -> None:
+            self.sent = payload
+
+    connection = Connection()
+    with pytest.raises(AstralError):
+        _read_exact(connection, 1)  # type: ignore[arg-type]
+    response = NamespaceRejectedV1(
+        b"r" * 16, None, BrokerFailureCode.PLAN_INVALID, "plan", False, "bad"
+    )
+    _write_response(connection, response)  # type: ignore[arg-type]
+    assert connection.sent is not None
+    assert _session_id_text(bytes.fromhex("00000000000040008000000000000004")).value.endswith(
+        "0004"
+    )
 
 
 def test_root_skeleton_validates_request_audits_and_never_executes(
