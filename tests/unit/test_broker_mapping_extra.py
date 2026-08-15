@@ -104,6 +104,17 @@ def test_worker_fd_install_closes_relocated_fds_on_error(monkeypatch: pytest.Mon
     assert closed
 
 
+def test_create_staging_reports_os_error(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(mapping, "_STAGING_ROOT", tmp_path / "staging")
+    monkeypatch.setattr(
+        Path,
+        "mkdir",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("mkdir")),
+    )
+    with pytest.raises(AstralError):
+        mapping._create_worker_staging(7, uid=10, gid=11)
+
+
 def test_create_staging_and_write_identity_map(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -236,6 +247,26 @@ def test_read_mapping_ready_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("astral_project.broker.mapping.select.select", lambda *_args: ([], [], []))
     with pytest.raises(AstralError):
         mapping._read_mapping_ready(3)
+
+
+def test_write_identity_map_reports_setgroups_and_map_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = [0]
+
+    def fail_map(path: Path, *_args: object, **_kwargs: object) -> None:
+        calls[0] += 1
+        if calls[0] == 1:
+            raise OSError("setgroups")
+        raise OSError("map")
+
+    monkeypatch.setattr(Path, "write_text", fail_map)
+    with pytest.raises(AstralError):
+        mapping._write_identity_map(1, uid=2, gid=3)
+
+    calls[0] = 1
+    with pytest.raises(AstralError):
+        mapping._write_identity_map(1, uid=2, gid=3)
 
 
 def test_write_identity_map_reports_exited_worker(monkeypatch: pytest.MonkeyPatch) -> None:
