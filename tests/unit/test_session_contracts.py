@@ -131,7 +131,23 @@ def test_session_contracts_reject_invalid_versions_and_frames() -> None:
     with pytest.raises(AstralError):
         RemoteSessionReadyV1(opened.session_id, b"short")
     with pytest.raises(AstralError):
+        RemoteSessionReadyV1(opened.session_id, b"s" * 32, version=99)
+    with pytest.raises(AstralError):
+        RemoteSessionRejectedV1(b"short", "error")
+    with pytest.raises(AstralError):
+        RemoteSessionRejectedV1(None, "error", version=99)
+    with pytest.raises(AstralError):
         RemoteSessionRejectedV1(None, "")
+
+    class OneByteStream:
+        def __init__(self, data: bytes) -> None:
+            self.data = data
+
+        def read(self, _length: int) -> bytes:
+            chunk, self.data = self.data[:1], self.data[1:]
+            return chunk
+
+    assert _read_exact(OneByteStream(b"abc"), 3) == b"abc"  # type: ignore[arg-type]
     with pytest.raises(AstralError):
         _read_exact(BytesIO(b""), 1)
     with pytest.raises(AstralError):
