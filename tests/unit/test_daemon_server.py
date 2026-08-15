@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import socket
 import threading
 from pathlib import Path
@@ -67,6 +68,40 @@ def test_stale_socket_repaired_and_two_starts_do_not_race(tmp_path: Path) -> Non
         assert error.value.code is ErrorCode.DAEMON_STARTUP
     finally:
         server.close()
+
+
+def test_daemon_translates_protocol_error_to_error_frame(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server = DaemonServer(_paths(tmp_path))
+
+    class Connection:
+        def __init__(self) -> None:
+            self.payload: bytes | None = None
+
+        def __enter__(self) -> Connection:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def sendall(self, payload: bytes) -> None:
+            self.payload = payload
+
+    connection = Connection()
+    server._listener = type("Listener", (), {"accept": lambda _self: (connection, None)})()
+    monkeypatch.setattr(
+        "astral_project.daemon.server.peer_uid", lambda _connection: __import__("os").getuid()
+    )
+    monkeypatch.setattr(
+        "astral_project.daemon.server.receive",
+        lambda _connection: (_ for _ in ()).throw(
+            AstralError(ErrorCode.DAEMON_PROTOCOL, "bad", "bad", "bad", "bad")
+        ),
+    )
+    server.serve_once()
+    assert connection.payload is not None
+    assert json.loads(connection.payload[4:])["kind"] == "error"
 
 
 def test_other_uid_and_bad_frames_do_not_crash_daemon(
