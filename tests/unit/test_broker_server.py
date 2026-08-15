@@ -253,6 +253,41 @@ def test_broker_server_header_and_descriptor_helpers_accept_socket() -> None:
             os.close(descriptor)
 
 
+def test_broker_server_header_translates_receive_error_and_closes_controls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class ReceiveError:
+        def recvmsg(self, *_args: object) -> object:
+            raise OSError("recv")
+
+    with pytest.raises(AstralError):
+        _read_header_with_stream_descriptor(ReceiveError())  # type: ignore[arg-type]
+    descriptor = os.open("/dev/null", os.O_RDONLY)
+
+    class Controls:
+        def recvmsg(
+            self, *_args: object
+        ) -> tuple[bytes, list[tuple[int, int, bytes]], int, object]:
+            return (
+                (1).to_bytes(4, "big"),
+                [
+                    (
+                        socket.SOL_SOCKET,
+                        socket.SCM_RIGHTS,
+                        array.array("i", [descriptor]).tobytes(),
+                    ),
+                    (1, 2, b""),
+                ],
+                0,
+                None,
+            )
+
+    with pytest.raises(AstralError):
+        _read_header_with_stream_descriptor(Controls())  # type: ignore[arg-type]
+    with pytest.raises(OSError):
+        os.fstat(descriptor)
+
+
 def test_broker_server_header_rejects_missing_and_missing_descriptor() -> None:
     class MissingHeader:
         def recvmsg(
@@ -270,6 +305,34 @@ def test_broker_server_header_rejects_missing_and_missing_descriptor() -> None:
         _read_header_with_stream_descriptor(MissingHeader())  # type: ignore[arg-type]
     with pytest.raises(AstralError):
         _read_header_with_stream_descriptor(MissingDescriptor())  # type: ignore[arg-type]
+
+
+def test_broker_server_header_closes_descriptor_when_validation_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    descriptor = os.open("/dev/null", os.O_RDONLY)
+    monkeypatch.setattr(
+        "astral_project.broker.server._require_unix_stream_descriptor",
+        lambda _descriptor: (_ for _ in ()).throw(
+            AstralError(ErrorCode.DAEMON_AUTH, "bad", "bad", "bad", "bad")
+        ),
+    )
+
+    class Descriptor:
+        def recvmsg(
+            self, *_args: object
+        ) -> tuple[bytes, list[tuple[int, int, bytes]], int, object]:
+            return (
+                (1).to_bytes(4, "big"),
+                [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [descriptor]).tobytes())],
+                0,
+                None,
+            )
+
+    with pytest.raises(AstralError):
+        _read_header_with_stream_descriptor(Descriptor())  # type: ignore[arg-type]
+    with pytest.raises(OSError):
+        os.fstat(descriptor)
 
 
 def test_broker_server_descriptor_helpers_reject_bad_controls() -> None:
