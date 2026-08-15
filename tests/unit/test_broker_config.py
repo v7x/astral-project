@@ -107,6 +107,14 @@ def test_root_path_validation_rejects_unsafe_metadata(monkeypatch: pytest.Monkey
         with pytest.raises(AstralError):
             config._require_root_owned_path(Path("/config"))
 
+    safe_file = SimpleNamespace(st_uid=0, st_mode=0o100644)
+    monkeypatch.setattr("astral_project.broker.config.Path.lstat", lambda _path: safe_file)
+    config._require_root_owned_path(Path("/config"))
+    directory = SimpleNamespace(st_uid=0, st_mode=0o040755)
+    monkeypatch.setattr("astral_project.broker.config.Path.lstat", lambda _path: directory)
+    with pytest.raises(AstralError):
+        config._require_root_owned_regular_file(Path("/directory"))
+
 
 def test_private_field_helpers() -> None:
     assert config._absolute({"x": "/tmp/x"}, "x") == Path("/tmp/x")
