@@ -6,10 +6,11 @@ import os
 from contextlib import suppress
 from pathlib import Path
 from typing import cast
+from unittest.mock import Mock
 
 import pytest
 
-from astral_project.broker.executor import BrokerSessionExecutor
+from astral_project.broker.executor import ActiveWorkerSession, BrokerSessionExecutor
 from astral_project.broker.mapping import MappingWorker, WorkerLaunchFds, WorkerProcess
 from astral_project.broker.sources import PinnedSource, PinnedSources
 from astral_project.crypto.grants import AccessMode, ExportKind, Grant, SourceIdentity
@@ -27,6 +28,14 @@ def _pinned(descriptor: int) -> PinnedSources:
         virtual_target="/project",
     )
     return PinnedSources(NamespacePlan((export,)), (PinnedSource(descriptor, export, 1),))
+
+
+def test_active_worker_termination_closes_process_and_logs() -> None:
+    process = Mock(spec=WorkerProcess)
+    logs = Mock()
+    ActiveWorkerSession(process, logs, b"e", b"r").terminate()
+    process.terminate.assert_called_once_with()
+    logs.close.assert_called_once_with()
 
 
 def test_executor_rejects_negative_stream_descriptor(tmp_path: Path) -> None:
