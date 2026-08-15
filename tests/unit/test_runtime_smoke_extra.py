@@ -5,6 +5,7 @@ from __future__ import annotations
 import struct
 import subprocess
 from io import BytesIO
+from pathlib import Path
 
 import pytest
 
@@ -68,10 +69,37 @@ def test_smoke_rejects_bad_workload_response(
         smoke._run_handshake(["sftp"], 1)
 
 
+def test_closure_only_smoke_uses_fixed_unshare_command(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[list[str]] = []
+    def run(command: list[str], _timeout: float) -> int:
+        observed.append(command)
+        return 3
+
+    monkeypatch.setattr(smoke, "_run_handshake", run)
+    assert smoke.run_closure_only_sftp_handshake(Path("/runtime")) == 3
+    assert observed[0][0:3] == ["/usr/bin/unshare", "--mount", "--user"]
+
+
 def test_smoke_translates_process_start_error(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "astral_project.runtime.smoke.subprocess.Popen",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("missing")),
+    )
+    with pytest.raises(AstralError):
+        smoke._run_handshake(["sftp"], 1)
+
+
+def test_smoke_translates_io_error_during_handshake(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Broken(_Process):
+        def __init__(self) -> None:
+            super().__init__()
+            self.stdin.write = lambda *_args: (_ for _ in ()).throw(OSError("pipe"))  # type: ignore[method-assign]
+
+    process = Broken()
+    monkeypatch.setattr(
+        "astral_project.runtime.smoke.subprocess.Popen", lambda *_args, **_kwargs: process
     )
     with pytest.raises(AstralError):
         smoke._run_handshake(["sftp"], 1)
