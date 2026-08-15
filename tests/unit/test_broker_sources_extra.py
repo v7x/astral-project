@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import socket
 from types import SimpleNamespace
 
 import pytest
@@ -92,6 +93,34 @@ def test_source_validation_rejects_wrong_root_filesystem_and_identity() -> None:
                 kind="file",
                 identity=identity,
             ),
+        )
+
+
+def test_target_source_handoff_rejects_malformed_rights(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Endpoint:
+        def close(self) -> None:
+            return None
+
+    parent, child = Endpoint(), Endpoint()
+    monkeypatch.setattr(
+        "astral_project.broker.sources.socket.socketpair", lambda *_args: (parent, child)
+    )
+    monkeypatch.setattr("astral_project.broker.sources.os.fork", lambda: 123)
+    monkeypatch.setattr("astral_project.broker.sources.os.waitpid", lambda *_args: (123, 0))
+    monkeypatch.setattr(
+        parent,
+        "recvmsg",
+        lambda *_args: (b"O", [(socket.SOL_SOCKET, socket.SCM_RIGHTS, b"x")], 0, None),
+        raising=False,
+    )
+    with pytest.raises(AstralError):
+        sources._pin_grant_sources_as_target(
+            SimpleNamespace(exports=(object(),)),  # type: ignore[arg-type]
+            SimpleNamespace(),  # type: ignore[arg-type]
+            1,
+            1,
         )
 
 
