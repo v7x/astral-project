@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from io import BytesIO, StringIO
 
 import pytest
@@ -82,6 +83,51 @@ def test_outer_request_round_trip_and_bounded_rejection() -> None:
     for payload in (b"", b"\x00\x00\x00\x01", (MAX_OUTER_SESSION_BYTES + 1).to_bytes(4, "big")):
         with pytest.raises(AstralError):
             read_outer_request(BytesIO(payload))
+
+
+def test_unenrolled_issuer_is_rejected() -> None:
+    request, trust = signed_request()
+    stdout = BytesIO()
+    rejected_trust = replace(trust, issuer_keys={})
+    assert (
+        run_ssh_entry(
+            "transport-1",
+            stdin=framed(request),
+            stdout=stdout,
+            stderr=StringIO(),
+            environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_COMMAND},
+            trust=rejected_trust,
+            now=150,
+        )
+        == 70
+    )
+
+
+def test_broker_dispatch_bridges_authenticated_stream(monkeypatch: pytest.MonkeyPatch) -> None:
+    request, trust = signed_request()
+    stream = object()
+    observed: list[object] = []
+    monkeypatch.setattr(
+        "astral_project.server.entry.open_broker_sftp_stream", lambda _request: stream
+    )
+    monkeypatch.setattr(
+        "astral_project.server.entry.bridge_sftp_stream",
+        lambda value, **_kwargs: observed.append(value),
+    )
+    assert (
+        run_ssh_entry(
+            "transport-1",
+            stdin=framed(request),
+            stdout=BytesIO(),
+            stderr=StringIO(),
+            environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_COMMAND},
+            trust=trust,
+            now=150,
+            broker_dispatch=True,
+        )
+        == 0
+    )
+    assert observed == [stream]
 
 
 def test_outer_ready_is_final_frame_before_raw_sftp_transition() -> None:
