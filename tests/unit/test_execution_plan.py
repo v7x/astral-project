@@ -78,6 +78,14 @@ def test_plan_rejects_unknown_kind() -> None:
         _kind("unknown")
 
 
+def test_execution_plan_write_rejects_no_progress(monkeypatch: pytest.MonkeyPatch) -> None:
+    import astral_project.broker.execution_plan as module
+
+    monkeypatch.setattr("astral_project.broker.execution_plan.os.write", lambda *_args: 0)
+    with pytest.raises(AstralError):
+        module._write_all(1, b"x")
+
+
 def test_memfd_plan_is_fully_sealed() -> None:
     descriptor = create_sealed_execution_plan(_plan())
     try:
