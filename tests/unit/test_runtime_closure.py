@@ -70,6 +70,22 @@ def test_runtime_open_returns_descriptor_for_verified_closure(
         os.close(descriptor)
 
 
+def test_runtime_open_translates_open_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest(tmp_path)
+    root = RuntimeClosureBuilder().install(manifest, tmp_path / "runtime")
+    monkeypatch.setattr(
+        "astral_project.runtime.closure._require_root_owned_directory", lambda *_: None
+    )
+    monkeypatch.setattr(
+        "astral_project.runtime.closure.os.open",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("open")),
+    )
+    with pytest.raises(AstralError):
+        open_verified_runtime_closure(root.parent, manifest)
+
+
 def test_runtime_discovery_uses_fixed_system_tools_and_explicit_dependencies(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -180,6 +196,31 @@ def test_runtime_library_resolution_and_ubuntu_probe_errors(
     )
     with pytest.raises(AstralError):
         closure.ubuntu_library_roots()
+
+
+def test_runtime_closure_rejects_corrupt_manifests_and_copy_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest(tmp_path)
+    root = RuntimeClosureBuilder().install(manifest, tmp_path / "runtime")
+    cbor = root / "manifest.cbor"
+    original = cbor.read_bytes()
+    cbor.write_bytes(b"bad")
+    with pytest.raises(AstralError):
+        verify_runtime_closure(root, manifest)
+    cbor.write_bytes(original)
+    toml = root / "manifest.toml"
+    original_toml = toml.read_bytes()
+    toml.write_bytes(b"bad")
+    with pytest.raises(AstralError):
+        verify_runtime_closure(root, manifest)
+    toml.write_bytes(original_toml)
+    monkeypatch.setattr(
+        "astral_project.runtime.closure._copy_verified",
+        lambda *_args: (_ for _ in ()).throw(OSError("copy")),
+    )
+    with pytest.raises(OSError):
+        RuntimeClosureBuilder().install(manifest, tmp_path / "other-runtime")
 
 
 def test_runtime_closure_rejects_unexplained_or_modified_file(tmp_path: Path) -> None:
