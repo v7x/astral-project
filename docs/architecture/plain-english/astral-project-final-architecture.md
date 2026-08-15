@@ -344,7 +344,7 @@ MCP, skills, and harness settings are not boundaries.
 
 Packet 15 is frozen: root broker sole namespace authority; ordinary callers unprivileged; `SO_PEERCRED` authentication input only; signed grant and root-owned ceiling independently enforced; target-user DAC resolution; descriptor pinning without pathname reopen; sealed bounded plan plus inherited pinned descriptors; fixed `sftp_v1`; no caller-selected executable, argv, environment, profile, staging root, mount flags, or workload; final workload has no mount, user-namespace, network, shell, or broker/control-state authority; kernel read-only exports; supervised cancellation/expiry; fail-closed construction.
 
-Current certified POC target is Ubuntu 26.04 amd64. Ubuntu 24.04 amd64 packaged gate failed AppArmor integration and remains uncertified. Support is evidence-based per distribution/release/architecture. Debian, Fedora, and Rocky Linux are future targets, not current claims. systemd and AppArmor are Ubuntu host integration, never protocol authority.
+Current certified POC targets are Ubuntu 26.04 and Ubuntu 24.04 amd64. Ubuntu 24.04 passed after explicit AppArmor ABI pinning; historical pre-ABI failure remains in evidence. Support is evidence-based per distribution/release/architecture. Debian, Fedora, and Rocky Linux are future targets, not current claims. systemd and AppArmor are Ubuntu host integration, never protocol authority.
 
 ---
 
@@ -2585,7 +2585,7 @@ A packet that discovereth an architectural contradiction shall stop and write an
 
 **Deliver:** Root broker authority, peer authentication, independent grant/server-ceiling validation, target-user DAC resolution, descriptor pinning, sealed bounded plan, namespace/mount worker, private synthetic root, fixed digest-verified `sftp_v1`, setup-authority removal, and confined OpenSSH `sftp-server`.
 
-**Accept:** Ubuntu 26.04 amd64 Packet 15F evidence passed. Ubuntu 24.04 packaged gate failed AppArmor integration and remains uncertified. Bubblewrap is not production remote backend; local-agent bubblewrap remains separate.
+**Accept:** Ubuntu 26.04 amd64 Packet 15F evidence passed. Ubuntu 24.04 amd64 Packet 15F evidence passed after explicit AppArmor ABI pinning; historical pre-ABI failure remains recorded. Bubblewrap is not production remote backend; local-agent bubblewrap remains separate.
 
 ### Packet 16 — Full SFTP functional acceptance and integration
 **Target:** Current next packet.

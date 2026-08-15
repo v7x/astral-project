@@ -13,9 +13,9 @@ Current POC matrix:
 | Target | Result | Evidence |
 |---|---|---|
 | Ubuntu 26.04 amd64 | certified | `docs/packet-15f-ubuntu-26.04-evidence.md` |
-| Ubuntu 24.04 amd64 | uncertified; packaged gate failed | `docs/packet-15f-ubuntu-24.04-evidence.md` |
+| Ubuntu 24.04 amd64 | certified after ABI pinning | `docs/packet-15f-ubuntu-24.04-evidence.md` |
 
-Ubuntu 24.04 packaged startup/source-root integration was remediated: `python3 -I -S` removes ambient site access and the package renders exact root-owned source-root rules. Full certification still fails because Ubuntu 24.04 permits final-profile socket creation despite explicit AppArmor denial rules; mount, namespace, alternate-root, DAC, SFTP, lifecycle, and ceiling checks pass. No weaker fallback is permitted. See `docs/packet-15f-ubuntu-24.04-evidence.md`.
+Ubuntu 24.04 packaged startup/source-root integration was remediated: `python3 -I -S` removes ambient site access and the package renders exact root-owned source-root rules. Explicit `abi <abi/4.0>,` prevents AppArmor rule downgrade; final socket controls, mount, namespace, alternate-root, DAC, SFTP, lifecycle, and ceiling checks pass. See `docs/packet-15f-ubuntu-24.04-evidence.md`.
 
 Packet 16 is not blocked for this POC by Ubuntu 24.04 uncertainty. It begins on certified Ubuntu 26.04 amd64 and must preserve Packet 15 boundary.
 
@@ -33,6 +33,6 @@ SELinux, Landlock, seccomp, OpenRC, RPM packaging, and generic plugin/backend ab
 
 - Every claimed target receives release-qualified package, AppArmor/MAC, systemd/service, runtime, kernel, filesystem, positive, and negative evidence as applicable.
 - Ubuntu 26.04 evidence cannot certify Ubuntu 24.04.
-- Ubuntu 24.04 remains pending for remediation/retest in operational planning, but matrix result is recorded as failed/uncertified, never passed.
+- Ubuntu 24.04 certification depends on its explicit AppArmor ABI declaration and exact packaged evidence; it does not impose a two-platform Packet 16 gate.
 - A failed target does not weaken policy or silently downgrade another target.
 - Packet 15 runtime closure and namespace construction are complete responsibilities of Packets 15C–15F; Packet 16 owns SFTP functional acceptance and integration.

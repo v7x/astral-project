@@ -6,7 +6,7 @@
 **Uncertified:** Ubuntu 24.04 amd64; see `docs/packet-15f-ubuntu-24.04-evidence.md`
 **Administrator model:** One-time installation and upgrades only; no administrator involvement during normal sessions
 
-> Packets 15C–15F are implemented for certified Ubuntu 26.04 amd64. Ubuntu 24.04 was tested and remains uncertified because packaged AppArmor integration failed before full acceptance. Packet 16 builds upon, exercises, and integrates this frozen boundary; it must not rebuild or weaken it.
+> Packets 15C–15F are implemented for certified Ubuntu 26.04 and Ubuntu 24.04 amd64. Ubuntu 24.04's historical pre-ABI packaged AppArmor gate failed before full acceptance; explicit ABI pinning then passed. Packet 16 builds upon, exercises, and integrates this frozen boundary; it must not rebuild or weaken it.
 
 ---
 
@@ -73,7 +73,7 @@ Packet 16 exercises and integrates Packet 15. It does not casually redesign or w
 
 The broker, signed-grant, target-user-DAC, descriptor-pinning, sealed-plan, synthetic-root, fixed-workload, authority-removal, and fail-closed model is portable Linux remote security architecture. systemd and AppArmor are current Ubuntu 26.04 host integration/confinement realization, not protocol authorities and not caller-selectable request fields. Future Debian, Fedora, and Rocky Linux ports may require different packaging, service integration, MAC policy, runtime closure, or kernel evidence, but may not use weaker fallback. SELinux, Landlock, seccomp, OpenRC, RPM packaging, and generic backend abstractions are deferred work requiring evidence and, where appropriate, ADRs.
 
-Current support is evidence-based per distribution/release/architecture. Ubuntu 26.04 amd64 is certified. Ubuntu 24.04 amd64 is uncertified after the failed packaged final-profile socket-denial gate in `docs/packet-15f-ubuntu-24.04-evidence.md`. Debian, Fedora, and Rocky Linux are future portability targets, not current support claims or Packet 16 requirements.
+Current support is evidence-based per distribution/release/architecture. Ubuntu 26.04 and Ubuntu 24.04 amd64 are certified after their clean packaged gates. Debian, Fedora, and Rocky Linux are future portability targets, not current support claims or Packet 16 requirements.
 
 ## 4. Packet definitions
 
@@ -300,7 +300,7 @@ Normal operation thereafter requires no `sudo`, no administrator approval, and n
 
 ### Objective
 
-Prove the completed administrator-bootstrapped backend on explicitly tested targets. Ubuntu 26.04 amd64 passed. Ubuntu 24.04 amd64 remains failed/uncertified because final-profile socket creation was not denied under its AppArmor semantics; VM-only diagnostic changes are not acceptance evidence.
+Prove completed administrator-bootstrapped backend on explicitly tested targets. Ubuntu 26.04 amd64 passed. Ubuntu 24.04 amd64 passed after explicit AppArmor ABI pinning; pre-ABI diagnostic changes are not acceptance evidence.
 
 ### Required host evidence
 
@@ -707,7 +707,7 @@ The broker creates `replay.sqlite3` itself with mode `0600` using exclusive crea
 
 ## 6.8 `/etc/apparmor.d/usr.libexec.astral-project`
 
-> This is a complete **bootstrap profile draft**, not a claim of final least privilege. It must pass `apparmor_parser` validation and the Packet 15F audit suite on each claimed target. Current certified target is Ubuntu 26.04 amd64; Ubuntu 24.04 evidence remains failed. New mount-API mediation varies by kernel and AppArmor version; tighten rules from observed audit evidence without broadening trusted interface.
+> This is a complete **bootstrap profile draft**, not a claim of final least privilege. It must pass `apparmor_parser` validation and the Packet 15F audit suite on each claimed target. Current certified targets are Ubuntu 26.04 and Ubuntu 24.04 amd64 after explicit ABI pinning. New mount-API mediation varies by kernel and AppArmor version; tighten rules from observed audit evidence without broadening trusted interface.
 
 ```text
 abi <abi/4.0>,

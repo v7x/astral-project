@@ -1,5 +1,7 @@
 #include <tunables/global>
 
+abi <abi/4.0>,
+
 profile aspr-broker /usr/libexec/astral-project/aspr-broker flags=(attach_disconnected) {
   #include <abstractions/base>
   capability chown,
@@ -24,6 +26,7 @@ profile aspr-broker /usr/libexec/astral-project/aspr-broker flags=(attach_discon
   /proc/** r,
   unix (accept, getattr, receive, send) type=stream,
   signal (send) set=(kill) peer=aspr-sftp-v1,
+  signal (send) set=(kill) peer=aspr-namespace-setup,
   deny network inet,
 }
 
@@ -42,6 +45,8 @@ profile aspr-namespace-setup /usr/libexec/astral-project/aspr-mount-worker flags
   /proc/*/attr/current w,
   /proc/*/task/*/attr/current w,
   change_profile -> aspr-sftp-v1,
+  userns create,
+  signal (receive) set=(kill) peer=aspr-broker,
   pivot_root oldroot=/run/astral-project/staging/**/oldroot/ /run/astral-project/staging/**/,
   umount /oldroot/,
   /oldroot/ w,

@@ -70,7 +70,7 @@ Rclone filter is not wall.
 
 Packet 15 wall is frozen: root broker sole namespace authority; caller stays unprivileged; peer credentials authenticate but do not authorize alone; grant and root ceiling both checked; target-user DAC; pinned descriptors; sealed bounded plan; fixed `sftp_v1`; final child gets no mount, user namespace, network, shell, or broker-state power; RO stays kernel RO; expiry/cancel kill supervised work; failure closes.
 
-Certified POC target: Ubuntu 26.04 amd64. Ubuntu 24.04 packaged AppArmor gate failed and stays uncertified. Support needs evidence per distro/release/architecture. Debian, Fedora, Rocky are future targets. systemd/AppArmor are Ubuntu host integration, not protocol authority. Bubblewrap remains local-agent sandbox tool only.
+Certified POC targets: Ubuntu 26.04 and Ubuntu 24.04 amd64. Ubuntu 24.04 passed after explicit AppArmor ABI pinning; historical pre-ABI failure remains in evidence. Support needs evidence per distro/release/architecture. Debian, Fedora, Rocky are future targets. systemd/AppArmor are Ubuntu host integration, not protocol authority. Bubblewrap remains local-agent sandbox tool only.
 
 ```mermaid
 flowchart LR

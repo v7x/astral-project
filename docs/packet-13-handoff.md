@@ -29,4 +29,4 @@ Packet 15 root broker skeleton and Packet 15A mapping are complete: root-only Un
 
 Planner moved minimal fixed SFTP runtime closure to Packet 15C. Packet 15B descriptor worker and sealed-plan pieces exist but are not integrated with broker source opening/FD handoff. Packet 15C now builds closure; 15D owns synthetic root, authority drop, and fixed workload; 15E owns package/AppArmor; 15F owns Ubuntu gate. No unconfined SFTP execution is permitted.
 
-Packet 16 remains blocked until Packet 15F returns `result=passed`. Section 7 of `docs/15-continuation.md` proposes `CreateSessionV1`, which conflicts with frozen `CreateNamespaceV1`; planner must explicitly declare replacement or compatibility before broker request integration.
+Packet 16 may proceed on the certified Ubuntu 26.04 amd64 POC target once Packet 15F and repository quality gates pass. Ubuntu 24.04 certification is desirable but not required. Section 7 of `docs/15-continuation.md` proposes `CreateSessionV1`, which conflicts with frozen `CreateNamespaceV1`; planner must explicitly declare replacement or compatibility before broker request integration.

@@ -57,6 +57,6 @@ AppArmor confines broker and fixed final workload. It does not authorize callers
 4. Packet 15C: minimal fixed SFTP runtime closure.
 5. Packet 15D: final namespace, authority drop, and fixed workload.
 6. Packet 15E: systemd/AppArmor package.
-7. Packet 15F: final per-platform descriptor-pinned mount and confinement gate after broker, worker, closure, AppArmor, and packaging exist. Ubuntu 26.04 amd64 passed; Ubuntu 24.04 amd64 failed packaged AppArmor integration and remains uncertified.
+7. Packet 15F: final per-platform descriptor-pinned mount and confinement gate after broker, worker, closure, AppArmor, and packaging exist. Ubuntu 26.04 amd64 passed; Ubuntu 24.04 amd64 passed after explicit AppArmor ABI pinning. Historical pre-ABI failure remains in its evidence record.
 
 Packet 14 begins only after 13B approval. Packet 16 begins from the certified Ubuntu 26.04 `result=passed` gate. It owns full SFTP functional acceptance and integration, not runtime closure or namespace construction. No native launcher or mount code begins before Packet 14, 14A, and 14B contracts, canonical fixtures, signature fixtures, replay tests, and server-ceiling tests pass.

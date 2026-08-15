@@ -38,9 +38,11 @@ def test_ubuntu_2604_acceptance_references_passed_evidence() -> None:
     assert "Status: **passed**" in evidence.read_text(encoding="utf-8")
 
 
-def test_ubuntu_2404_remains_uncertified() -> None:
+def test_ubuntu_2404_acceptance_references_abi_pinned_evidence() -> None:
     record = _record("24.04")
-    assert record["result"] == "failed"
+    assert record["result"] == "passed"
     evidence = ROOT / str(record["evidence"])
     assert evidence.is_file()
-    assert "uncertified" in evidence.read_text(encoding="utf-8")
+    text = evidence.read_text(encoding="utf-8")
+    assert "passed after explicit AppArmor ABI pinning" in text
+    assert "abi <abi/4.0>," in text

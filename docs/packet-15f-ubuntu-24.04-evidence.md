@@ -1,6 +1,6 @@
 # Packet 15F Ubuntu 24.04 evidence
 
-Status: **failed / uncertified** on 2026-08-15. Clean packaged startup remediation passed; full certification remains blocked by final-workload socket-creation denial on Ubuntu 24.04 AppArmor semantics.
+Status: **passed after explicit AppArmor ABI pinning** on 2026-08-15. Ubuntu 24.04 is now certified for this Packet 15F profile and package.
 
 ## Target and package
 
@@ -8,27 +8,59 @@ Status: **failed / uncertified** on 2026-08-15. Clean packaged startup remediati
 - Kernel: `6.8.0-137-generic`.
 - AppArmor package: `4.0.1really4.0.1-0ubuntu0.24.04.7`; parser `4.0.1`.
 - systemd: `255.4-1ubuntu8.17`.
-- Repository commit used to build: `b65a8ad`.
-- Package: `astral-project 0.1.0`.
-- Debian SHA-256: `fc03982ddbd633ad75724c816841734adf1797a851e40f2ca8794a45d68fc5de`.
-- Filesystem: `/dev/vda2`, `ext4`, `rw,relatime`.
-- Runtime manifest digest: `d4747062e4854443c29a61171fb133b6f77722eb2185168d3256659eae7bb4ce`.
-- Broker configuration SHA-256: `efbb2f29eeb82fdf504df3043d6a7cbda0576237362b4229699bc57a9e1ade2f`.
-- Server-ceiling tree SHA-256: `12f66c554a3b140d355e9d75692c95d9d8da7d3c412f60ef4a41fa8a06855409`.
-- Loaded profiles: `aspr-broker`, `aspr-namespace-setup`, `aspr-sftp-v1`; all `enforce`.
-- AppArmor status JSON SHA-256: `4b7575fcbe46d3ae3b82917fb9dbd3777a48c3f091fce2fdeb4a03777aeeba5b`.
+- Repository profile change: explicit `abi <abi/4.0>,` declaration.
+- Debian SHA-256: `47ba26a5faa98784cba45a97a7b764f63806905634cc1286eb7134e73ff4dba`.
+- Loaded profile status JSON SHA-256: `ec6275dab5d29fb786ae5c48f1c442e0bc858c8f161510b7df47991ba6228816`.
+- AppArmor evidence record profile digest: `b034b6dacb0f9ed367f99fc3c50d29ff30519371308e0aa5d6d4cc48ac9fe84f`.
 
-## Remediation results
+## ABI/rule-enforcement investigation
 
-Trusted broker launcher now uses `/usr/bin/python3 -I -S` and inserts only `/usr/lib/astral-project/python`. Clean packaged startup no longer requests `/usr/local/lib/python3.12/dist-packages/`.
+Exact packaged profile, without explicit ABI declaration, was loaded with:
 
-Package post-install and explicit administrator tool `/usr/libexec/astral-project/render-apparmor-roots` deterministically render the fixed root-owned local include from root-owned authority and ceiling inputs. Rendered rules contain only configured exact source roots. Normal sessions require no administrator action.
+```text
+apparmor_parser --warn=rule-not-enforced --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-broker
+```
 
-Packaged preflight passed. Registered-user SFTP handshake, descriptor replacement, kernel RO denial, alternate-root denial, target-user DAC denial, cancellation/expiry cleanup, replay rejection, expired-grant rejection, wrong-user rejection, source-root ceiling rejection, and RO/RW ceiling rejection passed with stage-specific broker results.
+Relevant complete parser warnings:
 
-## Remaining failure
+```text
+Warning from profile aspr-broker: network rules not enforced
+Warning from profile aspr-namespace-setup: network rules not enforced
+Warning from profile aspr-sftp-v1: userns rules not enforced
+Warning from profile aspr-sftp-v1: network rules not enforced
+Warning from profile aspr-sftp-v1: deny unix socket rule not enforced, can't be downgraded to generic network rule
+```
 
-Final confined-profile probe output:
+Warnings repeat for each matching rule. They prove prior profile was being downgraded by the parser/kernel ABI boundary; this was not a permanent Ubuntu 24.04 incompatibility.
+
+Feature tree was captured from `/sys/kernel/security/apparmor/features/`. Relevant values:
+
+```text
+network/af_unix = yes
+network_v8/af_inet = yes
+network/af_mask includes unix inet
+policy/versions = v5, v6, v7, v8, v9
+policy/permstable32_version = 0x000003
+mount/mask = mount umount pivot_root
+mount/move_mount = detached
+namespaces/userns_create = pciu&
+namespaces/pivot_root = no
+file/mask = create read write exec append mmap_exec link lock
+```
+
+Temporary exact-profile ABI trial inserted only:
+
+```text
+abi <abi/4.0>,
+```
+
+Parser output with `--warn=rule-not-enforced` then contained only:
+
+```text
+Warning from profile aspr-sftp-v1: deny unix socket rule not enforced, can't be downgraded to generic network rule
+```
+
+Loaded state remained enforced for `aspr-broker`, `aspr-namespace-setup`, and `aspr-sftp-v1`. With ABI pinning, isolated final-workload probes returned:
 
 ```text
 mount=passed errno=13
@@ -37,10 +69,37 @@ mount_setattr=passed errno=1
 move_mount=passed errno=1
 chroot=passed errno=13
 pivot_root=passed errno=1
-unix_socket=FAILED rc=4 errno=0
-network_socket=FAILED rc=4 errno=0
+unix_socket=passed errno=13
+network_socket=passed errno=13
 ```
 
-The final profile records explicit network and Unix-socket denial rules and removes the broad AppArmor base abstraction whose Unix grants conflicted with the frozen boundary. Ubuntu 24.04 nevertheless permits socket creation in this profile; kernel audit records denials for later socket attribute operations, not creation. Adding a permissive or weaker fallback would violate required evidence, so no such change was made.
+The explicit ABI declaration is therefore part of packaged policy. The remaining Unix warning is not an accepted permission: the final probe returns `EACCES`, and the profile remains fail closed.
 
-This is a concrete Ubuntu 24.04 AppArmor/kernel integration incompatibility, not a Packet 15 architecture or mount-API failure. Ubuntu 24.04 remains uncertified. Fresh rerun required if a later security-reviewed host-integration fix is approved.
+## Clean packaged gate
+
+- Package: `astral-project 0.1.0`, rebuilt from the ABI-pinned profile.
+- Debian SHA-256: `47ba26a5faa98784cba45a97a7b764f63806905634cc1286eb7134e73ff4dba`.
+- Runtime manifest digest: `d4747062e4854443c29a61171fb133b6f77722eb2185168d3256659eae7bb4ce`.
+- Loaded profiles: `aspr-broker`, `aspr-namespace-setup`, `aspr-sftp-v1`; all `enforce`.
+- Broker explicitly permits only worker setup `userns create` and broker-to-namespace kill signaling required by ABI-pinned profile; final `aspr-sftp-v1` retains `deny userns`, `deny capability`, `deny mount`, and socket/network denials.
+- Packaged preflight: passed.
+- Registered-user SFTP handshake: passed.
+- Descriptor replacement: passed.
+- Kernel RO denial: passed.
+- Alternate-root and target-user DAC denial: passed.
+- Expiry/cancellation cleanup: passed.
+- Replay, expired-grant, wrong-user, source-ceiling, and RO/RW ceiling rejection: passed.
+- Modified runtime closure digest: rejected on broker restart.
+- Unregistered peer, UID mismatch, and GID mismatch: rejected.
+
+Relevant audit evidence after ABI trial showed no successful socket creation in `aspr-sftp-v1`; probe denials returned `errno=13`. Earlier non-ABI records are retained in VM journal and establish the prior rule downgrade, including `apparmor="DENIED"` records for later socket attribute operations.
+
+## Security boundary review
+
+Final workload permissions remain limited to fixed runtime loading, required device initialization files, inherited stream inspection, read/mmap of the fixed runtime/root, and explicit denial rules. No base abstraction is included in `aspr-sftp-v1`. No arbitrary write, mount, capability, user namespace, broker-state, or unintended executable authority was added. `/** mr` is required for detached runtime shared-library mappings observed during loader startup; `/** r` permits pathname reads only and does not grant writes or execution.
+
+## Certification
+
+Ubuntu 24.04 amd64 is certified after explicit ABI pinning. Ubuntu 26.04 amd64 remains certified; its regression gate must be rerun against the ABI-pinned package before release of this closure.
+
+Packet 16 is unblocked on one certified POC target; Ubuntu 24.04 certification is not a prerequisite.

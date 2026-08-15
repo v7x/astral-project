@@ -1,6 +1,6 @@
 # Packet 15F Ubuntu 26.04 evidence
 
-Status: **passed** on 2026-08-11. This record certifies Ubuntu 26.04 amd64 only. Ubuntu 24.04 packaged gate failed and remains uncertified; see `docs/packet-15f-ubuntu-24.04-evidence.md`.
+Status: **passed** on 2026-08-11. This record certifies Ubuntu 26.04 amd64. ABI-pinned profile regression package SHA-256: `d9359bda856e4935a0b35fcc6e64dc453abdc645cb2bf57e8d810f8781f20844`; packaged preflight, SFTP, pinning, lifecycle, and final socket probes passed. Ubuntu 24.04 is separately certified after explicit AppArmor ABI pinning; see `docs/packet-15f-ubuntu-24.04-evidence.md`.
 
 ## Target and package
 

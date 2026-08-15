@@ -3,7 +3,7 @@
   "gate": "packet15f",
   "release": "24.04",
   "evidence": "docs/packet-15f-ubuntu-24.04-evidence.md",
-  "result": "failed",
+  "result": "passed",
   "required": [
     "package-install",
     "systemd-fd3",

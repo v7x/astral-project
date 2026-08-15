@@ -1,6 +1,6 @@
 # Packet 15F Ubuntu gate runbook
 
-Status: executed on Ubuntu 26.04 amd64 (passed) and Ubuntu 24.04 amd64 (failed final-profile socket denial). Ubuntu 24.04 startup/source-root integration now passes; final socket-creation control remains incompatible with observed AppArmor semantics. Support follows evidence per distribution/release/architecture; see ADR-0024. Do not treat VM-only diagnostic policy changes as acceptance.
+Status: executed on Ubuntu 26.04 amd64 (passed) and Ubuntu 24.04 amd64 (passed after explicit AppArmor ABI pinning). The historical pre-ABI Ubuntu 24.04 socket-control failure and parser warnings remain recorded in the evidence. Support follows evidence per distribution/release/architecture; see ADR-0024.
 
 ## Preconditions
 
@@ -38,4 +38,4 @@ Run after preflight evidence and record each result:
 - forbidden mount, `open_tree`, `mount_setattr`, `move_mount`, user-namespace, alternate-root, socket, and network operations from final workload;
 - cancellation/expiry supervisor termination.
 
-Packet 15F passes only when packaged preflight and every positive/negative case are recorded `passed`. Ubuntu 26.04 amd64 satisfies this. Ubuntu 24.04 remains uncertified after packaged final-profile socket-control failure; exact evidence is retained. Packet 16 proceeds on certified Ubuntu 26.04 POC target and does not weaken or rebuild Packet 15.
+Packet 15F passes only when packaged preflight and every positive/negative case are recorded `passed`. Ubuntu 26.04 and Ubuntu 24.04 amd64 satisfy this after the ABI-pinned packaged profile. Packet 16 proceeds on at least one certified POC target and does not weaken or rebuild Packet 15; Ubuntu 24.04 certification is not required.

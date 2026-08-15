@@ -85,8 +85,11 @@ def test_packaged_apparmor_has_no_packet15f_diagnostic_allowances() -> None:
     assert "/proc/** rw," not in profile
     assert "mount -> /run/astral-project/staging/**," in profile
     assert "  capability kill," in profile
+    assert "abi <abi/4.0>," in profile
     assert "  deny userns," in profile
+    assert "  userns create," in profile
     assert "signal (send) set=(kill) peer=aspr-sftp-v1," in profile
+    assert "signal (send) set=(kill) peer=aspr-namespace-setup," in profile
     assert "signal (receive) set=(kill) peer=aspr-broker," in profile
 
 

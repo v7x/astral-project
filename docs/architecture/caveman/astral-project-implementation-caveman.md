@@ -913,9 +913,9 @@ uv run pytest
 
 ---
 
-## Packet 15F — Ubuntu descriptor-pinned mount and confinement gate (26.04 passed; 24.04 uncertified)
+## Packet 15F — Ubuntu descriptor-pinned mount and confinement gate (26.04 and 24.04 passed)
 
-**Goal:** Final per-platform gate. Ubuntu 26.04 amd64 passed. Ubuntu 24.04 packaged gate failed AppArmor integration and remains uncertified.
+**Goal:** Final per-platform gate. Ubuntu 26.04 amd64 passed. Ubuntu 24.04 passed after explicit AppArmor ABI pinning; historical pre-ABI AppArmor failure remains recorded in evidence.
 
 **Stop when:** Certified target has `result=passed`; failed targets retain exact evidence and no fallback.
 

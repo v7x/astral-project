@@ -138,6 +138,50 @@ def test_closure_only_handshake_when_user_namespaces_are_available(tmp_path: Pat
     assert run_closure_only_sftp_handshake(runtime) >= 3
 
 
+def test_runtime_input_and_manifest_reject_invalid_metadata(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.write_bytes(b"data")
+    with pytest.raises(AstralError):
+        RuntimeInput("../escape", source)
+    valid = _manifest(tmp_path)
+    with pytest.raises(AstralError):
+        RuntimeManifestV1("", "glibc", valid.files)
+    with pytest.raises(AstralError):
+        RuntimeManifestV1("x86_64", "glibc", tuple(reversed(valid.files)))
+    with pytest.raises(AstralError):
+        RuntimeManifestV1.from_cbor(b"bad", closure_root=tmp_path)
+
+
+def test_runtime_discovery_rejects_malformed_elf_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source"
+    source.write_bytes(b"data")
+    monkeypatch.setattr(
+        "astral_project.runtime.closure.subprocess.run",
+        lambda *_args, **_kwargs: type("Result", (), {"stdout": "(RPATH) bad"})(),
+    )
+    with pytest.raises(AstralError):
+        discover_sftp_runtime(
+            source, generated_directory=tmp_path / "identity", library_roots=(tmp_path,)
+        )
+
+
+def test_runtime_library_resolution_and_ubuntu_probe_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import astral_project.runtime.closure as closure
+
+    with pytest.raises(AstralError):
+        closure._resolve_needed_libraries(("lib.so",), ())
+    monkeypatch.setattr(
+        "astral_project.runtime.closure.subprocess.run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError()),
+    )
+    with pytest.raises(AstralError):
+        closure.ubuntu_library_roots()
+
+
 def test_runtime_closure_rejects_unexplained_or_modified_file(tmp_path: Path) -> None:
     manifest = _manifest(tmp_path)
     root = RuntimeClosureBuilder().install(manifest, tmp_path / "runtime")

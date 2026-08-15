@@ -15,6 +15,10 @@ PACKAGING = ROOT / "packaging"
 
 
 def test_apparmor_profile_preprocesses_without_loading() -> None:
+    profile = (PACKAGING / "apparmor" / "usr.libexec.astral-project.aspr-broker").read_text(
+        encoding="utf-8"
+    )
+    assert "abi <abi/4.0>," in profile
     parser = shutil.which("apparmor_parser")
     if parser is None:
         pytest.skip("AppArmor parser is not installed")
