@@ -76,6 +76,15 @@ def test_authority_rejects_unsafe_typed_values(tmp_path: Path) -> None:
         {"ceiling_path": Path("relative")},
         {"issuer_keys": ()},
         {"transport_key_ids": ()},
+        {
+            "issuer_keys": (
+                (IssuerKeyId("00000000-0000-4000-8000-000000000002"), b"k" * 32),
+                (IssuerKeyId("00000000-0000-4000-8000-000000000001"), b"k" * 32),
+            )
+        },
+        {"issuer_keys": ((IssuerKeyId("00000000-0000-4000-8000-000000000001"), b"k"),)},
+        {"transport_key_ids": ("z", "a")},
+        {"remote_user": ""},
     ):
         values = {field: getattr(base, field) for field in base.__dataclass_fields__}
         values.update(kwargs)

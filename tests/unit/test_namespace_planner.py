@@ -120,6 +120,8 @@ def test_namespace_plan_rejects_structural_and_schema_errors() -> None:
     with pytest.raises(AstralError):
         NamespacePlan((), format_version=2)
     with pytest.raises(AstralError):
+        NamespacePlan(())
+    with pytest.raises(AstralError):
         NamespacePlan((export,), staging_root="/tmp")
     with pytest.raises(AstralError):
         NamespacePlan((replace(export, descriptor_slot=1),))
@@ -137,6 +139,10 @@ def test_namespace_plan_rejects_structural_and_schema_errors() -> None:
         PlannedExport.from_payload(payload)
     with pytest.raises(AstralError):
         NamespacePlan.from_cbor(canonical_dumps([]))
+    malformed = NamespacePlan(exports=(export,)).to_payload()
+    malformed.pop("workload")
+    with pytest.raises(AstralError):
+        NamespacePlan.from_cbor(canonical_dumps(malformed))
     malformed = NamespacePlan(exports=(export,)).to_payload()
     malformed["exports"] = ["bad"]
     with pytest.raises(AstralError):
