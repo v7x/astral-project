@@ -87,6 +87,27 @@ def test_run_supports_text_and_both_json_positions(monkeypatch: pytest.MonkeyPat
         assert json.loads(json_stdout.getvalue())["git_revision"] == "deadbeef"
 
 
+def test_run_dispatches_transport_key_ssh_entry(monkeypatch: pytest.MonkeyPatch) -> None:
+    called: dict[str, object] = {}
+
+    def fake_entry(key: str, **kwargs: object) -> int:
+        called["key"] = key
+        called.update(kwargs)
+        return 17
+
+    monkeypatch.setattr(cli, "run_ssh_entry", fake_entry)
+    assert (
+        cli.run(
+            ["server", "ssh-entry", "--transport-key", "key-id"],
+            stdout=StringIO(),
+            stderr=StringIO(),
+        )
+        == 17
+    )
+    assert called["key"] == "key-id"
+    assert called["stderr"] is not None
+
+
 def test_run_rejects_unknown_and_reserves_internal_modes() -> None:
     stderr = StringIO()
     assert cli.run([], stdout=StringIO(), stderr=stderr) == 2
