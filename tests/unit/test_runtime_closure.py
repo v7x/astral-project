@@ -86,6 +86,22 @@ def test_runtime_open_translates_open_failure(
         open_verified_runtime_closure(root.parent, manifest)
 
 
+def test_runtime_open_rejects_descriptor_identity_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest(tmp_path)
+    root = RuntimeClosureBuilder().install(manifest, tmp_path / "runtime")
+    monkeypatch.setattr(
+        "astral_project.runtime.closure._require_root_owned_directory", lambda *_: None
+    )
+    monkeypatch.setattr(
+        "astral_project.runtime.closure.os.fstat",
+        lambda _fd: type("Details", (), {"st_dev": 0, "st_ino": 0})(),
+    )
+    with pytest.raises(AstralError):
+        open_verified_runtime_closure(root.parent, manifest)
+
+
 def test_runtime_discovery_uses_fixed_system_tools_and_explicit_dependencies(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

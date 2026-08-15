@@ -121,6 +121,24 @@ def test_runtime_dependency_and_elf_errors(tmp_path: Path, monkeypatch: pytest.M
     monkeypatch.setattr(
         "astral_project.runtime.closure.subprocess.run",
         lambda *_args, **_kwargs: SimpleNamespace(
+            stdout="Requesting program interpreter: /lib/ld.so]\n"
+            "0x0000 (NEEDED) Shared library: [bad/name]\n"
+        ),
+    )
+    monkeypatch.setattr(closure, "_trusted_regular_file", lambda path, _label: path)
+    with pytest.raises(AstralError):
+        closure._read_elf_metadata(tmp_path / "source")
+    monkeypatch.setattr(
+        "astral_project.runtime.closure.subprocess.run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            stdout="Requesting program interpreter: /lib/ld.so]\n"
+        ),
+    )
+    with pytest.raises(AstralError):
+        closure._read_elf_metadata(tmp_path / "source")
+    monkeypatch.setattr(
+        "astral_project.runtime.closure.subprocess.run",
+        lambda *_args, **_kwargs: SimpleNamespace(
             stdout=(
                 "Requesting program interpreter: /lib/ld-linux.so]\n"
                 "0x0000 (NEEDED) Shared library: [libc.so.6]\n"
@@ -149,6 +167,22 @@ def test_runtime_root_validation_rejects_unsafe_metadata(
     details = SimpleNamespace(st_mode=0o40755 | 0o002, st_uid=0)
     with pytest.raises(AstralError):
         closure._require_root_owned_directory(tmp_path, "root")
+
+
+def test_runtime_copy_rejects_directory_and_root_accepts_safe_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    directory = tmp_path / "directory"
+    directory.mkdir()
+    item = closure.RuntimeInput("directory", directory, sha256=b"x" * 32)
+    with pytest.raises(AstralError):
+        closure._copy_verified(item, tmp_path / "target")
+    monkeypatch.setattr(
+        Path,
+        "lstat",
+        lambda _path: SimpleNamespace(st_mode=0o40755, st_uid=0),
+    )
+    closure._require_root_owned_directory(tmp_path, "root")
 
 
 def test_runtime_copy_and_root_validation_errors(tmp_path: Path) -> None:
