@@ -211,4 +211,6 @@ def test_exact_trusted_root_and_relative_path_rules(tmp_path: Path) -> None:
     with TrustedRoot.open(str(root_path)) as root, resolve_source(root, str(root_path)) as resolved:
         assert resolved.canonical_path == str(root_path)
         assert resolved.identity.kind is ExportKind.DIRECTORY
+        resolved.close()
+    root.close()
     assert _relative_to_root("/", "/project") == "project"

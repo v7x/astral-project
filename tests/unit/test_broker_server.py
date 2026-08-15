@@ -140,6 +140,7 @@ def _serve(server: BrokerServer) -> threading.Thread:
 
 def test_broker_server_constructor_and_validation_reject_invalid_authority() -> None:
     authority, signed = _authority()
+    BrokerServer(BrokerPaths(Path("/tmp/nonexistent-broker.sock")), authority).close()
     with pytest.raises(AstralError):
         BrokerServer(
             BrokerPaths(Path("/tmp/broker.sock")),

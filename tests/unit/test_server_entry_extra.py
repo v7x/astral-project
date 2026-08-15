@@ -40,11 +40,11 @@ def test_issuer_keys_reject_bad_entries() -> None:
     with pytest.raises(AstralError):
         entry._issuer_keys({})
     with pytest.raises(AstralError):
-        entry._issuer_keys({"bad": 1})
+        entry._issuer_keys({"issuer_keys": {"bad": 1}})
     with pytest.raises(AstralError):
-        entry._issuer_keys({1: "encoded"})  # type: ignore[dict-item]
+        entry._issuer_keys({"issuer_keys": {1: "encoded"}})
     with pytest.raises(AstralError):
-        entry._issuer_keys({"00000000-0000-4000-8000-000000000001": "%%%"})
+        entry._issuer_keys({"issuer_keys": {"00000000-0000-4000-8000-000000000001": "%%%"}})
 
 
 def test_text_helpers_and_transport_config_errors() -> None:
