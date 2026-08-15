@@ -55,6 +55,19 @@ def test_load_install_config_rejects_invalid_fields(
     assert error.value.code is ErrorCode.CONFIG_PARSE
 
 
+def test_load_install_config_rejects_version_and_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(config, "_require_root_owned_regular_file", Mock())
+    monkeypatch.setattr(config, "_require_root_owned_path", Mock())
+    for field, value in (("version", 2), ("backend_id", "other")):
+        raw = _raw_paths()
+        raw[field] = value
+        monkeypatch.setattr(config, "load_toml_config", lambda *_args, raw=raw, **_kwargs: raw)
+        with pytest.raises(AstralError):
+            config.load_broker_install_config(Path("/config"))
+
+
 def test_load_install_config_rejects_unsupported_identity(monkeypatch: pytest.MonkeyPatch) -> None:
     raw = _raw_paths()
     raw["workload"] = "other"
