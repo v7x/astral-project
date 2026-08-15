@@ -126,6 +126,27 @@ def test_pin_grant_sources_keeps_descriptors_in_plan_slot_order(
         assert os.fstat(pinned.sources[1].descriptor).st_nlink == 0
 
 
+def test_pin_grant_sources_closes_prior_pins_when_later_source_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("astral_project.broker.sources.linux.clone_mount", os.dup)
+    root = tmp_path / "root"
+    root.mkdir()
+    first, second = root / "first", root / "second"
+    first.write_text("first", encoding="utf-8")
+    second.write_text("second", encoding="utf-8")
+    first_identity = _identity(root, first)
+    grant, ceiling = _grant(
+        root,
+        (
+            _export(first, first_identity, "/first"),
+            _export(second, first_identity, "/second"),
+        ),
+    )
+    with pytest.raises(Exception, match="signed source identity"):
+        pin_grant_sources(grant, ceiling)
+
+
 def test_target_dac_resolver_transfers_verified_descriptors(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
