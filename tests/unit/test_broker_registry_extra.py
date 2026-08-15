@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from astral_project.broker.registry import ActiveSessionRegistry
+from astral_project.broker.registry import ActiveSessionRegistry, _system_clock
 from astral_project.core.errors import AstralError, ErrorCode
 
 
@@ -91,7 +91,21 @@ def test_registry_supervision_handles_timeout_and_failure_result() -> None:
     assert registry.active_count() == 0
 
 
+def test_registry_supervision_cleans_successful_result() -> None:
+    result = type(
+        "Result", (), {"exit_code": 0, "signal": None, "stderr": b"", "stderr_truncated": False}
+    )()
+    worker = Worker(result=result)
+    registry = ActiveSessionRegistry(clock=lambda: int(time.time()))
+    registry.register(b"f" * 16, worker, expires_at=int(time.time()) + 10)  # type: ignore[arg-type]
+    deadline = time.time() + 1
+    while registry.active_count() and time.time() < deadline:
+        time.sleep(0.01)
+    assert registry.active_count() == 0
+
+
 def test_registry_supervision_cleans_normal_result() -> None:
+    assert isinstance(_system_clock(), int)
     worker = Worker(result=object())
     registry = ActiveSessionRegistry(clock=lambda: int(time.time()))
     registry.register(b"b" * 16, worker, expires_at=int(time.time()) + 10)  # type: ignore[arg-type]
