@@ -5,7 +5,7 @@
 **Commands:** `astral-project` and `aspr`  
 **First platform:** Linux  
 **Main language:** Python 3.12 for version 1  
-**Status:** Build plan. Not yet proven secure.
+**Status:** Packet 15 canonical remote architecture; Packet 16 integration baseline.
 
 ---
 
@@ -46,9 +46,14 @@ Do not mix them.
 
 Remote server has sensitive data.
 Grant names exact allowed paths.
-Remote helper builds empty filesystem view.
-Only allowed paths are mounted into view.
-SFTP server runs inside view.
+Signed grant enters remote `aspr-server`/broker request.
+Root broker authenticates peer and checks grant plus server ceiling.
+Source resolves under target-user DAC.
+Broker pins descriptors and seals bounded plan.
+Namespace worker builds private synthetic root.
+Fixed digest-verified `sftp_v1` runtime loses setup authority.
+Final confined OpenSSH `sftp-server` serves view.
+This is not remote bubblewrap production backend.
 Rclone talks to SFTP server.
 
 ## Wall B: local wall
@@ -63,6 +68,10 @@ Skill is not wall.
 Harness setting is not wall.
 Rclone filter is not wall.
 
+Packet 15 wall is frozen: root broker sole namespace authority; caller stays unprivileged; peer credentials authenticate but do not authorize alone; grant and root ceiling both checked; target-user DAC; pinned descriptors; sealed bounded plan; fixed `sftp_v1`; final child gets no mount, user namespace, network, shell, or broker-state power; RO stays kernel RO; expiry/cancel kill supervised work; failure closes.
+
+Certified POC target: Ubuntu 26.04 amd64. Ubuntu 24.04 packaged AppArmor gate failed and stays uncertified. Support needs evidence per distro/release/architecture. Debian, Fedora, Rocky are future targets. systemd/AppArmor are Ubuntu host integration, not protocol authority. Bubblewrap remains local-agent sandbox tool only.
+
 ```mermaid
 flowchart LR
     H[Human]
@@ -71,8 +80,8 @@ flowchart LR
     RC[rclone]
     SSH[restricted SSH]
     RS[aspr-server]
-    ST[private pinned staging tree]
-    RB[remote bubblewrap]
+    ST[pinned descriptors and sealed plan]
+    RB[remote namespace/mount worker]
     SF[sftp-server]
     RF[allowed remote files]
 
@@ -302,7 +311,7 @@ Does:
 - verify host, user, time, revocation, issuer, and server policy;
 - resolve and pin source paths;
 - build private staging mount tree;
-- build final remote bubblewrap namespace;
+- request root broker namespace construction from typed signed grant;
 - run `sftp-server`;
 - supervise expiry and revocation.
 
@@ -334,10 +343,7 @@ Rclone does not decide authorization.
 
 ## Bubblewrap
 
-Bubblewrap builds:
-
-- remote SFTP namespace;
-- local agent namespace.
+Bubblewrap builds planned local agent sandbox only. Remote production namespace comes from root broker and namespace/mount worker.
 
 Astral Project builds fixed argv.
 No raw bwrap flags from human, grant, profile, or agent.
@@ -718,7 +724,7 @@ sequenceDiagram
     participant O as OpenSSH
     participant S as aspr-server
     participant M as pinned staging mounts
-    participant B as remote bwrap
+    participant B as namespace/mount worker
     participant F as sftp-server
 
     R->>T: request SFTP subsystem
@@ -837,8 +843,7 @@ Test.
 
 # 12. Remote namespace
 
-`aspr-server` first builds private staging tree.
-Then bubblewrap builds final empty namespace.
+Root broker receives remote request. It checks peer identity, signed grant, and server ceiling. It resolves source under target-user DAC, pins descriptors, seals bounded plan, and gives plan plus descriptors to namespace/mount worker. Worker builds private synthetic root, verifies fixed runtime, removes setup authority, and runs confined fixed `sftp_v1`. Bubblewrap is not production remote backend; it remains local-agent sandbox tool.
 
 Conceptual final tree:
 
@@ -851,7 +856,7 @@ Conceptual final tree:
 
 Nothing else exists.
 
-Conceptual command:
+Historical remote-bubblewrap command (not production path; retained only as rationale):
 
 ```bash
 bwrap \
@@ -2149,7 +2154,7 @@ Must prove before big build:
 - rclone transport strategy;
 - safe path resolution;
 - descriptor-pinned staging mount;
-- remote bubblewrap empty namespace;
+- remote synthetic root and namespace worker;
 - minimal SFTP runtime;
 - rootless capability detection.
 

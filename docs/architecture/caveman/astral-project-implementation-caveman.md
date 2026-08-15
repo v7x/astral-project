@@ -144,9 +144,9 @@ flowchart TD
     P9 --> P12[12 Safe path resolver]
     P12 --> P13[13 Pinned mount spike]
     P13 --> P14[14 Namespace planner]
-    P14 --> P15[15 Remote bwrap]
-    P15 --> P16[16 SFTP runtime]
-    P16 --> P17[17 Server policy]
+    P14 --> P15[15 Root broker and remote worker]
+    P15 --> P16[16 SFTP functional acceptance]
+    P16 --> P17[17 Later policy/integration work]
 
     P10 --> P18[18 Local transport]
     P17 --> P18
@@ -901,7 +901,7 @@ uv run pytest
 
 ---
 
-## Packet 15C — Minimal fixed SFTP runtime closure
+## Packet 15C — Minimal fixed SFTP runtime closure (implemented)
 
 **Goal:** Build digest-verified loader, `sftp-server`, libraries, and generated identity files for empty synthetic root.
 
@@ -909,7 +909,7 @@ uv run pytest
 
 ---
 
-## Packet 15D — Final namespace, authority drop, and fixed workload
+## Packet 15D — Final namespace, authority drop, and fixed workload (implemented)
 
 **Goal:** Attach closure at `/.astral-project-runtime`, switch to synthetic root, drop setup authority, and run only fixed `sftp_v1`.
 
@@ -917,7 +917,7 @@ uv run pytest
 
 ---
 
-## Packet 15E — systemd/AppArmor package
+## Packet 15E — systemd/AppArmor package (implemented)
 
 **Goal:** One-time administrator package install; ordinary user needs no administrator action afterward.
 
@@ -925,74 +925,29 @@ uv run pytest
 
 ---
 
-## Packet 15F — Ubuntu descriptor-pinned mount and confinement gate
+## Packet 15F — Ubuntu descriptor-pinned mount and confinement gate (26.04 passed; 24.04 uncertified)
 
-**Goal:** Run final external Ubuntu gate after broker, worker, closure, AppArmor, and packaging exist.
+**Goal:** Final per-platform gate. Ubuntu 26.04 amd64 passed. Ubuntu 24.04 packaged gate failed AppArmor integration and remains uncertified.
 
-**Stop when:** `result=passed`: descriptor-pinning invariants pass and final workload has no mount or user-namespace authority.
-
----
-
-## Packet 16 — SFTP runtime closure and server
-
-**Goal:** Run OpenSSH `sftp-server` inside remote namespace.
-
-**Do:**
-
-1. Discover loader and library closure at enrollment.
-2. Build content-addressed runtime manifest.
-3. Copy or bind only required runtime files.
-4. Decide NSS behavior.
-5. Start `sftp-server` with explicit loader if needed.
-6. Keep stdout for SFTP only.
-7. Send log to stderr.
-8. Parent supervises child.
-9. Add ready signal before daemon returns stream.
-10. Test multiple concurrent SFTP connections.
-
-**Tests:**
-
-- normal SFTP client lists, reads, writes, renames;
-- RO enforced;
-- two clients see same changes;
-- runtime manifest has no unexplained file;
-- missing library fails clear;
-- stdout remains protocol-clean.
-
-**Stop when:** SFTP works only inside synthetic tree.
+**Stop when:** Certified target has `result=passed`; failed targets retain exact evidence and no fallback.
 
 ---
 
-## Packet 17 — Server policy and remote validation
+## Packet 16 — Full SFTP functional acceptance and integration
 
-**Goal:** Grant cannot exceed server ceiling.
+**Goal:** Exercise complete SFTP behavior atop frozen Packet 15 boundary.
 
-**Do:**
+**Packet 16 owns:** complete operation matrix, concurrent connections, external modifications, rename/overwrite, large files, traversal, extension allowlist, hardlink/symlink policy, stable errors, expiry/revocation, remote preface, rclone compatibility, readiness, and production logging.
 
-1. Parse root-owned admin policy if present.
-2. Parse user policy.
-3. Intersect admin, user, grant.
-4. Enforce allowed roots, forbidden roots, TTL, export count, RW flag, type flags, nested mount flag, issuer list.
-5. Reserve control-plane paths.
-6. Recheck critical file inode, digest, and link count.
-7. Detect hardlink aliases where practical.
-8. Add ambient execution/persistence warning class.
-9. Implement validation response with canonical path, identity, mount topology, policy digest.
-10. Require human approval when canonical target changed.
-11. Re-evaluate policy on every connection.
+**Packet 16 does not own:** runtime closure, synthetic root, fixed workload, namespace construction, authority removal, or Packet 15 confinement.
 
-**Tests:**
+**Stop when:** Full SFTP acceptance passes on certified target.
 
-- admin only narrows;
-- user only narrows;
-- TTL cap works;
-- forbidden root fails;
-- reserved ancestor/descendant fails;
-- changed source identity fails;
-- critical link count over one fails;
-- obsolete policy hash gets re-evaluated.
+---
 
-**Stop when:** Remote helper can validate but not yet local lifecycle.
+## Packet 17 — Later policy and portability work
+
+**Goal:** No duplicate Packet 15 authority work. Broker-side server-ceiling validation and remote policy enforcement are already implemented and frozen. Any change needs ADR/security review.
 
 ---
 
@@ -2047,7 +2002,7 @@ No strict remote release before pass.
 
 ## Gate 3: SFTP runtime
 
-Packet 16 must prove minimal coherent SFTP runtime.
+Packet 16 must prove complete SFTP functional acceptance and integration atop frozen Packet 15 boundary. Runtime closure and confinement are Packet 15 evidence, not Packet 16 construction.
 No remote MVP before pass.
 
 ## Gate 4: integrated learner

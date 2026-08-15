@@ -1,7 +1,7 @@
 # Astral Project (`astral-project` / `aspr`)
 ## Final Architecture and Implementation Plan
 
-**Status:** Proposed final architecture, revised after technical review  
+**Status:** Packet 15 canonical remote architecture; Packet 16 integration baseline
 **Revision:** 3  
 **Primary platform:** Linux  
 **Primary language:** Python 3.12+  
@@ -20,7 +20,7 @@ Astral Project is a capability-scoped remote-filesystem access system for humans
 The architecture establishes two independent boundaries:
 
 1. **Remote capability boundary.**  
-   A signed grant describes the exact remote paths visible to a session and whether each path is read-only or read-write. A remote helper validates and pins those sources, constructs a private staging mount tree from pinned objects, then uses bubblewrap to create the final empty namespace and start an SFTP protocol server therein. Daemon-supervised client-side rclone provides the reader-friendly public `ls` command, `mount`, and other file operations. Internally, `ls` is backed by rclone `lsjson`; exact native rclone output is available through `aspr ls --raw`, while the explicitly expert-level `aspr rclone` escape hatch may also invoke rclone directly.
+   A signed grant enters remote `aspr-server`/broker request. Root-owned broker authenticates peer, independently validates grant and server ceiling, resolves sources under target-user DAC, pins descriptors, seals a bounded internal plan, and gives it to namespace/mount worker. Worker builds private synthetic root, verifies fixed digest-verified `sftp_v1` runtime, removes setup authority, and starts final confined OpenSSH `sftp-server`. This is not a bubblewrap-constructed production remote sandbox. Daemon-supervised client-side rclone provides `ls`, `mount`, and other file operations.
 
 2. **Local agent boundary.**  
    An optional bubblewrap sandbox prevents the harness from reading unrelated local data and credentials. A FUSE projected-home daemon presents the harness with its ordinary home pathname while exposing only approved configuration, state, executables, and sockets. `profile learn` performs live, interactive policy learning through this FUSE boundary. Profiles are persistent and reusable across projects; users do not recreate harness configuration for each project.
@@ -37,8 +37,8 @@ The following decisions are adopted unless contradicted by a later security revi
 
 ### 2.1 Adopted decisions
 
-1. **Bubblewrap is a production dependency, but not an oracle.**  
-   Astral Project owns policy compilation. Bubblewrap constructs the final local and remote sandboxes. For race-free remote source attachment, Astral Project may first build a private staging mount tree with Linux’s file-descriptor-based mount API. Raw bubblewrap arguments are never accepted from grants, profiles, agents, or untrusted configuration.
+1. **Root broker is sole remote namespace authority.**
+   Astral Project owns policy compilation. Root-owned broker and fixed namespace/mount worker construct remote synthetic root from descriptor-pinned sources and sealed plan. Bubblewrap remains only planned local-agent sandbox mechanism. Raw bubblewrap arguments are never accepted from grants, profiles, agents, or untrusted configuration.
 
 2. **Authorization is positive and capability-based.**  
    A path is inaccessible unless a signed grant explicitly exposes it. Rclone include/exclude filters are convenience filters only and shall never enforce authorization.
@@ -92,7 +92,7 @@ The following decisions are adopted unless contradicted by a later security revi
 
 The following remain open and are treated as implementation gaps later in this document:
 
-- Support for hosts where unprivileged user namespaces are disabled.
+- Portability evidence for distributions/releases/architectures beyond current certified Ubuntu 26.04 amd64.
 - Whether the strict remote staging tree can use `open_tree`/`move_mount` on every supported kernel and filesystem, or needs a narrower alternative.
 - Whether to ship a static SFTP runtime rather than a vetted dynamic-loader bundle.
 - Exact semantics for nested exports with differing access modes.
@@ -239,8 +239,8 @@ flowchart LR
     T[aspr-transport]
     SSH[OpenSSH client/server]
     S[aspr-server remote helper]
-    ST[Private pinned staging mount tree]
-    B2[bubblewrap final remote namespace]
+    ST[Sealed plan and pinned source descriptors]
+    B2[Private synthetic root and namespace worker]
     SF[OpenSSH sftp-server]
     F[(Explicitly granted remote files)]
 
@@ -289,8 +289,8 @@ flowchart TB
     subgraph RemoteTrusted["Remote trusted boundary"]
         SSHD[sshd restricted key]
         AS[aspr-server]
-        STG[pinned staging mounts]
-        BW[bwrap namespace]
+        STG[pinned descriptors and sealed plan]
+        BW[namespace/mount worker]
         SFTP[sftp-server]
     end
 
@@ -320,10 +320,14 @@ flowchart TB
 ```text
 REMOTE CAPABILITY SECURITY
     signed grant
-        -> restricted SSH entry
-        -> pinned staging mount tree
-        -> remote bwrap namespace
-        -> SFTP
+        -> remote aspr-server/broker request
+        -> root broker and peer/grant/ceiling validation
+        -> target-user DAC source resolution
+        -> pinned descriptors and sealed plan
+        -> namespace/mount worker
+        -> private synthetic root
+        -> fixed sftp_v1 runtime and authority removal
+        -> confined OpenSSH sftp-server
         -> rclone lsjson internally / mount
 
 LOCAL AGENT SECURITY
@@ -335,6 +339,12 @@ LOCAL AGENT SECURITY
 These boundaries are independent.
 MCP, skills, and harness settings are not boundaries.
 ```
+
+### 5.4 Packet 15 boundary and platform status
+
+Packet 15 is frozen: root broker sole namespace authority; ordinary callers unprivileged; `SO_PEERCRED` authentication input only; signed grant and root-owned ceiling independently enforced; target-user DAC resolution; descriptor pinning without pathname reopen; sealed bounded plan plus inherited pinned descriptors; fixed `sftp_v1`; no caller-selected executable, argv, environment, profile, staging root, mount flags, or workload; final workload has no mount, user-namespace, network, shell, or broker/control-state authority; kernel read-only exports; supervised cancellation/expiry; fail-closed construction.
+
+Current certified POC target is Ubuntu 26.04 amd64. Ubuntu 24.04 amd64 packaged gate failed AppArmor integration and remains uncertified. Support is evidence-based per distribution/release/architecture. Debian, Fedora, and Rocky Linux are future targets, not current claims. systemd and AppArmor are Ubuntu host integration, never protocol authority.
 
 ---
 
@@ -846,8 +856,9 @@ sequenceDiagram
     participant D as asprd
     participant SSH as OpenSSH
     participant RS as aspr-server
-    participant MT as pinned staging mounts
-    participant BW as bubblewrap
+    participant B as root-owned broker
+    participant MT as pinned descriptors and sealed plan
+    participant NW as namespace/mount worker
     participant SF as sftp-server
     participant FS as Granted remote files
 
@@ -857,12 +868,13 @@ sequenceDiagram
     D->>SSH: exec exact requested command "aspr-channel-v1"
     SSH->>RS: forced command starts; original command validated
     D->>RS: length-prefixed protocol preface + grant
-    RS->>RS: verify signature, expiry, host, user, revocation
-    RS->>RS: resolve and pin source objects
-    RS->>MT: attach detached mounts from pinned descriptors
-    MT->>BW: provide private staging tree
-    RS->>BW: launch fixed bwrap argv
-    BW->>SF: exec SFTP server in final namespace
+    RS->>B: broker request
+    B->>B: peer authentication, grant and server-ceiling validation
+    B->>B: target-user-DAC source resolution
+    B->>MT: pin descriptors and seal bounded plan
+    MT->>NW: inherited pinned descriptors and sealed plan
+    NW->>NW: private synthetic root, runtime verification, authority removal
+    NW->>SF: exec fixed confined sftp-server
     RS-->>D: protocol status/ready
     D-->>T: connected byte stream
     T-->>RC: transparent SFTP stream
@@ -1037,7 +1049,8 @@ The exact loader and arguments are architecture-specific and must be generated f
 
 ### 10.5 Race-free remote namespace construction
 
-Remote construction is a two-stage operation.
+Remote construction is broker-owned and sealed. Broker resolves each source under target-user DAC, pins source descriptors, records identity, and creates bounded sealed internal plan. Namespace/mount worker receives only sealed plan plus inherited pinned descriptors. It creates private mount namespace, performs descriptor-based mount construction, builds private synthetic root and runtime attachment, verifies runtime manifest, removes setup authority, transitions to fixed final profile, and execs only fixed `sftp_v1`. Final workload cannot mount, create user namespace, use network, open broker/control state, run shell, or select another executable. No pathname reopen fallback exists.
+
 
 **Stage A — private staging tree**
 
@@ -1049,7 +1062,7 @@ Remote construction is a two-stage operation.
 6. attach the object beneath a private staging root with `move_mount`;
 7. verify the staging tree against the normalized grant.
 
-**Stage B — final bubblewrap sandbox**
+**Final confined workload**
 
 1. invoke bubblewrap from within the private staging namespace;
 2. create a fresh empty root;
@@ -1058,9 +1071,9 @@ Remote construction is a two-stage operation.
 5. clear the environment and close unintended descriptors;
 6. launch `sftp-server` while the parent supervisor remains outside.
 
-This arrangement useth bubblewrap for the final sandbox while avoiding a validate-then-reopen pathname race. If the fd-based staging operation cannot be proven on a supported host, strict mode rejects that host. A direct `/proc/self/fd/N` bubblewrap source may be enabled only after the same adversarial proof.
+Bubblewrap is not part of production remote construction. It remains planned local-agent sandbox mechanism. If descriptor-based construction cannot be proven, strict mode rejects host; no weaker fallback is permitted.
 
-Conceptual final invocation:
+Historical design (retained only for rationale; not production path):
 
 ```bash
 bwrap \
@@ -1078,7 +1091,7 @@ bwrap \
   /.astral-project-runtime/ld.so ...
 ```
 
-Production code builds an argument vector directly; no shell interpolation occurs. The staging root is private to the supervisor’s mount namespace and inaccessible to the remote login environment.
+Production remote code passes typed plan and inherited descriptors directly; no shell interpolation occurs. Staging and control state remain private to broker/worker.
 
 ### 10.6 Source identity and revalidation
 
@@ -2567,32 +2580,24 @@ A packet that discovereth an architectural contradiction shall stop and write an
 
 **Accept:** Equivalent grants produce identical plans; overlaps and reserved paths fail; no process launch yet.
 
-### Packet 11 — Bubblewrap final remote sandbox
-**Target:** Medium.
+### Packet 15 — Root broker and remote worker (implemented)
+**Target:** Completed through 15A–15F.
 
-**Prerequisites:** Packets 9–10.
+**Deliver:** Root broker authority, peer authentication, independent grant/server-ceiling validation, target-user DAC resolution, descriptor pinning, sealed bounded plan, namespace/mount worker, private synthetic root, fixed digest-verified `sftp_v1`, setup-authority removal, and confined OpenSSH `sftp-server`.
 
-**Deliver:** Fixed argv compiler, staging-tree bind, PID/IPC/UTS/network isolation, private propagation, clear environment, descriptor closure, namespace inspection helper.
+**Accept:** Ubuntu 26.04 amd64 Packet 15F evidence passed. Ubuntu 24.04 packaged gate failed AppArmor integration and remains uncertified. Bubblewrap is not production remote backend; local-agent bubblewrap remains separate.
 
-**Accept:** Only planned paths appear; no host `/proc`, home, policy, or keys; denied sentinels remain absent; no shell interpolation.
+### Packet 16 — Full SFTP functional acceptance and integration
+**Target:** Current next packet.
 
-### Packet 12 — SFTP runtime bundle and backend
-**Target:** Medium-large; stand alone.
+**Deliver:** Complete SFTP operation matrix, concurrent connections, external modifications, rename/overwrite, large files, traversal, extension allowlist, hardlink/symlink policy, stable errors, expiry/revocation, remote preface, rclone compatibility, readiness, and production logging.
 
-**Prerequisites:** Packets 4, 6, and 11.
+**Accept:** All work exercises frozen Packet 15 boundary. Runtime closure, synthetic root, fixed workload, and confinement construction are not Packet 16 work.
 
-**Deliver:** Content-addressed runtime manifest, explicit loader invocation, required-library/NSS tests, `sftp-server` launch, stderr logging, parent supervision, readiness protocol.
+### Packet 17 and later
+**Target:** Later work only.
 
-**Accept:** Standard SFTP client performs allowed operations; multiple connections observe coherent changes; runtime manifest contains no unexplained files.
-
-### Packet 13 — Remote validation and server policy ceiling
-**Target:** Medium.
-
-**Prerequisites:** Packets 8–12.
-
-**Deliver:** root/user policy parsing and intersection, remote grant validation response, mount-topology reporting, source identity recheck, policy hash behavior, mandatory control-plane reservations, critical-file identity/link-count verification, and ambient execution/persistence warnings.
-
-**Accept:** Policy only narrows; forbidden roots and TTL limits hold; changed source identity blocks connection; canonical changes require approval; grants containing reserved control-plane objects or hardlink aliases to critical regular files fail closed.
+**Note:** Broker-side server-ceiling validation and related remote policy enforcement were absorbed into Packet 15. Do not duplicate or weaken them. New portability or security-boundary work requires evidence and ADR/security review.
 
 ### Packet 14 — Private local transport capability
 **Target:** Medium.

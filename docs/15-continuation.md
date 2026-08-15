@@ -1,12 +1,12 @@
 # Astral Project: Packets 15C–15F Implementation Handoff
 
-**Status:** Planning decision and implementation contract  
-**Applies after:** Packet 15B descriptor-pinned mount worker  
-**Blocks:** Packet 16 full SFTP integration  
-**Primary target:** Ubuntu 24.04 LTS  
+**Status:** Packet 15 implemented; Packet 16 handoff
+**Applies after:** Packet 15F packaged gate
+**Certified POC target:** Ubuntu 26.04 amd64
+**Uncertified:** Ubuntu 24.04 amd64; see `docs/packet-15f-ubuntu-24.04-evidence.md`
 **Administrator model:** One-time installation and upgrades only; no administrator involvement during normal sessions
 
-> This document replaces the former ordering in which the SFTP runtime closure was owned entirely by Packet 16. The runtime closure is a prerequisite for proving confinement of the actual final workload, so it moves before the external Ubuntu gate.
+> Packets 15C–15F are implemented for certified Ubuntu 26.04 amd64. Ubuntu 24.04 was tested and remains uncertified because packaged AppArmor integration failed before full acceptance. Packet 16 builds upon, exercises, and integrates this frozen boundary; it must not rebuild or weaken it.
 
 ---
 
@@ -25,7 +25,7 @@ The new order is:
 16   Full SFTP functional acceptance and integration
 ```
 
-Do not use a non-SFTP verifier for the final confinement gate. Packet 15F must test the actual `sftp_v1` workload inside the synthetic root.
+Do not use a non-SFTP verifier for the final confinement gate. Packet 15F tests actual `sftp_v1` inside synthetic root. Production remote path: signed grant → remote `aspr-server`/broker request → root-owned broker → peer authentication and grant/server-ceiling validation → target-user-DAC source resolution → pinned source descriptors → sealed bounded internal execution plan → namespace/mount worker → private synthetic root → fixed digest-verified `sftp_v1` runtime → setup-authority removal → final confined OpenSSH `sftp-server`.
 
 Do not run `sftp-server` against the host root, host `/usr`, or host `/etc`.
 
@@ -51,7 +51,7 @@ Do not run `sftp-server` against the host root, host `/usr`, or host `/etc`.
 8. Source objects are pinned before mount construction.
 9. The mount worker receives pinned descriptors, not free-form source path authority.
 10. The only workload in this track is the enum `sftp_v1`.
-11. No request may select an executable, argv, environment, AppArmor profile, bwrap flags, staging root, or arbitrary mount flags.
+11. No request may select an executable, argv, environment, AppArmor profile, bubblewrap flags, staging root, arbitrary mount flags, or workload.
 12. The internal execution plan is passed through a sealed `memfd` and inherited descriptors.
 13. A separate internal plan signature is not required unless a later ADR proves that fork/exec plus sealed descriptors is insufficient.
 14. The final workload receives:
@@ -67,7 +67,15 @@ Do not run `sftp-server` against the host root, host `/usr`, or host `/etc`.
 
 ---
 
-## 3. Packet definitions
+## 3. Frozen Packet 15 boundary and portability rule
+
+Packet 16 exercises and integrates Packet 15. It does not casually redesign or weaken it. Frozen invariants are: root broker is sole namespace authority; ordinary callers remain unprivileged; `SO_PEERCRED` is authentication input, not authorization by itself; signed grants and root-owned server ceilings are independently enforced; source resolution uses target-user DAC; sources are descriptor-pinned before mount construction; no pathname reopen exists; worker receives bounded sealed plan plus inherited pinned descriptors; caller selects no executable, argv, environment, profile, staging root, mount flags, or workload; workload is fixed to `sftp_v1`; final workload has no mount, user-namespace, network, shell, or broker/control-state authority; read-only exports remain kernel read-only; cancellation and expiry terminate supervised workloads; boundary-construction failure fails closed. Any later change requires an ADR/security review.
+
+The broker, signed-grant, target-user-DAC, descriptor-pinning, sealed-plan, synthetic-root, fixed-workload, authority-removal, and fail-closed model is portable Linux remote security architecture. systemd and AppArmor are current Ubuntu 26.04 host integration/confinement realization, not protocol authorities and not caller-selectable request fields. Future Debian, Fedora, and Rocky Linux ports may require different packaging, service integration, MAC policy, runtime closure, or kernel evidence, but may not use weaker fallback. SELinux, Landlock, seccomp, OpenRC, RPM packaging, and generic backend abstractions are deferred work requiring evidence and, where appropriate, ADRs.
+
+Current support is evidence-based per distribution/release/architecture. Ubuntu 26.04 amd64 is certified. Ubuntu 24.04 amd64 is uncertified after the failed packaged gate in `docs/packet-15f-ubuntu-24.04-evidence.md`. Debian, Fedora, and Rocky Linux are future portability targets, not current support claims or Packet 16 requirements.
+
+## 4. Packet definitions
 
 ## Packet 15C — Minimal fixed `sftp_v1` runtime closure
 
@@ -292,7 +300,7 @@ Normal operation thereafter requires no `sudo`, no administrator approval, and n
 
 ### Objective
 
-Prove the completed administrator-bootstrapped backend on a disposable Ubuntu 24.04 host.
+Prove the completed administrator-bootstrapped backend on explicitly tested targets. Ubuntu 26.04 amd64 passed. Ubuntu 24.04 amd64 remains failed/uncertified because packaged AppArmor integration denied required Python/source access; VM-only diagnostic rerun is not acceptance evidence.
 
 ### Required host evidence
 
@@ -348,13 +356,13 @@ Record:
 
 Packet 15F passes only when all required positive and negative tests pass.
 
-Packet 16 must not begin before Packet 15F passes.
+Packet 16 begins from the packaged Packet 15F pass on certified Ubuntu 26.04 amd64. Uncertified platforms remain outside current support claims and do not block this POC handoff.
 
 ---
 
 ## Packet 16 — Full SFTP functional acceptance and integration
 
-Packet 16 no longer owns runtime-closure creation.
+Packet 16 owns full SFTP functional acceptance and integration atop frozen Packet 15 boundary. It does not own runtime-closure creation, synthetic-root construction, fixed workload selection, or confinement construction; those belong to completed Packets 15C–15F.
 
 It owns:
 
@@ -699,7 +707,7 @@ The broker creates `replay.sqlite3` itself with mode `0600` using exclusive crea
 
 ## 6.8 `/etc/apparmor.d/usr.libexec.astral-project`
 
-> This is a complete **bootstrap profile draft**, not a claim of final least privilege. It must pass `apparmor_parser` validation and the Packet 15F audit suite on Ubuntu 24.04. New mount-API mediation varies by kernel and AppArmor version; tighten rules from observed audit evidence without broadening the trusted interface.
+> This is a complete **bootstrap profile draft**, not a claim of final least privilege. It must pass `apparmor_parser` validation and the Packet 15F audit suite on each claimed target. Current certified target is Ubuntu 26.04 amd64; Ubuntu 24.04 evidence remains failed. New mount-API mediation varies by kernel and AppArmor version; tighten rules from observed audit evidence without broadening trusted interface.
 
 ```text
 abi <abi/4.0>,

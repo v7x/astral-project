@@ -1,6 +1,6 @@
 # Packet 15F Ubuntu 26.04 evidence
 
-Status: **passed** on 2026-08-11. This record accepts only Ubuntu 26.04 amd64; Ubuntu 24.04 remains pending.
+Status: **passed** on 2026-08-11. This record certifies Ubuntu 26.04 amd64 only. Ubuntu 24.04 packaged gate failed and remains uncertified; see `docs/packet-15f-ubuntu-24.04-evidence.md`.
 
 ## Target and package
 

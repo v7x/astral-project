@@ -152,9 +152,9 @@ flowchart TD
     P9 --> P12[12 Safe path resolver]
     P12 --> P13[13 Pinned mount spike]
     P13 --> P14[14 Namespace planner]
-    P14 --> P15[15 Remote bwrap]
-    P15 --> P16[16 SFTP runtime]
-    P16 --> P17[17 Server policy]
+    P14 --> P15[15 Root broker and remote worker]
+    P15 --> P16[16 SFTP functional acceptance]
+    P16 --> P17[17 Later policy/integration work]
 
     P10 --> P18[18 Local transport]
     P17 --> P18
@@ -876,100 +876,31 @@ Store:
 
 ---
 
-## Packet 15 — Implement the remote bubblewrap namespace
+## Packet 15 — Implement the root broker and remote namespace worker
 
-**Objective:** Construct the final remote sandbox from an empty namespace and the validated staging tree.
+**Objective:** Completed in Packets 15A–15F. 15A creates mapped worker namespace; 15B performs descriptor-pinned mount construction; 15C builds digest-verified runtime closure; 15D constructs synthetic root and removes setup authority; 15E packages systemd/AppArmor integration; 15F gates packaged deployment. Root-owned broker authenticates peers, validates signed grants and server ceilings, resolves sources under target-user DAC, consumes pinned descriptors and sealed bounded plans, and starts confined OpenSSH `sftp-server`. Bubblewrap is not production remote backend; it remains local-agent sandbox mechanism.
 
-**Implementation tasks:**
-
-1. Add typed bwrap argv builder.
-2. Use direct argv, no shell.
-3. Add PID, IPC, UTS, network namespaces.
-4. Use private mount propagation.
-5. Clear environment.
-6. Set minimal HOME.
-7. Bind runtime closure read-only.
-8. Bind RW exports.
-9. Bind RO exports read-only.
-10. Close extra FDs.
-11. Add namespace inspection debug mode usable only in tests.
-12. Add `--die-with-parent` and new session behavior.
-
-**Required tests:**
-
-- only planned paths visible;
-- host home absent;
-- host `/proc` absent;
-- policy and keys absent;
-- RO cannot write;
-- RW can write;
-- no shell interpolation attack;
-- inherited FD sentinel absent.
-
-**Completion criterion:** A test command runs inside exactly the expected remote filesystem tree.
+**Frozen acceptance evidence:** Packet 15C runtime manifest and closure; 15D synthetic-root and authority-removal tests; 15E systemd/AppArmor package; 15F positive/adversarial gate on Ubuntu 26.04 amd64. Any change to frozen invariants requires ADR/security review.
 
 ---
 
-## Packet 16 — Build the SFTP runtime closure and server
+## Packet 16 — Full SFTP functional acceptance and integration
 
-**Objective:** Run OpenSSH `sftp-server` inside the restricted remote namespace.
+**Objective:** Exercise OpenSSH `sftp-server` atop frozen Packet 15 boundary. Runtime closure, synthetic-root construction, fixed workload selection, and confinement construction are complete and not Packet 16 work.
 
-**Implementation tasks:**
+**Scope:** complete SFTP operation matrix; concurrent connections; external filesystem modifications; rename/overwrite; large-file transfer; directory traversal; extension allowlist; hardlink/symlink policy; stable error mapping; expiry/revocation; remote preface; rclone compatibility; readiness; production logging.
 
-1. Discover loader and library closure at enrollment.
-2. Build content-addressed runtime manifest.
-3. Copy or bind only required runtime files.
-4. Decide NSS behavior.
-5. Start `sftp-server` with explicit loader if needed.
-6. Keep stdout for SFTP only.
-7. Send log to stderr.
-8. Parent supervises child.
-9. Add ready signal before daemon returns stream.
-10. Test multiple concurrent SFTP connections.
-
-**Required tests:**
-
-- normal SFTP client lists, reads, writes, renames;
-- RO enforced;
-- two clients see same changes;
-- runtime manifest has no unexplained file;
-- missing library fails clear;
-- stdout remains protocol-clean.
-
-**Completion criterion:** SFTP works inside the synthetic tree and cannot see outside it.
+**Acceptance work:** Packet 16 must complete required SFTP operation matrix, concurrent connections, coherent external modifications, rename/overwrite, large-file transfer, traversal semantics, extension allowlist, hardlink/symlink policy, stable errors, expiry/revocation, remote preface, rclone compatibility, readiness, and production logging.
 
 ---
 
-## Packet 17 — Implement server policy and remote validation
+## Packet 17 — Later policy and integration work
 
-**Objective:** Ensure that a user-issued grant can never exceed the server's policy ceiling.
+**Status:** Broker-side server-ceiling validation and remote policy enforcement were absorbed into completed Packet 15 and are frozen. Do not duplicate them here. Any genuinely new policy or portability change requires an ADR/security review before implementation.
 
-**Implementation tasks:**
+**Objective:** Define only later work not already present in Packet 15; no weakening or alternate remote backend.
 
-1. Parse root-owned admin policy if present.
-2. Parse user policy.
-3. Intersect admin, user, grant.
-4. Enforce allowed roots, forbidden roots, TTL, export count, RW flag, type flags, nested mount flag, issuer list.
-5. Reserve control-plane paths.
-6. Recheck critical file inode, digest, and link count.
-7. Detect hardlink aliases where practical.
-8. Add ambient execution/persistence warning class.
-9. Implement validation response with canonical path, identity, mount topology, policy digest.
-10. Require human approval when canonical target changed.
-11. Re-evaluate policy on every connection.
-
-**Required tests:**
-
-- admin only narrows;
-- user only narrows;
-- TTL cap works;
-- forbidden root fails;
-- reserved ancestor/descendant fails;
-- changed source identity fails;
-- critical link count over one fails;
-- obsolete policy hash gets re-evaluated.
-
-**Completion criterion:** The remote helper can fully validate policy and grants, even though local lifecycle commands are not yet complete.
+**Status:** This work is already implemented and frozen in Packet 15 broker/server-ceiling validation. Future policy changes are later work only after explicit ADR/security review. Packet 16 must consume this interface, not reimplement or weaken it.
 
 ---
 
@@ -2022,10 +1953,9 @@ Do not implement or ship mount support until this gate passes.
 Packet 13 must prove no pathname reopen.
 Do not claim strict remote isolation until this gate passes.
 
-## Gate 3: SFTP runtime
+## Gate 3: SFTP functional acceptance
 
-Packet 16 must prove minimal coherent SFTP runtime.
-Do not release the remote MVP until this gate passes.
+Packet 16 must prove complete SFTP functionality and integration atop frozen Packet 15 boundary. Runtime closure and confinement are Packet 15 evidence, not Packet 16 construction. Do not release remote MVP until this gate passes.
 
 ## Gate 4: integrated learner
 

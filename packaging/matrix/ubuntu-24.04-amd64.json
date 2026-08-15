@@ -2,7 +2,8 @@
   "architecture": "amd64",
   "gate": "packet15f",
   "release": "24.04",
-  "result": "pending",
+  "evidence": "docs/packet-15f-ubuntu-24.04-evidence.md",
+  "result": "failed",
   "required": [
     "package-install",
     "systemd-fd3",
