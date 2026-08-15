@@ -118,6 +118,25 @@ def test_runtime_dependency_and_elf_errors(tmp_path: Path, monkeypatch: pytest.M
         closure._resolve_needed_libraries(("missing.so",), (tmp_path,))
     with pytest.raises(AstralError):
         closure._trusted_regular_file(tmp_path, "directory")
+    monkeypatch.setattr(
+        "astral_project.runtime.closure.subprocess.run",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            stdout=(
+                "Requesting program interpreter: /lib/ld-linux.so]\n"
+                "0x0000 (NEEDED) Shared library: [libc.so.6]\n"
+            )
+        ),
+    )
+    monkeypatch.setattr(closure, "_trusted_regular_file", lambda path, _label: path)
+    loader, needed = closure._read_elf_metadata(tmp_path / "source")
+    assert loader == Path("/lib/ld-linux.so")
+    assert needed == ("libc.so.6",)
+    monkeypatch.setattr(
+        "astral_project.runtime.closure.subprocess.run",
+        lambda *_args, **_kwargs: SimpleNamespace(stdout="0x0000 (RPATH) [bad]"),
+    )
+    with pytest.raises(AstralError):
+        closure._read_elf_metadata(tmp_path / "source")
 
 
 def test_runtime_root_validation_rejects_unsafe_metadata(
