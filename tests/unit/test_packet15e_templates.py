@@ -14,6 +14,32 @@ ROOT = Path(__file__).parents[2]
 PACKAGING = ROOT / "packaging"
 
 
+def test_broker_apparmor_allows_only_authenticated_stream_ipc() -> None:
+    profile = (PACKAGING / "apparmor" / "usr.libexec.astral-project.aspr-broker").read_text(
+        encoding="utf-8"
+    )
+    assert "  unix (accept, getattr, receive, send) type=stream," in profile
+    assert "  deny network inet," in profile
+    assert "  deny network," in profile
+
+
+def test_final_workload_apparmor_has_explicit_device_and_mapping_rules() -> None:
+    profile = (PACKAGING / "apparmor" / "usr.libexec.astral-project.aspr-broker").read_text(
+        encoding="utf-8"
+    )
+    for rule in (
+        "  /dev/null rw,",
+        "  /dev/zero rw,",
+        "  /dev/full rw,",
+        "  /dev/random r,",
+        "  /dev/urandom r,",
+        "  unix (getattr, getopt, setopt, shutdown),",
+        "  /** mr,",
+        "  deny unix (create),",
+    ):
+        assert rule in profile
+
+
 def test_apparmor_profile_preprocesses_without_loading() -> None:
     profile = (PACKAGING / "apparmor" / "usr.libexec.astral-project.aspr-broker").read_text(
         encoding="utf-8"
