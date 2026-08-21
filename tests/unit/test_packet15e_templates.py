@@ -14,13 +14,31 @@ ROOT = Path(__file__).parents[2]
 PACKAGING = ROOT / "packaging"
 
 
+def _broker_profile_block(profile: str) -> str:
+    start = profile.index("profile aspr-broker ")
+    end = profile.index("\nprofile ", start + 1)
+    return profile[start:end]
+
+
+def _assert_broker_ipc_rules(profile: str) -> None:
+    broker = _broker_profile_block(profile)
+    assert "  unix (accept, getattr, receive, send) type=stream," in broker
+    assert "  deny network inet," in broker
+    assert "  deny network,\n" not in broker
+
+
 def test_broker_apparmor_allows_only_authenticated_stream_ipc() -> None:
     profile = (PACKAGING / "apparmor" / "usr.libexec.astral-project.aspr-broker").read_text(
         encoding="utf-8"
     )
-    assert "  unix (accept, getattr, receive, send) type=stream," in profile
-    assert "  deny network inet," in profile
-    assert "  deny network," in profile
+    _assert_broker_ipc_rules(profile)
+
+    for rule in (
+        "  unix (accept, getattr, receive, send) type=stream,\n",
+        "  deny network inet,\n",
+    ):
+        with pytest.raises(AssertionError):
+            _assert_broker_ipc_rules(profile.replace(rule, "", 1))
 
 
 def test_final_workload_apparmor_has_explicit_device_and_mapping_rules() -> None:
