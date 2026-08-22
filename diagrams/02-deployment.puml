@@ -1,4 +1,5 @@
 @startuml
+skinparam backgroundColor white
 title Astral Project — Target Deployment
 skinparam shadowing false
 
@@ -12,16 +13,16 @@ node "Local Linux host" as Local {
     database "XDG state\nSQLite, profiles, audit" as State
     folder "Host HOME" as HostHome
     folder "Verified rclone mounts" as Mounts
-    socket "main.sock" as MainSocket
-    socket "private transport.sock" as PrivateSocket
+    component "main.sock" as MainSocket
+    component "private transport.sock" as PrivateSocket
   }
 
-  node "Local bubblewrap sandbox" #FFE0E0 as Sandbox {
+  node "Local bubblewrap sandbox" as Sandbox #FFE0E0 {
     component "Agent harness" as Agent
     folder "/home/<user>\nprojected FUSE view" as Projected
     folder "Declared project mounts" as Projects
     folder "Pre-mounted remote views" as SandboxMounts
-    socket "/run/astral-project/session.sock\nlimited to one grant + expiry" as SessionSocket
+    component "/run/astral-project/session.sock\nlimited to one grant + expiry" as SessionSocket
   }
 }
 
@@ -32,7 +33,7 @@ node "Enrolled remote Linux host" as Remote {
   artifact "Verified remote runtime bundle" as RemoteRuntime
   component "aspr-server supervisor" as Server
   folder "Descriptor-pinned staging tree" as Staging
-  node "Root broker + namespace/mount worker" #E2F4E2 as RemoteSandbox {
+  node "Root broker + namespace/mount worker" as RemoteSandbox #E2F4E2 {
     component "private synthetic root" as SyntheticRoot
     component "fixed confined sftp_v1" as SFTP
     folder "/exports/<export-id>" as Exports

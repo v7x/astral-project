@@ -1,4 +1,5 @@
 @startuml
+skinparam backgroundColor white
 title Astral Project — Packet 15 Remote Session
 skinparam shadowing false
 
@@ -16,8 +17,7 @@ participant "fixed confined sftp_v1" as SF
 database "Granted objects" as FS
 
 RC -> T : exec external SSH command: -s sftp
-T -> T : reject host, user, options, forwarding,
-or non-SFTP command
+T -> T : reject host, user, options, forwarding,\nor non-SFTP command
 T -> D : OpenSftpStream(environment-bound capability)
 D -> D : authorize session; load signed grant
 D -> SSH : exact command aspr-channel-v1

@@ -1,4 +1,5 @@
 @startuml
+skinparam backgroundColor white
 title Astral Project — Projected-HOME Learning and Approval
 skinparam shadowing false
 
