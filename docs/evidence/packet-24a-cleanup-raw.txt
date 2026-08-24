@@ -1,0 +1,25 @@
+# Raw installed Packet 24A cleanup fault-injection acceptance
+
+Command (run as `testuser`) on both Ubuntu releases:
+
+```sh
+python3 scripts/cleanup_installed_acceptance.py \
+  /tmp/rclone-pins/rclone-1.74.4 \
+  /home/testuser/.ssh/aspr-transport \
+  /home/testuser/.local/state/astral-project-test/issuer.key \
+  33a29bae-80a6-485e-a5a0-8af304e21d4a SHA256:vm-gate
+```
+
+Ubuntu 26.04, exit 0:
+
+```json
+{"ambiguous":{"mount_preserved":true,"state":"draining"},"failed_unmount":{"mount_preserved":true,"state":"draining"},"package":"installed","uncertain":{"mount_preserved":true,"state":"draining"}}
+```
+
+Ubuntu 24.04, exit 0:
+
+```json
+{"ambiguous":{"mount_preserved":true,"state":"draining"},"failed_unmount":{"mount_preserved":true,"state":"draining"},"package":"installed","uncertain":{"mount_preserved":true,"state":"draining"}}
+```
+
+The ambiguous case injects a successful fusermount return while `ismount` remains true. The failed-unmount case injects a nonzero fusermount result. The uncertain case injects a queue failure. All three preserve the live/uncertain mount path and remain `DRAINING`; none recursively traverses or deletes it.

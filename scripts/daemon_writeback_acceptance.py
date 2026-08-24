@@ -335,8 +335,10 @@ def main() -> int:
             print(
                 json.dumps(
                     {
+                        "exit_code": 0,
                         "rclone": str(rclone.resolve()),
                         "rclone_version": rclone_version,
+                        "session_id": str(session["session_id"]),
                         "grant_id": str(grant.grant_id),
                         "write_bytes": len(payload),
                         "write_sha256": hashlib.sha256(payload).hexdigest(),

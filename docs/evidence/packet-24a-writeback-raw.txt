@@ -1,0 +1,41 @@
+# Raw installed Packet 24A writeback matrix
+
+Command form for every row (executed as `testuser` against the installed package):
+
+```sh
+python3 scripts/daemon_writeback_acceptance.py \
+  /tmp/rclone-pins/rclone-VERSION \
+  /home/testuser/.ssh/aspr-transport \
+  /home/testuser/.local/state/astral-project-test/issuer.key \
+  33a29bae-80a6-485e-a5a0-8af304e21d4a SHA256:vm-gate
+```
+
+The harness launched the installed `DaemonServer` with the supplied binary, not the system default. Raw stdout and exit status follow.
+
+## Ubuntu 26.04 — rclone 1.73.3
+
+```text
+{"exit_code": 0, "expiry_during_write": {"mount_detached": true, "session": "retired", "state": "closed"}, "first_close": "closed", "forced_close": {"mount_detached": true, "state": "closed"}, "grant_id": "c3dc4d7a-6f42-4792-9944-ad6a2b9ca699", "independent_readback": "passed", "rclone": "/tmp/rclone-pins/rclone-1.73.3", "rclone_version": "rclone v1.73.3", "read_sha256": "332d9be652a72e7edfc8fda53a93fd0cdfab0dfca4d3e30dbfdadf13f307de6f", "revocation_during_write": {"mount_detached": true, "session": "retired", "state": "closed"}, "session_id": "4866c1ec-8bad-4428-adc3-22b855a1c035", "write_bytes": 22020107, "write_sha256": "332d9be652a72e7edfc8fda53a93fd0cdfab0dfca4d3e30dbfdadf13f307de6f"}
+acceptance_rc=0
+```
+
+## Ubuntu 26.04 — rclone 1.74.4
+
+```text
+{"exit_code": 0, "expiry_during_write": {"mount_detached": true, "session": "retired", "state": "closed"}, "first_close": "closed", "forced_close": {"mount_detached": true, "state": "closed"}, "grant_id": "2cb9feba-b871-4e04-b657-69bc54c17606", "independent_readback": "passed", "rclone": "/tmp/rclone-pins/rclone-1.74.4", "rclone_version": "rclone v1.74.4", "read_sha256": "332d9be652a72e7edfc8fda53a93fd0cdfab0dfca4d3e30dbfdadf13f307de6f", "revocation_during_write": {"mount_detached": true, "session": "retired", "state": "closed"}, "session_id": "c6bd91d0-e3d8-4f03-881d-2f0efd6f0df2", "write_bytes": 22020107, "write_sha256": "332d9be652a72e7edfc8fda53a93fd0cdfab0dfca4d3e30dbfdadf13f307de6f"}
+acceptance_rc=0
+```
+
+## Ubuntu 24.04 — rclone 1.73.3
+
+```text
+{"exit_code": 0, "expiry_during_write": {"mount_detached": true, "session": "retired", "state": "closed"}, "first_close": "closed", "forced_close": {"mount_detached": true, "state": "closed"}, "grant_id": "49331dea-9e96-48ec-b6f7-d55bf3c6c3f8", "independent_readback": "passed", "rclone": "/tmp/rclone-pins/rclone-1.73.3", "rclone_version": "rclone v1.73.3", "read_sha256": "332d9be652a72e7edfc8fda53a93fd0cdfab0dfca4d3e30dbfdadf13f307de6f", "revocation_during_write": {"mount_detached": true, "session": "retired", "state": "closed"}, "session_id": "6da2787a-e458-49de-a533-8593e767e5ad", "write_bytes": 22020107, "write_sha256": "332d9be652a72e7edfc8fda53a93fd0cdfab0dfca4d3e30dbfdadf13f307de6f"}
+acceptance_rc=0
+```
+
+## Ubuntu 24.04 — rclone 1.74.4
+
+```text
+{"exit_code": 0, "expiry_during_write": {"mount_detached": true, "session": "retired", "state": "closed"}, "first_close": "closed", "forced_close": {"mount_detached": true, "state": "closed"}, "grant_id": "11b8c923-bccf-441a-a76a-c08db29b98d4", "independent_readback": "passed", "rclone": "/tmp/rclone-pins/rclone-1.74.4", "rclone_version": "rclone v1.74.4", "read_sha256": "332d9be652a72e7edfc8fda53a93fd0cdfab0dfca4d3e30dbfdadf13f307de6f", "revocation_during_write": {"mount_detached": true, "session": "retired", "state": "closed"}, "session_id": "d2e620e0-933a-4b0f-a69f-229ed4348286", "write_bytes": 22020107, "write_sha256": "332d9be652a72e7edfc8fda53a93fd0cdfab0dfca4d3e30dbfdadf13f307de6f"}
+acceptance_rc=0
+```

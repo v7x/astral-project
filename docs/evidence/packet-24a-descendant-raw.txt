@@ -1,0 +1,15 @@
+# Raw installed Packet 24A descendant-scope acceptance
+
+The updated installed harness binds two descendants from one signed export at `/one` and `/two`, then checks both requested files and absence of ancestor/sibling files inside each binding. It also submits explicit ancestor, sibling, and traversal source requests.
+
+Ubuntu 26.04, exit 0:
+
+```json
+{"descendant_scope_isolated":"passed","hidden_fuse_and_daemon_socket":"passed","negative_source_authority":{"ancestor":"rejected","sibling":"rejected","traversal":"rejected"},"network_none":"passed","package":"installed","remote_loss":"terminated","sandbox_positive":"passed","session_id":"f483ce98-01d7-4d24-83ff-d378d537883b","target":"unknown"}
+```
+
+Ubuntu 24.04, exit 0:
+
+```json
+{"descendant_scope_isolated":"passed","hidden_fuse_and_daemon_socket":"passed","negative_source_authority":{"ancestor":"rejected","sibling":"rejected","traversal":"rejected"},"network_none":"passed","package":"installed","remote_loss":"terminated","sandbox_positive":"passed","session_id":"f69fdd3e-6c18-4479-a537-1628bf89043e","target":"unknown"}
+```

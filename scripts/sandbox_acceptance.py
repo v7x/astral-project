@@ -274,7 +274,9 @@ def main() -> int:
                     "--",
                     "/bin/sh",
                     "-c",
-                    "test -f /one/one.txt && test -f /two/two.txt",
+                    "test -f /one/one.txt && test -f /two/two.txt "
+                    "&& test ! -e /one/allowed.txt && test ! -e /one/two.txt "
+                    "&& test ! -e /two/allowed.txt && test ! -e /two/one.txt",
                 ],
                 env,
                 timeout=90,
@@ -365,6 +367,7 @@ def main() -> int:
                         "network_none": "passed",
                         "hidden_fuse_and_daemon_socket": "passed",
                         "negative_source_authority": negative_results,
+                        "descendant_scope_isolated": "passed",
                     },
                     sort_keys=True,
                 )
