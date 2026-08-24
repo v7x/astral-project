@@ -113,7 +113,7 @@ def test_open_reaches_ready_and_records_private_resources(
         lambda *a, **k: SimpleNamespace(),
     )
     monkeypatch.setattr("astral_project.mounts.lifecycle.subprocess.Popen", lambda *a, **k: process)
-    mounted = iter((False, True, True, True))
+    mounted = iter((False, True, True, True, False, False))
     monkeypatch.setattr(
         "astral_project.mounts.lifecycle.os.path.ismount", lambda _path: next(mounted)
     )
@@ -494,6 +494,22 @@ def test_mount_health_wait_unmount_and_process_helpers(
     manager._unmount(tmp_path / "mount", 1)
 
 
+def test_unmount_success_requires_verified_detachment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database, _signed, _session_id, _identity = setup_session(tmp_path)
+    manager = MountManager(database, tmp_path / "runtime")
+    states = iter((True, False, False))
+    monkeypatch.setattr(
+        "astral_project.mounts.lifecycle.os.path.ismount", lambda _path: next(states)
+    )
+    monkeypatch.setattr(
+        "astral_project.mounts.lifecycle.subprocess.run",
+        lambda *a, **k: SimpleNamespace(returncode=0, stderr=b""),
+    )
+    manager._unmount(tmp_path / "mount", 1)
+
+
 def test_mount_process_boundaries_fail_closed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -511,7 +527,14 @@ def test_mount_process_boundaries_fail_closed(
         "astral_project.mounts.lifecycle.subprocess.run",
         lambda *a, **k: SimpleNamespace(returncode=0, stderr=b""),
     )
-    manager._unmount(tmp_path / "mount", 1)
+    monkeypatch.setattr("astral_project.mounts.lifecycle.time.monotonic", lambda: 0.0)
+    with pytest.raises(AstralError, match="remains attached"):
+        manager._unmount(tmp_path / "mount", 0)
+    monotonic = iter((0.0, 0.0, 2.0))
+    monkeypatch.setattr("astral_project.mounts.lifecycle.time.monotonic", lambda: next(monotonic))
+    monkeypatch.setattr("astral_project.mounts.lifecycle.time.sleep", lambda _seconds: None)
+    with pytest.raises(AstralError, match="remains attached"):
+        manager._unmount(tmp_path / "mount", 1)
     monkeypatch.setattr(
         "astral_project.mounts.lifecycle.subprocess.run",
         lambda *a, **k: SimpleNamespace(returncode=1, stderr=b"bad"),

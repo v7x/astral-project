@@ -6,7 +6,7 @@ Packets 23–24 passed on Ubuntu 24.04 amd64 and Ubuntu 26.04 amd64.
 
 Acceptance:
 
-- `./scripts/test`: 550 passed, 1 skipped, 100% total coverage (Packet 24A closure).
+- `./scripts/test`: 551 passed, 1 skipped, 100% total coverage (Packet 24A closure).
 - Ruff, mypy, `git diff --check`, and JSON validation pass.
 - Installed package acceptance returned exit 0 on both releases.
 - Final acceptance details: `docs/packet-23-24-acceptance.md`.
@@ -61,7 +61,7 @@ The following remain frozen and accepted:
 
 ## Packet 24A closure findings
 
-Packet 24A remediation is closed. The sandbox cleanup, session API, grant shorthand, descendant selection, Python policy, minimal CI, and RW writeback repair are implemented and locally/installed tested. Installed source-authority negatives explicitly returned `ancestor=rejected`, `sibling=rejected`, and `traversal=rejected` on both Ubuntu releases. The installed destructive harness produced independent exact-byte readback for both pinned rclone versions on Ubuntu 24.04 and Ubuntu 26.04; all four runs returned `first_close=closed`, `independent_readback=passed`, and the same 22,020,107-byte SHA-256. Installed expiry, revocation, and explicit forced-close probes returned closed/detached outcomes for every release/pin pair, with expired/revoked sessions recorded as retired. The first empirical failure also exposed a fixed-workload AppArmor create-permission defect; the final profile permits writes only within the already-pinned mount namespace while the mount worker still enforces RO versus RW. `MountManager.close()` drains through a private rclone RC socket and returns `DRAINING` with `flush_warning` while preserving live recovery state whenever the queue cannot be proven empty. Full raw evidence is in `docs/evidence/packet-24a-writeback-output.txt`.
+Packet 24A remediation is closed. The sandbox cleanup, session API, grant shorthand, descendant selection, Python policy, minimal CI, and RW writeback repair are implemented and locally/installed tested. Installed source-authority negatives explicitly returned `ancestor=rejected`, `sibling=rejected`, and `traversal=rejected` on both Ubuntu releases. The installed destructive harness produced independent exact-byte readback for both pinned rclone versions on Ubuntu 24.04 and Ubuntu 26.04; all four runs returned `first_close=closed`, `independent_readback=passed`, and the same 22,020,107-byte SHA-256. Installed expiry, revocation, and explicit forced-close probes returned closed/detached outcomes for every release/pin pair, with expired/revoked sessions recorded as retired. The first empirical failure also exposed a fixed-workload AppArmor create-permission defect; the final profile permits writes only within the already-pinned mount namespace while the mount worker still enforces RO versus RW. `MountManager.close()` drains through a private rclone RC socket, positively rechecks unmount detachment, and returns `DRAINING` with `flush_warning` while preserving live recovery state whenever the queue or detachment cannot be proven. Full raw evidence is in `docs/evidence/packet-24a-writeback-output.txt`.
 
 Packet 25 may begin only from the exact entry point below. No Packet 25–44 implementation was started during this closure.
 

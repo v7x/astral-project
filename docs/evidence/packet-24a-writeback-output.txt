@@ -5,10 +5,10 @@ The installed destructive harness is `scripts/daemon_writeback_acceptance.py`. I
 The first empirical run found two completed-packet defects. The close path terminated rclone while its VFS queue still held the write, and the fixed `aspr-sftp-v1` AppArmor profile allowed reads but denied creation under an RW export. The durable repair is now:
 
 - the private rclone RC socket is started with `--rc-no-auth` because the socket is private and daemon-owned;
-- close requests immediate queue expiry, bounds queue draining, and leaves the live mount/process/transport/cache in `DRAINING` with `flush_warning` if drain cannot be proven;
+- close requests immediate queue expiry, bounds queue draining, rechecks that fusermount actually detached before marking clean, and leaves the live mount/process/transport/cache in `DRAINING` with `flush_warning` if drain or detachment cannot be proven;
 - the final workload profile grants write/create access only inside the already-pinned mount namespace; the mount worker remains the authority for RO versus RW through mount attributes. A read-only mount therefore remains kernel-enforced read-only.
 
-Installed exact-byte results, using the packaged artifact and each pinned binary as `/usr/bin/rclone`, are:
+Installed exact-byte results, using the packaged artifact and each supplied pinned binary directly in the acceptance daemon (`rclone_path` and `rclone_version` are emitted in every JSON result), are:
 
 | Ubuntu release | rclone | result | bytes | SHA-256 |
 |---|---:|---|---:|---|

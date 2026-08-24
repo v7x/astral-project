@@ -72,6 +72,14 @@ def main() -> int:
     rclone = Path(rclone_text)
     identity = Path(identity_text)
     issuer_key = Path(issuer_text)
+    if not rclone.is_file() or not os.access(rclone, os.X_OK):
+        raise RuntimeError(f"rclone binary is not executable: {rclone}")
+    version_result = subprocess.run(
+        [str(rclone), "version"], capture_output=True, text=True, check=False, timeout=10
+    )
+    if version_result.returncode != 0:
+        raise RuntimeError(f"rclone version failed: {version_result.stderr}")
+    rclone_version = version_result.stdout.splitlines()[0] if version_result.stdout else "unknown"
     now = int(time.time())
     source_root = Path.home() / "astral-gate-source"
     source_root.mkdir(mode=0o700, exist_ok=True)
@@ -108,6 +116,8 @@ def main() -> int:
         environment = os.environ.copy()
         environment["XDG_RUNTIME_DIR"] = str(root / "runtime-root")
         environment["XDG_STATE_HOME"] = str(root / "state-root")
+        environment["PYTHONPATH"] = "/usr/lib/astral-project/python"
+        environment["ASPR_ACCEPTANCE_RCLONE"] = str(rclone)
         runtime = root / "runtime-root" / "astral-project"
         state_path = root / "state-root" / "astral-project" / "state.sqlite3"
         runtime.mkdir(parents=True, mode=0o700)
@@ -121,8 +131,16 @@ def main() -> int:
             stored_at=now,
             issuer_key=issuer.public_key(),
         )
+        daemon_code = (
+            "import os; from pathlib import Path; "
+            "from astral_project.daemon.server import DaemonPaths, DaemonServer; "
+            "paths=DaemonPaths(Path(os.environ['XDG_RUNTIME_DIR']) / 'astral-project', "
+            "Path(os.environ['XDG_STATE_HOME']) / 'astral-project' / 'state.sqlite3'); "
+            "daemon=DaemonServer(paths, rclone_binary=Path(os.environ['ASPR_ACCEPTANCE_RCLONE'])); "
+            "daemon.start(); daemon.serve_forever()"
+        )
         daemon = subprocess.Popen(
-            ["/usr/bin/aspr", "__internal", "daemon"],
+            [sys.executable, "-c", daemon_code],
             env=environment,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -227,7 +245,7 @@ def main() -> int:
             )
             expiry_file = source_root / f"expiry-{uuid.uuid4().hex}.bin"
             scenario_files.append(expiry_file)
-            expiry_file.write_bytes(b"expiry-during-write\\n")
+            (expiry_mountpoint / expiry_file.name).write_bytes(b"expiry-during-write\\n")
             time.sleep(21)
             expiry_list = _require(_run(["mount", "list"], environment), "expiry lifecycle refresh")
             expiry_record = _mount_record(expiry_list, expiry_mount["mount_id"])
@@ -259,7 +277,7 @@ def main() -> int:
             )
             revoke_file = source_root / f"revocation-{uuid.uuid4().hex}.bin"
             scenario_files.append(revoke_file)
-            revoke_file.write_bytes(b"revocation-during-write\\n")
+            (revoke_mountpoint / revoke_file.name).write_bytes(b"revocation-during-write\\n")
             _require(
                 _run(
                     ["grant", "revoke", str(revoke_grant.grant_id), "--reason", "acceptance"],
@@ -301,7 +319,7 @@ def main() -> int:
             )
             forced_file = source_root / f"forced-{uuid.uuid4().hex}.bin"
             scenario_files.append(forced_file)
-            forced_file.write_bytes(b"forced-close\\n")
+            (forced_mountpoint / forced_file.name).write_bytes(b"forced-close\\n")
             forced_close = _require(
                 _run(["mount", "close", str(forced_mount["mount_id"])], environment),
                 "forced close",
@@ -317,7 +335,8 @@ def main() -> int:
             print(
                 json.dumps(
                     {
-                        "rclone": str(rclone),
+                        "rclone": str(rclone.resolve()),
+                        "rclone_version": rclone_version,
                         "grant_id": str(grant.grant_id),
                         "write_bytes": len(payload),
                         "write_sha256": hashlib.sha256(payload).hexdigest(),

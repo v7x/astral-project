@@ -474,6 +474,14 @@ class MountManager:
                 f"unmount failed: {result.stderr.decode('utf-8', 'replace')}",
                 ErrorCode.DAEMON_UNAVAILABLE,
             )
+        deadline = time.monotonic() + timeout
+        while os.path.ismount(mount_path) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        if os.path.ismount(mount_path):
+            raise _error(
+                "unmount returned success but mount remains attached",
+                ErrorCode.DAEMON_UNAVAILABLE,
+            )
 
     def _fail(self, mount_id: str, process: subprocess.Popen[bytes] | None, reason: str) -> None:
         if process is not None:

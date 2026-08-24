@@ -4,8 +4,8 @@ Targets: aspr-test-admin (Ubuntu 26.04), aspr-test-admin-24 (Ubuntu 24.04)
 Certified package interpreters: Ubuntu 26.04 `/usr/bin/python3 --version` = Python 3.14.4; Ubuntu 24.04 `/usr/bin/python3 --version` = Python 3.12.3.
 Package build/install command on each target:
   ./packaging/debian/build-deb.sh "$out"
-  Ubuntu 26.04 package SHA-256: e293e661a9df935a07577a70b2bbd9d6e0605d03a5a831d8da02a2cb2540228f
-  Ubuntu 24.04 package SHA-256: f47613879299a8317395d7d27b4ea2dd7f944a0a58217686d4f31e908ccd119d
+  Ubuntu 26.04 package SHA-256: bb939447a2a58435c0c83b24c4c814f54ed5572de1f498264df6ae2c7d8a3ec5
+  Ubuntu 24.04 package SHA-256: 7105bc330f00248de2209592f20b50d37c5ec284a20f35caca920e3af2266720
   sudo dpkg -i "$pkg"
   sudo /usr/libexec/astral-project/packet15f-gate
 Result: `sudo dpkg -i "$pkg"` exit 0 on both targets; package hashes above identify the installed artifacts.
