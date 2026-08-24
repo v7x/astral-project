@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import os
@@ -47,6 +48,16 @@ def _require(result: subprocess.CompletedProcess[str], label: str) -> dict[str, 
     if not isinstance(value, dict):
         raise RuntimeError(f"{label} returned a non-object response")
     return value
+
+
+def _mount_record(payload: dict[str, object], mount_id: object) -> dict[str, object]:
+    mounts = payload.get("mounts")
+    if not isinstance(mounts, list):
+        raise RuntimeError("mount list returned no mounts")
+    for item in mounts:
+        if isinstance(item, dict) and item.get("mount_id") == mount_id:
+            return item
+    raise RuntimeError(f"mount {mount_id} was not returned by lifecycle refresh")
 
 
 def main() -> int:
@@ -120,6 +131,7 @@ def main() -> int:
         readback_mountpoint = root / "readback-mount"
         mountpoint.mkdir(mode=0o700)
         readback_mountpoint.mkdir(mode=0o700)
+        scenario_files: list[Path] = []
         try:
             deadline = time.monotonic() + 15
             while not runtime.joinpath("daemon.sock").exists():
@@ -170,6 +182,138 @@ def main() -> int:
             _require(
                 _run(["session", "close", str(session["session_id"])], environment), "session close"
             )
+
+            def scenario_mount(
+                scenario_grant: SignedGrant, label: str
+            ) -> tuple[dict[str, object], dict[str, object], Path]:
+                state.store_signed_grant(
+                    scenario_grant,
+                    host_key_fingerprint=fingerprint,
+                    remote_user="testuser",
+                    host_metadata={
+                        "address": "127.0.0.1",
+                        "identity_file": str(identity),
+                        "port": 22,
+                    },
+                    stored_at=int(time.time()),
+                    issuer_key=issuer.public_key(),
+                )
+                scenario_session = _require(
+                    _run(["session", "open", str(scenario_grant.grant.grant_id)], environment),
+                    f"{label} session open",
+                )
+                scenario_mountpoint = root / f"{label}-mount"
+                scenario_mountpoint.mkdir(mode=0o700)
+                opened_scenario = _require(
+                    _run(
+                        ["mount", "open", str(scenario_mountpoint), "/project", "rw"], environment
+                    ),
+                    f"{label} mount open",
+                )
+                if opened_scenario.get("state") != "ready" or not scenario_mountpoint.is_mount():
+                    raise RuntimeError(f"{label} mount did not become ready")
+                return scenario_session, opened_scenario, scenario_mountpoint
+
+            expiry_grant = dataclasses.replace(
+                grant,
+                grant_id=GrantId.new(),
+                issued_at=now,
+                not_before=now,
+                expires_at=now + 20,
+            )
+            expiry_signed = SignedGrant.create(expiry_grant, issuer)
+            expiry_session, expiry_mount, expiry_mountpoint = scenario_mount(
+                expiry_signed, "expiry"
+            )
+            expiry_file = source_root / f"expiry-{uuid.uuid4().hex}.bin"
+            scenario_files.append(expiry_file)
+            expiry_file.write_bytes(b"expiry-during-write\\n")
+            time.sleep(21)
+            expiry_list = _require(_run(["mount", "list"], environment), "expiry lifecycle refresh")
+            expiry_record = _mount_record(expiry_list, expiry_mount["mount_id"])
+            expiry_session_close = _run(
+                ["session", "close", str(expiry_session["session_id"])], environment
+            )
+            if expiry_session_close.returncode == 0:
+                expiry_session_state = "closed"
+            elif "active session was not found" in expiry_session_close.stderr:
+                expiry_session_state = "retired"
+            else:
+                raise RuntimeError(f"expiry session close failed: {expiry_session_close.stderr}")
+            expiry_outcome = {
+                "state": expiry_record.get("state"),
+                "mount_detached": not expiry_mountpoint.is_mount(),
+                "session": expiry_session_state,
+            }
+
+            revoke_grant = dataclasses.replace(
+                grant,
+                grant_id=GrantId.new(),
+                issued_at=now,
+                not_before=now,
+                expires_at=now + 250,
+            )
+            revoke_signed = SignedGrant.create(revoke_grant, issuer)
+            revoke_session, revoke_mount, revoke_mountpoint = scenario_mount(
+                revoke_signed, "revocation"
+            )
+            revoke_file = source_root / f"revocation-{uuid.uuid4().hex}.bin"
+            scenario_files.append(revoke_file)
+            revoke_file.write_bytes(b"revocation-during-write\\n")
+            _require(
+                _run(
+                    ["grant", "revoke", str(revoke_grant.grant_id), "--reason", "acceptance"],
+                    environment,
+                ),
+                "grant revoke",
+            )
+            revoke_list = _require(
+                _run(["mount", "list"], environment), "revocation lifecycle refresh"
+            )
+            revoke_record = _mount_record(revoke_list, revoke_mount["mount_id"])
+            revoke_session_close = _run(
+                ["session", "close", str(revoke_session["session_id"])], environment
+            )
+            if revoke_session_close.returncode == 0:
+                revoke_session_state = "closed"
+            elif "active session was not found" in revoke_session_close.stderr:
+                revoke_session_state = "retired"
+            else:
+                raise RuntimeError(
+                    f"revocation session close failed: {revoke_session_close.stderr}"
+                )
+            revoke_outcome = {
+                "state": revoke_record.get("state"),
+                "mount_detached": not revoke_mountpoint.is_mount(),
+                "session": revoke_session_state,
+            }
+
+            forced_grant = dataclasses.replace(
+                grant,
+                grant_id=GrantId.new(),
+                issued_at=now,
+                not_before=now,
+                expires_at=now + 250,
+            )
+            forced_signed = SignedGrant.create(forced_grant, issuer)
+            forced_session, forced_mount, forced_mountpoint = scenario_mount(
+                forced_signed, "forced-close"
+            )
+            forced_file = source_root / f"forced-{uuid.uuid4().hex}.bin"
+            scenario_files.append(forced_file)
+            forced_file.write_bytes(b"forced-close\\n")
+            forced_close = _require(
+                _run(["mount", "close", str(forced_mount["mount_id"])], environment),
+                "forced close",
+            )
+            _require(
+                _run(["session", "close", str(forced_session["session_id"])], environment),
+                "forced session close",
+            )
+            forced_outcome = {
+                "state": forced_close.get("state"),
+                "mount_detached": not forced_mountpoint.is_mount(),
+            }
             print(
                 json.dumps(
                     {
@@ -180,9 +324,9 @@ def main() -> int:
                         "read_sha256": hashlib.sha256(observed).hexdigest(),
                         "first_close": first_close.get("state"),
                         "independent_readback": "passed",
-                        "expiry_during_write": "not_run",
-                        "revocation_during_write": "not_run",
-                        "forced_close_unflushed": "covered_by_unit_failure_injection",
+                        "expiry_during_write": expiry_outcome,
+                        "revocation_during_write": revoke_outcome,
+                        "forced_close": forced_outcome,
                     },
                     sort_keys=True,
                 )
@@ -196,6 +340,8 @@ def main() -> int:
                     daemon.kill()
                     daemon.wait()
             source_root.joinpath(filename).unlink(missing_ok=True)
+            for scenario_file in scenario_files:
+                scenario_file.unlink(missing_ok=True)
     return 0
 
 

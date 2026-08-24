@@ -189,6 +189,29 @@ def main() -> int:
             manual_close = _run(["/usr/bin/aspr", "mount", "close", manual_id], env)
             if manual_close.returncode != 0:
                 raise RuntimeError(f"manual mount close failed: {manual_close.stderr}")
+            negative_remotes = {
+                "ancestor": f"{grant.grant_id}:{directory.parent}=/bad:ro",
+                "sibling": f"{grant.grant_id}:{second_root}=/bad:ro",
+                "traversal": f"{grant.grant_id}:{directory}/descendant-one/../=/bad:ro",
+            }
+            for label, negative_remote in negative_remotes.items():
+                rejected = _run(
+                    [
+                        "/usr/bin/aspr",
+                        "sandbox",
+                        "--network",
+                        "none",
+                        "--grant",
+                        str(grant.grant_id),
+                        "--remote",
+                        negative_remote,
+                        "--",
+                        "/bin/true",
+                    ],
+                    env,
+                )
+                if rejected.returncode == 0:
+                    raise RuntimeError(f"sandbox {label} authority request was accepted")
             remote = f"{grant.grant_id}:{directory}=/remote:ro"
             second_remote = f"{grant.grant_id}:{descendant_two}=/other:ro"
             positive = _run(
@@ -339,6 +362,7 @@ def main() -> int:
                         "remote_loss": "terminated",
                         "network_none": "passed",
                         "hidden_fuse_and_daemon_socket": "passed",
+                        "negative_source_authority": "passed",
                     },
                     sort_keys=True,
                 )
