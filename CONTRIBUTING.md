@@ -1,6 +1,6 @@
 # Contributing
 
-Use Python 3.12 through `uv` for development and type checking. Keep `uv.lock` with every dependency change. Ubuntu package gates certify the distro interpreters tested in CI/VM acceptance: Python 3.12.3 on Ubuntu 24.04 and Python 3.14.4 on Ubuntu 26.04; do not infer support for untested interpreters.
+Use Python 3.12 through `uv` for development and type checking. Keep `uv.lock` with every dependency change. Run checked-in local gates (`uv lock --check`, locked sync, `./scripts/test`, and `git diff --check`) before submission. Hosted GitHub Actions execution is intentionally deferred while core packet sequence is under development because account billing is unavailable; installed package gates remain authoritative. Ubuntu package gates certify distro interpreters tested on the VMs: Python 3.12.3 on Ubuntu 24.04 and Python 3.14.4 on Ubuntu 26.04; do not infer support for untested interpreters.
 
 Before review:
 

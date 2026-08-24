@@ -272,11 +272,11 @@ def _select_export(grant: SignedGrant, source: str) -> tuple[GrantExport, str]:
     if len(selected) != 1:
         raise _error("remote source selects ambiguous signed exports", ErrorCode.DAEMON_AUTH)
     export = selected[0]
-    suffix = source[len(export.requested_source) :]
-    virtual_target = export.virtual_target.rstrip("/") + suffix
-    if not virtual_target:
-        virtual_target = "/"
-    return export, virtual_target
+    suffix = source[len(export.requested_source) :].lstrip("/")
+    virtual_target_path = PurePosixPath(export.virtual_target)
+    if suffix:
+        virtual_target_path /= suffix
+    return export, str(virtual_target_path)
 
 
 def _ensure_session(grant_id: str, request: DaemonRequest) -> tuple[str, bool]:

@@ -623,23 +623,27 @@ def test_session_helpers_bind_scope_and_hide_host_fields() -> None:
     export, virtual = _select_export(signed, "/scratch/alice/project/child")
     assert export.requested_source == "/scratch/alice/project"
     assert virtual == "/project/child"
-    with pytest.raises(AstralError):
-        _select_export(signed, "/not-granted")
-    duplicate = replace(signed.grant, exports=(signed.grant.exports[0], signed.grant.exports[0]))
-    with pytest.raises(AstralError, match="ambiguous"):
-        _select_export(
-            SignedGrant.create(duplicate, generate_private_key()), "/scratch/alice/project/child"
-        )
     root_export = replace(
         signed.grant.exports[0],
         requested_source="/",
         canonical_source="/",
         virtual_target="/",
     )
-    _root, root_target = _select_export(
-        SignedGrant.create(replace(signed.grant, exports=(root_export,)), generate_private_key()),
-        "/",
+    root_signed = SignedGrant.create(
+        replace(signed.grant, exports=(root_export,)), generate_private_key()
     )
+    assert _select_export(root_signed, "/child")[1] == "/child"
+    assert _select_export(root_signed, "/child/grandchild")[1] == "/child/grandchild"
+    with pytest.raises(AstralError):
+        _select_export(signed, "/not-granted")
+    with pytest.raises(AstralError):
+        _parse_remote("/child/../other=/target")
+    duplicate = replace(signed.grant, exports=(signed.grant.exports[0], signed.grant.exports[0]))
+    with pytest.raises(AstralError, match="ambiguous"):
+        _select_export(
+            SignedGrant.create(duplicate, generate_private_key()), "/scratch/alice/project/child"
+        )
+    _root, root_target = _select_export(root_signed, "/")
     assert root_target == "/"
 
     mount_values = _session_mounts(
