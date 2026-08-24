@@ -2,7 +2,7 @@
 
 Note: Astral Project is currently a work in progress, and has largely been autonomously written based on an extensive architecture. This is will likely need a deslopification pass, so use at your own risk until then!
 
-Astral Project gives coding agents least-authority remote-file access. Version 1 targets Linux and Python 3.12.
+Astral Project gives coding agents least-authority remote-file access. Development baseline is Linux and Python 3.12. Ubuntu package gates currently certify Ubuntu 24.04 with `/usr/bin/python3` 3.12.3 and Ubuntu 26.04 with `/usr/bin/python3` 3.14.4; package metadata accepts `>=3.12` only within this tested interpreter matrix.
 
 ## Commands
 

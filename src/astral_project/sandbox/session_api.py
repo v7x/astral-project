@@ -13,7 +13,9 @@ from pathlib import Path
 from astral_project.core.errors import AstralError, ErrorCode
 
 _MAX_LINE = 16 * 1024
-_ALLOWED = frozenset({"DescribeSession", "GetRemoteMounts", "GetExpiry", "CloseOwnSession"})
+_ALLOWED = frozenset(
+    {"DescribeSession", "RunLs", "GetRemoteMounts", "GetExpiry", "CloseOwnSession"}
+)
 
 
 class SessionApiServer:
@@ -28,6 +30,7 @@ class SessionApiServer:
         mounts: Callable[[], list[Mapping[str, object]]],
         expiry: Callable[[], int],
         close: Callable[[], Mapping[str, object]],
+        run_ls: Callable[[Mapping[str, object]], Mapping[str, object]] | None = None,
     ) -> None:
         if not path.is_absolute() or not session_id:
             raise _error("sandbox session socket path or identity is invalid")
@@ -37,6 +40,7 @@ class SessionApiServer:
         self._mounts = mounts
         self._expiry = expiry
         self._close = close
+        self._run_ls = run_ls
         self._stop = threading.Event()
         self._listener: socket.socket | None = None
         self._thread: threading.Thread | None = None
@@ -48,7 +52,9 @@ class SessionApiServer:
             self.path.unlink()
         listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         listener.bind(str(self.path))
-        os.chmod(self.path, 0o600)
+        # Socket inode crosses an unprivileged user namespace through bwrap.
+        # Parent directory remains 0700; bearer session ID supplies per-session binding.
+        os.chmod(self.path, 0o666)
         listener.listen(8)
         listener.settimeout(0.2)
         self._listener = listener
@@ -84,17 +90,28 @@ class SessionApiServer:
         try:
             raw = _read_line(connection)
             request = json.loads(raw)
-            if not isinstance(request, dict) or set(request) != {"method", "session_id"}:
+            if not isinstance(request, dict):
                 raise _error("sandbox session request fields are invalid")
             method = request.get("method")
             session_id = request.get("session_id")
             if not isinstance(method, str) or method not in _ALLOWED:
                 raise _error("sandbox session method is not permitted")
+            expected = {"method", "session_id"}
+            if method == "RunLs":
+                expected.add("payload")
+                if not isinstance(request.get("payload"), dict):
+                    raise _error("sandbox session listing payload is invalid")
+            if set(request) != expected:
+                raise _error("sandbox session request fields are invalid")
             if session_id != self.session_id:
                 raise _error("sandbox session identity is invalid")
             result: Mapping[str, object]
             if method == "DescribeSession":
                 result = self._describe()
+            elif method == "RunLs":
+                if self._run_ls is None:
+                    raise _error("sandbox session listing is unavailable")
+                result = self._run_ls(request["payload"])
             elif method == "GetRemoteMounts":
                 result = {"mounts": self._mounts()}
             elif method == "GetExpiry":
@@ -106,6 +123,48 @@ class SessionApiServer:
             if not isinstance(error, AstralError):
                 error = _error("sandbox session request encoding is invalid")
             _write(connection, {"ok": False, "error": error.to_dict()})
+
+
+class SessionApiClient:
+    """Call only the fixed API on one already-bound sandbox session socket."""
+
+    def __init__(self, path: Path, *, session_id: str, timeout: float = 60.0) -> None:
+        if not path.is_absolute() or not session_id or timeout <= 0:
+            raise _error("sandbox session client configuration is invalid")
+        self.path = path
+        self.session_id = session_id
+        self.timeout = timeout
+
+    def request(
+        self, method: str, payload: Mapping[str, object] | None = None
+    ) -> Mapping[str, object]:
+        request: dict[str, object] = {"method": method, "session_id": self.session_id}
+        if method == "RunLs":
+            if payload is None:
+                raise _error("sandbox session listing payload is missing")
+            request["payload"] = dict(payload)
+        elif payload is not None:
+            raise _error("sandbox session method does not accept a payload")
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+                connection.settimeout(self.timeout)
+                connection.connect(str(self.path))
+                connection.sendall(
+                    json.dumps(request, separators=(",", ":"), sort_keys=True).encode() + b"\n"
+                )
+                response = json.loads(_read_line(connection))
+        except OSError as error:
+            raise _error(f"sandbox session socket is unavailable: {error}") from error
+        except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as error:
+            raise _error("sandbox session response encoding is invalid") from error
+        if not isinstance(response, dict) or response.get("ok") is not True:
+            detail = response.get("error") if isinstance(response, dict) else None
+            message = detail.get("message") if isinstance(detail, dict) else None
+            raise _error(message if isinstance(message, str) else "sandbox session request failed")
+        result = response.get("result")
+        if not isinstance(result, dict):
+            raise _error("sandbox session response result is invalid")
+        return result
 
 
 def _read_line(connection: socket.socket) -> str:

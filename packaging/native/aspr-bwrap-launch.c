@@ -6,7 +6,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <poll.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
+#include <sys/wait.h>
+#include <sys/un.h>
 #include <sys/vfs.h>
 #include <unistd.h>
 
@@ -29,6 +34,8 @@ typedef struct {
     Remote *remote;
     String socket;
     int has_socket;
+    String session_id;
+    int has_session_id;
 } Plan;
 
 static void fail(const char *message) {
@@ -198,8 +205,82 @@ static void parse_plan(Plan *plan) {
             fail("sandbox session socket is not an owned session socket");
         }
     }
+    plan->has_session_id = read_u8();
+    if (plan->has_session_id > 1 || (plan->has_session_id && !plan->has_socket) ||
+        (plan->has_socket && !plan->has_session_id)) {
+        fail("sandbox session identity flag is invalid");
+    }
+    if (plan->has_session_id) plan->session_id = read_string();
     unsigned char extra;
     if (read(STDIN_FILENO, &extra, 1) != 0) fail("sandbox plan has trailing bytes");
+}
+
+static size_t read_line_fd(int fd, char *buffer, size_t capacity) {
+    size_t length = 0;
+    while (length + 1 < capacity) {
+        char value;
+        ssize_t count = read(fd, &value, 1);
+        if (count <= 0) return 0;
+        buffer[length++] = value;
+        if (value == '\n') {
+            buffer[length] = '\0';
+            return length;
+        }
+    }
+    fail("sandbox session relay frame is too large");
+    return 0;
+}
+
+static int connect_session_socket(const char *path) {
+    int descriptor = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (descriptor < 0) return -1;
+    struct sockaddr_un address = {0};
+    address.sun_family = AF_UNIX;
+    if (strlen(path) >= sizeof(address.sun_path)) {
+        close(descriptor);
+        return -1;
+    }
+    memcpy(address.sun_path, path, strlen(path) + 1);
+    if (connect(descriptor, (struct sockaddr *)&address, sizeof(address)) != 0) {
+        close(descriptor);
+        return -1;
+    }
+    return descriptor;
+}
+
+static void relay_session(int relay_fd, const Plan *plan, pid_t child) {
+    char request[MAX_PLAN / 4];
+    char response[MAX_PLAN / 4];
+    for (;;) {
+        int status;
+        pid_t waited = waitpid(child, &status, WNOHANG);
+        if (waited == child) break;
+        if (waited < 0) fail("sandbox child wait failed");
+        struct pollfd descriptor = {.fd = relay_fd, .events = POLLIN};
+        int ready = poll(&descriptor, 1, 100);
+        if (ready < 0 && errno == EINTR) continue;
+        if (ready < 0) fail("sandbox session relay poll failed");
+        if (ready == 0) continue;
+        size_t request_length = read_line_fd(relay_fd, request, sizeof(request));
+        if (request_length == 0) break;
+        int session = connect_session_socket(plan->socket.value);
+        if (session < 0) fail("sandbox session socket could not be reached");
+        if (write(session, request, request_length) != (ssize_t)request_length) {
+            close(session);
+            fail("sandbox session request relay failed");
+        }
+        size_t response_length = read_line_fd(session, response, sizeof(response));
+        close(session);
+        if (response_length == 0) fail("sandbox session response relay failed");
+        if (write(relay_fd, response, response_length) != (ssize_t)response_length) {
+            fail("sandbox session response forwarding failed");
+        }
+    }
+    close(relay_fd);
+    int status;
+    if (waitpid(child, &status, 0) < 0) fail("sandbox child wait failed");
+    if (WIFEXITED(status)) exit(WEXITSTATUS(status));
+    exit(70);
 }
 
 static void add(char **argv, size_t *count, size_t capacity, const char *value) {
@@ -241,15 +322,39 @@ static void execute_plan(const Plan *plan) {
     if (plan->has_socket) {
         add(argv, &count, capacity, "--dir"); add(argv, &count, capacity, "/run");
         add(argv, &count, capacity, "--dir"); add(argv, &count, capacity, "/run/astral-project");
-        add(argv, &count, capacity, "--ro-bind"); add(argv, &count, capacity, plan->socket.value);
+        add(argv, &count, capacity, "--setenv"); add(argv, &count, capacity, "ASPR_SESSION_SOCKET");
         add(argv, &count, capacity, "/run/astral-project/session.sock");
+        add(argv, &count, capacity, "--setenv"); add(argv, &count, capacity, "ASPR_SESSION_ID");
+        add(argv, &count, capacity, plan->session_id.value);
+        add(argv, &count, capacity, "--setenv"); add(argv, &count, capacity, "ASPR_SESSION_RELAY_FD");
+        add(argv, &count, capacity, "3");
     }
     add(argv, &count, capacity, "--");
     add(argv, &count, capacity, ENTRY);
     for (uint32_t index = 0; index < plan->command_count; ++index) add(argv, &count, capacity, plan->command[index].value);
     argv[count] = NULL;
-    execv(BWRAP, argv);
-    fail("fixed /usr/bin/bwrap could not execute");
+    if (!plan->has_socket) {
+        execv(BWRAP, argv);
+        fail("fixed /usr/bin/bwrap could not execute");
+    }
+    int relay[2];
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, relay) != 0) {
+        fail("sandbox session relay could not be created");
+    }
+    pid_t child = fork();
+    if (child < 0) fail("sandbox launcher could not fork");
+    if (child == 0) {
+        close(relay[0]);
+        if (dup2(relay[1], 3) < 0) fail("sandbox session relay descriptor could not be installed");
+        close(relay[1]);
+        if (setenv("ASPR_SESSION_RELAY_FD", "3", 1) != 0) {
+            fail("sandbox session relay environment could not be set");
+        }
+        execv(BWRAP, argv);
+        fail("fixed /usr/bin/bwrap could not execute");
+    }
+    close(relay[1]);
+    relay_session(relay[0], plan, child);
 }
 
 int main(int argc, char **argv) {

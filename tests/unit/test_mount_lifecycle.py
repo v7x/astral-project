@@ -1,6 +1,7 @@
 """Packet 21-22 daemon mount lifecycle tests."""
 
 import os
+import subprocess
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -119,6 +120,7 @@ def test_open_reaches_ready_and_records_private_resources(
     manager = MountManager(
         database, tmp_path / "runtime", readiness_timeout=1, clock=lambda: 1_700_000_001
     )
+    monkeypatch.setattr(manager, "_wait_for_vfs_uploads", lambda *_args: None)
     mount = manager.open(
         session_id=session_id,
         signed_grant=signed,
@@ -137,6 +139,12 @@ def test_open_reaches_ready_and_records_private_resources(
     monkeypatch.setattr(
         "astral_project.mounts.lifecycle.subprocess.run",
         lambda *a, **k: SimpleNamespace(returncode=0, stderr=b""),
+    )
+    process.wait = lambda timeout=None: (_ for _ in ()).throw(  # type: ignore[method-assign]
+        subprocess.TimeoutExpired("wait", timeout or 1)
+    )
+    monkeypatch.setattr(
+        "astral_project.mounts.lifecycle._terminate", lambda p, _t: setattr(p, "returncode", 0)
     )
     database.revoke_grant(signed.grant.grant_id.value, reason="test")
     assert manager.health(mount.mount_id).state is MountState.CLOSED
@@ -223,7 +231,7 @@ def test_close_reports_flush_failure_and_clean_close_removes_config(
     )
     monkeypatch.setattr(manager, "_unmount", lambda *_a: (_ for _ in ()).throw(OSError("flush")))
     failed = manager.close(mount.mount_id, flush_timeout=1)
-    assert failed.state is MountState.FAILED
+    assert failed.state is MountState.DRAINING
     assert failed.flush_warning and "unflushed" in failed.flush_warning
 
 
@@ -232,6 +240,7 @@ def test_recover_marks_stale_and_enforces_revocation(
 ) -> None:
     database, signed, session_id, _identity = setup_session(tmp_path)
     manager = MountManager(database, tmp_path / "runtime", clock=lambda: 1_700_000_001)
+    monkeypatch.setattr(manager, "_wait_for_vfs_uploads", lambda *_args: None)
     config = tmp_path / "runtime" / "stale.conf"
     cache = tmp_path / "runtime" / "stale-cache"
     manager.runtime.mkdir()
@@ -276,12 +285,36 @@ def test_mount_rejections_and_argv_helpers(tmp_path: Path, monkeypatch: pytest.M
             port=22,
             mode="bad",  # type: ignore[arg-type]
         )
+    with pytest.raises(AstralError, match="normalized"):
+        manager.open(
+            session_id=session_id,
+            signed_grant=signed,
+            mount_path=mountpoint,
+            virtual_target="/project/../bad",
+            host="127.0.0.1",
+            identity_file=identity,
+            port=22,
+        )
     with pytest.raises(AstralError, match="outside signed"):
         manager.open(
             session_id=session_id,
             signed_grant=signed,
             mount_path=mountpoint,
             virtual_target="/other",
+            host="127.0.0.1",
+            identity_file=identity,
+            port=22,
+        )
+    ambiguous = SignedGrant.create(
+        replace(signed.grant, exports=(signed.grant.exports[0], signed.grant.exports[0])),
+        generate_private_key(),
+    )
+    with pytest.raises(AstralError, match="ambiguous"):
+        manager.open(
+            session_id=session_id,
+            signed_grant=ambiguous,
+            mount_path=mountpoint,
+            virtual_target="/project",
             host="127.0.0.1",
             identity_file=identity,
             port=22,
@@ -336,12 +369,96 @@ def test_mount_rejections_and_argv_helpers(tmp_path: Path, monkeypatch: pytest.M
         manager._argv(Path("/a"), Path("/b"), "/project", mountpoint, AccessMode.READ_ONLY)[-1]
         == "--read-only"
     )
+    with pytest.raises(AstralError, match="remote-control"):
+        manager._argv(
+            Path("/a"), Path("/b"), "/project", mountpoint, AccessMode.READ_ONLY, Path("relative")
+        )
     with pytest.raises(AstralError, match="mode"):
         manager._argv(Path("/a"), Path("/b"), "/project", mountpoint, "bad")  # type: ignore[arg-type]
     with pytest.raises(AstralError, match="absolute"):
         MountManager(database, tmp_path / "runtime2", rclone_binary=Path("relative"))
     with pytest.raises(AstralError, match="timeout"):
         MountManager(database, tmp_path / "runtime2", readiness_timeout=0)
+
+
+def test_vfs_upload_status_waits_for_queue_and_rejects_bad_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    database, _signed, _session_id, _identity = setup_session(tmp_path)
+    manager = MountManager(database, tmp_path / "runtime")
+    responses = iter(
+        (
+            SimpleNamespace(
+                returncode=0,
+                stdout=b'{"diskCache":{"uploadsQueued":0,"uploadsInProgress":1}}',
+            ),
+            SimpleNamespace(
+                returncode=0,
+                stdout=b'{"diskCache":{"uploadsQueued":1,"uploadsInProgress":0}}',
+            ),
+            SimpleNamespace(returncode=0, stdout=b'{"queue":[{"id":1}]}'),
+            SimpleNamespace(returncode=0, stdout=b"{}", stderr=b""),
+            SimpleNamespace(
+                returncode=0,
+                stdout=b'{"diskCache":{"uploadsQueued":0,"uploadsInProgress":0}}',
+            ),
+        )
+    )
+    monkeypatch.setattr(
+        "astral_project.mounts.lifecycle.subprocess.run", lambda *a, **k: next(responses)
+    )
+    monkeypatch.setattr("astral_project.mounts.lifecycle.time.sleep", lambda _seconds: None)
+    manager._wait_for_vfs_uploads(tmp_path / "rc.sock", 1)
+
+    monkeypatch.setattr(
+        "astral_project.mounts.lifecycle.subprocess.run",
+        lambda *a, **k: SimpleNamespace(returncode=0, stdout=b"{}"),
+    )
+    with pytest.raises(AstralError, match="unavailable"):
+        manager._wait_for_vfs_uploads(tmp_path / "rc.sock", 1)
+    monkeypatch.setattr(
+        "astral_project.mounts.lifecycle.subprocess.run",
+        lambda *a, **k: SimpleNamespace(returncode=0, stdout=b'{"diskCache":{}}'),
+    )
+    with pytest.raises(AstralError, match="invalid"):
+        manager._wait_for_vfs_uploads(tmp_path / "rc.sock", 1)
+    monkeypatch.setattr(
+        "astral_project.mounts.lifecycle.subprocess.run",
+        lambda *a, **k: SimpleNamespace(
+            returncode=0, stdout=b'{"diskCache":{"uploadsQueued":1,"uploadsInProgress":0}}'
+        ),
+    )
+    with pytest.raises(AstralError, match="queue is unavailable"):
+        manager._wait_for_vfs_uploads(tmp_path / "rc.sock", 1)
+    bad_queue = iter(
+        (
+            SimpleNamespace(
+                returncode=0,
+                stdout=b'{"diskCache":{"uploadsQueued":1,"uploadsInProgress":0}}',
+            ),
+            SimpleNamespace(returncode=0, stdout=b'{"queue":[{}]}'),
+        )
+    )
+    monkeypatch.setattr(
+        "astral_project.mounts.lifecycle.subprocess.run", lambda *a, **k: next(bad_queue)
+    )
+    with pytest.raises(AstralError, match="queue is invalid"):
+        manager._wait_for_vfs_uploads(tmp_path / "rc.sock", 1)
+    expiry_failure = iter(
+        (
+            SimpleNamespace(
+                returncode=0,
+                stdout=b'{"diskCache":{"uploadsQueued":1,"uploadsInProgress":0}}',
+            ),
+            SimpleNamespace(returncode=0, stdout=b'{"queue":[{"id":1}]}'),
+            SimpleNamespace(returncode=1, stdout=b"{}", stderr=b"permission denied"),
+        )
+    )
+    monkeypatch.setattr(
+        "astral_project.mounts.lifecycle.subprocess.run", lambda *a, **k: next(expiry_failure)
+    )
+    with pytest.raises(AstralError, match="expiry update failed"):
+        manager._wait_for_vfs_uploads(tmp_path / "rc.sock", 1)
 
 
 def test_mount_health_wait_unmount_and_process_helpers(
@@ -358,6 +475,7 @@ def test_mount_health_wait_unmount_and_process_helpers(
     manager = MountManager(
         database, tmp_path / "runtime", readiness_timeout=1, clock=lambda: 1_700_000_001
     )
+    monkeypatch.setattr(manager, "_wait_for_vfs_uploads", lambda *_args: None)
     mount = manager.open(
         session_id=session_id,
         signed_grant=signed,
@@ -381,6 +499,7 @@ def test_mount_process_boundaries_fail_closed(
 ) -> None:
     database, _signed, _session_id, _identity = setup_session(tmp_path)
     manager = MountManager(database, tmp_path / "runtime", clock=lambda: 1_700_000_001)
+    monkeypatch.setattr(manager, "_wait_for_vfs_uploads", lambda *_args: None)
     process = FakeProcess()
     monotonic = iter((0.0, 31.0))
     monkeypatch.setattr("astral_project.mounts.lifecycle.time.monotonic", lambda: next(monotonic))
@@ -457,6 +576,7 @@ def test_mount_process_boundaries_fail_closed(
         "astral_project.mounts.lifecycle.os.killpg",
         lambda *_a: (_ for _ in ()).throw(ProcessLookupError()),
     )
+    lifecycle._terminate(FakeProcess(exited=True), 1)  # type: ignore[arg-type]
     lifecycle._terminate(FakeProcess(), 1)  # type: ignore[arg-type]
 
 
@@ -465,6 +585,7 @@ def test_mount_close_recovery_and_state_edges(
 ) -> None:
     database, signed, session_id, _identity = setup_session(tmp_path)
     manager = MountManager(database, tmp_path / "runtime", clock=lambda: 1_700_000_001)
+    monkeypatch.setattr(manager, "_wait_for_vfs_uploads", lambda *_args: None)
     with pytest.raises(AstralError, match="timeout"):
         manager.close("missing", flush_timeout=0)
     manager.runtime.mkdir()

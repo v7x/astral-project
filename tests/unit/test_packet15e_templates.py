@@ -52,6 +52,8 @@ def test_final_workload_apparmor_has_explicit_device_and_mapping_rules() -> None
         "  /dev/random r,",
         "  /dev/urandom r,",
         "  unix (getattr, getopt, setopt, shutdown),",
+        "  /** rw,",
+        "  /**/ rw,",
         "  /** mr,",
         "  deny unix,",
     ):

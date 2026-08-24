@@ -45,7 +45,7 @@ def _remote_plan(
         payload.extend(_string(mount_id))
         payload.extend(_string(source))
         payload.extend(_string(target))
-    payload.extend(b"\x00")
+    payload.extend(b"\x00\x00")
     return bytes(payload)
 
 
@@ -126,7 +126,7 @@ def test_native_launcher_rejects_malformed_and_alternate_authority(tmp_path: Pat
     assert collision.returncode == 70
     assert b"collide or overlap" in collision.stderr
 
-    bad_socket = _run(launcher, valid[:-1] + b"\x02")
+    bad_socket = _run(launcher, valid[:-2] + b"\x02\x00")
     assert bad_socket.returncode == 70
     assert b"socket flag" in bad_socket.stderr
 

@@ -46,6 +46,7 @@ class LocalSandboxPlan:
     network: NetworkMode
     remotes: tuple[RemoteBinding, ...] = ()
     session_socket: Path | None = None
+    session_id: str | None = None
     bwrap_binary: Path = Path("/usr/bin/bwrap")
     launcher_binary: Path = Path("/usr/libexec/astral-project/aspr-bwrap-launch")
 
@@ -62,6 +63,15 @@ class LocalSandboxPlan:
             not self.session_socket.is_absolute() or not self.session_socket.exists()
         ):
             raise _error("sandbox session socket is unavailable")
+        if self.session_id is not None and (
+            self.session_socket is None
+            or not self.session_id
+            or "\x00" in self.session_id
+            or len(self.session_id.encode()) > 4096
+        ):
+            raise _error("sandbox session identity is invalid")
+        if self.session_socket is not None and self.session_id is None:
+            raise _error("sandbox session identity is required")
         targets = tuple(binding.target for binding in self.remotes)
         if len(set(targets)) != len(targets):
             raise _error("sandbox remote targets collide")
@@ -101,6 +111,13 @@ class LocalSandboxPlan:
             encoded = str(self.session_socket).encode("utf-8")
             if not 0 < len(encoded) <= 4096:
                 raise _error("sandbox session socket path is too long")
+            payload.extend(b"\x01")
+            payload.extend(struct.pack("!I", len(encoded)))
+            payload.extend(encoded)
+        if self.session_id is None:
+            payload.extend(b"\x00")
+        else:
+            encoded = self.session_id.encode("utf-8")
             payload.extend(b"\x01")
             payload.extend(struct.pack("!I", len(encoded)))
             payload.extend(encoded)
@@ -175,9 +192,12 @@ class LocalSandboxPlan:
                     "/run",
                     "--dir",
                     "/run/astral-project",
-                    "--ro-bind",
-                    str(self.session_socket),
+                    "--setenv",
+                    "ASPR_SESSION_SOCKET",
                     "/run/astral-project/session.sock",
+                    "--setenv",
+                    "ASPR_SESSION_ID",
+                    self.session_id or "",
                 ]
             )
         argv.extend(["--", *self.command])

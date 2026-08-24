@@ -1,10 +1,11 @@
 Packet 23-24 installed evidence (captured after the final package build)
 
 Targets: aspr-test-admin (Ubuntu 26.04), aspr-test-admin-24 (Ubuntu 24.04)
+Certified package interpreters: Ubuntu 26.04 `/usr/bin/python3 --version` = Python 3.14.4; Ubuntu 24.04 `/usr/bin/python3 --version` = Python 3.12.3.
 Package build/install command on each target:
   ./packaging/debian/build-deb.sh "$out"
-  Ubuntu 26.04 package SHA-256: d744a3eddba9f8933df2db5e8cc92132da6f876a340b357aae5e38ab7185f304
-  Ubuntu 24.04 package SHA-256: c39fe50cc9ecef07d2f8884e8cc0783567fc1938826c0511f6a8e437bad407ef
+  Ubuntu 26.04 package SHA-256: e293e661a9df935a07577a70b2bbd9d6e0605d03a5a831d8da02a2cb2540228f
+  Ubuntu 24.04 package SHA-256: f47613879299a8317395d7d27b4ea2dd7f944a0a58217686d4f31e908ccd119d
   sudo dpkg -i "$pkg"
   sudo /usr/libexec/astral-project/packet15f-gate
 Result: `sudo dpkg -i "$pkg"` exit 0 on both targets; package hashes above identify the installed artifacts.
@@ -58,6 +59,8 @@ Installed acceptance command (run as `testuser` with normal runtime):
   `sudo -u testuser env XDG_RUNTIME_DIR=/run/user/<uid> python3 /tmp/sandbox_enforce_acceptance.py`
   aspr-test-admin (Ubuntu 26.04): exit=0, JSON network_inherit=passed, network_none=passed, native_negative_controls=passed, all_capability_sets_zero=passed, all_non_loopback_interfaces_absent=passed, all_network_socket_tables_empty=passed, setup_capabilities=[capability net_admin, capability setpcap, capability sys_admin]
   aspr-test-admin-24 (Ubuntu 24.04): exit=0, JSON network_inherit=passed, network_none=passed, native_negative_controls=passed, all_capability_sets_zero=passed, all_non_loopback_interfaces_absent=passed, all_network_socket_tables_empty=passed, setup_capabilities=[capability net_admin, capability setpcap, capability sys_admin]
+  Packet 24A installed session/grant acceptance: exit=0 on both releases; `aspr ls` used the relay-backed narrow session API, alternate target and lifecycle controls failed closed, standalone `--grant` exposed `/workspace/remote`, and two descendant mounts passed. The exact daemon listing matrix also returned exit=0 on both releases after removal of prior destructive-probe leftovers.
+  Packet 24A installed RW writeback acceptance: exit=0 for rclone 1.73.3 and 1.74.4 on both releases; all four runs returned `first_close=closed`, `independent_readback=passed`, and exact SHA-256 `332d9be652a72e7edfc8fda53a93fd0cdfab0dfca4d3e30dbfdadf13f307de6f` for 22,020,107 bytes.
   Unedited stdout (26.04): {"all_capability_sets_zero": "passed", "all_network_socket_tables_empty": "passed", "all_non_loopback_interfaces_absent": "passed", "credentials_and_sockets_absent": "passed", "dns_absent": "passed", "entrypoint": "/usr/libexec/astral-project/aspr-sandbox-entry", "launcher": "/usr/libexec/astral-project/aspr-bwrap-launch", "native_negative_controls": "passed", "network_inherit": "passed", "network_none": "passed", "runtime": "/run/user/1001", "setup_capabilities": ["capability net_admin", "capability setpcap", "capability sys_admin"]}
   Unedited stdout (24.04): {"all_capability_sets_zero": "passed", "all_network_socket_tables_empty": "passed", "all_non_loopback_interfaces_absent": "passed", "credentials_and_sockets_absent": "passed", "dns_absent": "passed", "entrypoint": "/usr/libexec/astral-project/aspr-sandbox-entry", "launcher": "/usr/libexec/astral-project/aspr-bwrap-launch", "native_negative_controls": "passed", "network_inherit": "passed", "network_none": "passed", "runtime": "/run/user/1002", "setup_capabilities": ["capability net_admin", "capability setpcap", "capability sys_admin"]}
 

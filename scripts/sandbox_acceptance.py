@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -100,11 +101,18 @@ def main() -> int:
     second_filename = f"astral-sandbox-second-{uuid.uuid4().hex}.txt"
     source = source_root / filename
     second_source = second_root / second_filename
+    descendant_one = source_root / "descendant-one"
+    descendant_two = source_root / "descendant-two"
+    descendant_one.mkdir(mode=0o700, exist_ok=True)
+    descendant_two.mkdir(mode=0o700, exist_ok=True)
+    descendant_one_file = descendant_one / "one.txt"
+    descendant_two_file = descendant_two / "two.txt"
     source.write_text("sandbox-visible\n", encoding="utf-8")
     second_source.write_text("sandbox-visible-second\n", encoding="utf-8")
+    descendant_one_file.write_text("descendant-one\n", encoding="utf-8")
+    descendant_two_file.write_text("descendant-two\n", encoding="utf-8")
     directory = source_root
     stat = directory.stat()
-    second_stat = second_root.stat()
     host_id = HostId(host_id_text)
     grant = Grant(
         GrantId.new(),
@@ -125,23 +133,10 @@ def main() -> int:
                 ExportKind.DIRECTORY,
                 SourceIdentity(stat.st_dev, stat.st_ino, "ext4", ExportKind.DIRECTORY),
             ),
-            GrantExport(
-                str(second_root),
-                str(second_root),
-                "/other",
-                AccessMode.READ_ONLY,
-                ExportKind.DIRECTORY,
-                SourceIdentity(
-                    second_stat.st_dev,
-                    second_stat.st_ino,
-                    "ext4",
-                    ExportKind.DIRECTORY,
-                ),
-            ),
         ),
     )
     signed = SignedGrant.create(grant, issuer)
-    with tempfile.TemporaryDirectory(prefix="aspr-sandbox-acceptance-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="sa-") as temporary:
         root = Path(temporary)
         env = os.environ.copy()
         env["XDG_RUNTIME_DIR"] = str(root / "runtime-root")
@@ -150,7 +145,8 @@ def main() -> int:
         state_path = root / "state-root" / "astral-project" / "state.sqlite3"
         runtime.mkdir(parents=True, mode=0o700)
         state_path.parent.mkdir(parents=True, mode=0o700)
-        StateDatabase.open(state_path).store_signed_grant(
+        state = StateDatabase.open(state_path)
+        state.store_signed_grant(
             signed,
             host_key_fingerprint=fingerprint,
             remote_user="testuser",
@@ -182,13 +178,19 @@ def main() -> int:
                 ["/usr/bin/aspr", "mount", "open", str(manual_path), "/project", "ro"], env
             )
             if manual.returncode != 0:
-                raise RuntimeError(f"manual mount preflight failed: {manual.stderr}")
+                daemon.terminate()
+                daemon_stdout, daemon_stderr = daemon.communicate(timeout=5)
+                raise RuntimeError(
+                    f"manual mount preflight failed: {manual.stderr}"
+                    f" daemon={daemon_stdout.decode('utf-8', 'replace')}"
+                    f"{daemon_stderr.decode('utf-8', 'replace')}"
+                )
             manual_id = json.loads(manual.stdout)["mount_id"]
             manual_close = _run(["/usr/bin/aspr", "mount", "close", manual_id], env)
             if manual_close.returncode != 0:
                 raise RuntimeError(f"manual mount close failed: {manual_close.stderr}")
             remote = f"{grant.grant_id}:{directory}=/remote:ro"
-            second_remote = f"{grant.grant_id}:{second_root}=/other:ro"
+            second_remote = f"{grant.grant_id}:{descendant_two}=/other:ro"
             positive = _run(
                 [
                     "/usr/bin/aspr",
@@ -205,7 +207,15 @@ def main() -> int:
                     "/bin/sh",
                     "-c",
                     (
-                        f"test -f /remote/{filename} && test -f /other/{second_filename} "
+                        f"test -f /remote/{filename} && test -f /other/two.txt "
+                        '&& test "$ASPR_SESSION_SOCKET" = /run/astral-project/session.sock '
+                        '&& test -n "$ASPR_SESSION_ID" '
+                        f"&& ( /usr/bin/aspr ls /project --json > /tmp/session-ls.json "
+                        f"|| {{ stat -c '%a %u %g %F' /run/astral-project/session.sock >&2; "
+                        f"ls -ld /run/astral-project >&2; id >&2; exit 1; }} ) "
+                        f"&& grep -q {filename} /tmp/session-ls.json "
+                        "&& ! /usr/bin/aspr ls other:/project "
+                        "&& ! /usr/bin/aspr grant list "
                         "&& test ! -e /dev/fuse "
                         "&& test ! -e /root/.ssh && test ! -e /run/astral-project/daemon.sock "
                         "&& grep -q aspr-sandbox-payload /proc/self/attr/current "
@@ -224,6 +234,28 @@ def main() -> int:
                         daemon.stderr.read().decode("utf-8", "replace") if daemon.stderr else ""
                     )
                 raise RuntimeError(f"sandbox positive failed: {positive.stderr}{daemon_output}")
+            descendant = _run(
+                [
+                    "/usr/bin/aspr",
+                    "sandbox",
+                    "--network",
+                    "none",
+                    "--grant",
+                    str(grant.grant_id),
+                    "--remote",
+                    f"{grant.grant_id}:{descendant_one}=/one:ro",
+                    "--remote",
+                    f"{grant.grant_id}:{descendant_two}=/two:ro",
+                    "--",
+                    "/bin/sh",
+                    "-c",
+                    "test -f /one/one.txt && test -f /two/two.txt",
+                ],
+                env,
+                timeout=90,
+            )
+            if descendant.returncode != 0:
+                raise RuntimeError(f"sandbox descendant selection failed: {descendant.stderr}")
             child = subprocess.Popen(
                 [
                     "/usr/bin/aspr",
@@ -267,6 +299,36 @@ def main() -> int:
             child.wait(timeout=20)
             if child.returncode == 0:
                 raise RuntimeError("remote-loss sandbox exited cleanly")
+            session_closed = _run(["/usr/bin/aspr", "session", "close", session_id], env)
+            if session_closed.returncode != 0:
+                raise RuntimeError(f"session close failed: {session_closed.stderr}")
+            shorthand_opened = _run(["/usr/bin/aspr", "session", "open", str(grant.grant_id)], env)
+            if shorthand_opened.returncode != 0:
+                raise RuntimeError(f"shorthand session open failed: {shorthand_opened.stderr}")
+            shorthand_session_id = json.loads(shorthand_opened.stdout)["session_id"]
+            shorthand = _run(
+                [
+                    "/usr/bin/aspr",
+                    "sandbox",
+                    "--network",
+                    "none",
+                    "--grant",
+                    str(grant.grant_id),
+                    "--",
+                    "/bin/sh",
+                    "-c",
+                    f"test -f /workspace/remote/{filename}",
+                ],
+                env,
+                timeout=90,
+            )
+            if shorthand.returncode != 0:
+                raise RuntimeError(f"grant shorthand failed: {shorthand.stderr}")
+            shorthand_closed = _run(
+                ["/usr/bin/aspr", "session", "close", shorthand_session_id], env
+            )
+            if shorthand_closed.returncode != 0:
+                raise RuntimeError(f"shorthand session close failed: {shorthand_closed.stderr}")
             print(
                 json.dumps(
                     {
@@ -291,6 +353,10 @@ def main() -> int:
                     daemon.wait()
             source.unlink(missing_ok=True)
             second_source.unlink(missing_ok=True)
+            descendant_one_file.unlink(missing_ok=True)
+            descendant_two_file.unlink(missing_ok=True)
+            shutil.rmtree(descendant_one, ignore_errors=True)
+            shutil.rmtree(descendant_two, ignore_errors=True)
     return 0
 
 

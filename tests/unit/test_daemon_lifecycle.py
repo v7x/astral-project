@@ -12,7 +12,12 @@ from astral_project.core.errors import AstralError
 from astral_project.core.ids import GrantId, SessionId
 from astral_project.crypto.grants import SignedGrant
 from astral_project.crypto.keys import generate_private_key
-from astral_project.daemon.server import DaemonPaths, DaemonServer, _mount_payload
+from astral_project.daemon.server import (
+    DaemonPaths,
+    DaemonServer,
+    _mount_payload,
+    _select_source_export,
+)
 from astral_project.mounts.lifecycle import MountState, RemoteMount
 
 
@@ -160,6 +165,17 @@ def test_daemon_lifecycle_missing_payloads_fail_closed(tmp_path: Path) -> None:
     server.close()
 
 
+def test_daemon_source_export_selection_rejects_normalization_and_ambiguity() -> None:
+    signed = SignedGrant.create(sample_grant(), generate_private_key())
+    with pytest.raises(AstralError, match="normalized"):
+        _select_source_export(signed, "/scratch/alice/project/../bad")
+    duplicate = replace(signed.grant, exports=(signed.grant.exports[0], signed.grant.exports[0]))
+    with pytest.raises(AstralError, match="ambiguous"):
+        _select_source_export(
+            SignedGrant.create(duplicate, generate_private_key()), "/scratch/alice/project/child"
+        )
+
+
 def test_daemon_mount_open_uses_active_host_binding(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -214,12 +230,32 @@ def test_daemon_mount_open_uses_active_host_binding(
         )["mount_id"]
         == "mount"
     )
+    assert (
+        server._response(
+            "mount.open",
+            {
+                "mount_path": str(tmp_path / "mount"),
+                "source_path": "/scratch/alice/project/descendant",
+                "mode": "ro",
+            },
+        )["mount_id"]
+        == "mount"
+    )
     with pytest.raises(AstralError, match="signed export"):
         server._response(
             "mount.open",
             {
                 "mount_path": str(tmp_path / "mount"),
                 "source_path": "/not-signed",
+                "mode": "rw",
+            },
+        )
+    with pytest.raises(AstralError, match="source path"):
+        server._response(
+            "mount.open",
+            {
+                "mount_path": str(tmp_path / "mount"),
+                "source_path": 1,
                 "mode": "rw",
             },
         )

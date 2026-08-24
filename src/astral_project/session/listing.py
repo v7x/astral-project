@@ -30,6 +30,12 @@ class SessionListingScope:
         prefix, separator, path = target.partition(":")
         if not separator or prefix != self.grant_name or not path.startswith("/"):
             raise _error("listing target selects another grant or host")
+        return self.authorize_path(path)
+
+    def authorize_path(self, path: str) -> str:
+        """Return one already-bound virtual path without accepting host selectors."""
+        if not path.startswith("/"):
+            raise _error("listing path must be absolute")
         if "\x00" in path or any(part in {".", ".."} for part in path.split("/")):
             raise _error("listing target contains traversal")
         if not any(
@@ -37,6 +43,14 @@ class SessionListingScope:
         ):
             raise _error("listing target is outside bound export")
         return "aspr-session:" + path
+
+
+def constrain_session_listing_payload(
+    payload: Mapping[str, object], scope: SessionListingScope
+) -> tuple[str, ListingOptions]:
+    """Decode a sandbox path and bind it to the already-selected grant."""
+    target, options = listing_options_from_payload(payload)
+    return scope.authorize_path(target), options
 
 
 def constrain_listing_payload(

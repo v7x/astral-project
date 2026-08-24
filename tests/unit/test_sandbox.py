@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import socket
 import subprocess
+import threading
+from dataclasses import replace
 from pathlib import Path
 from typing import cast
 
@@ -14,12 +16,17 @@ from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.crypto.grants import AccessMode, SignedGrant
 from astral_project.crypto.keys import generate_private_key
 from astral_project.sandbox.command import (
+    _cleanup_remote_mounts,
     _close_session,
     _ensure_session,
     _list_maps,
     _load_grant,
     _mounts_healthy,
     _parse_remote,
+    _select_export,
+    _session_description,
+    _session_mounts,
+    _session_run_ls,
     _session_show,
     _string,
     parse_arguments,
@@ -27,7 +34,7 @@ from astral_project.sandbox.command import (
 )
 from astral_project.sandbox.plan import LocalSandboxPlan, NetworkMode, RemoteBinding
 from astral_project.sandbox.runner import _terminate, run_plan
-from astral_project.sandbox.session_api import SessionApiServer, _read_line
+from astral_project.sandbox.session_api import SessionApiClient, SessionApiServer, _read_line
 
 
 def test_parse_sandbox_arguments_and_fixed_plan(
@@ -78,8 +85,15 @@ def test_parse_sandbox_arguments_and_fixed_plan(
     assert plan.plan_bytes().startswith(b"ASPRSB01")
     session_file = tmp_path / "session.sock"
     session_file.write_text("")
-    with_session = LocalSandboxPlan(("/bin/sh",), NetworkMode.INHERIT, (binding,), session_file)
+    with pytest.raises(AstralError):
+        LocalSandboxPlan(("/bin/sh",), NetworkMode.INHERIT, (binding,), session_file)
+    with pytest.raises(AstralError):
+        LocalSandboxPlan(("/bin/sh",), NetworkMode.INHERIT, session_id="session-1")
+    with_session = LocalSandboxPlan(
+        ("/bin/sh",), NetworkMode.INHERIT, (binding,), session_file, "session-1"
+    )
     assert "/run/astral-project/session.sock" in with_session.argv()
+    assert "ASPR_SESSION_ID" in with_session.argv()
     assert str(session_file).encode() in with_session.plan_bytes()
 
     bad_binding = object.__new__(RemoteBinding)
@@ -100,7 +114,7 @@ def test_sandbox_argument_and_plan_rejections(tmp_path: Path) -> None:
         ["sandbox"],
         ["sandbox", "--network", "bad"],
         ["sandbox", "--network", "inherit", "--"],
-        ["sandbox", "--network", "inherit", "--grant", "g"],
+        ["sandbox", "--network", "inherit", "--grant"],
         ["sandbox", "--network", "inherit", "--remote", "g1:/a=/x", "--remote", "g2:/b=/y"],
         ["sandbox", "--network", "inherit", "--remote", "/a=/x"],
         ["sandbox", "--network", "inherit", "positional"],
@@ -220,32 +234,161 @@ def test_session_socket_allows_only_narrow_same_session_api(tmp_path: Path) -> N
         mounts=lambda: [{"mount_id": "m1"}],
         expiry=lambda: 99,
         close=lambda: {"state": "closed"},
+        run_ls=lambda payload: {"echo": payload["target"]},
     )
     server.start()
     try:
 
-        def request(method: str, session_id: str = "s1") -> dict[str, object]:
+        def request(
+            method: str, session_id: str = "s1", payload: dict[str, object] | None = None
+        ) -> dict[str, object]:
+            body: dict[str, object] = {"method": method, "session_id": session_id}
+            if payload is not None:
+                body["payload"] = payload
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
                 client.connect(str(path))
-                client.sendall(
-                    json.dumps({"method": method, "session_id": session_id}).encode() + b"\n"
-                )
+                client.sendall(json.dumps(body).encode() + b"\n")
                 return cast(dict[str, object], json.loads(client.recv(4096)))
 
+        def raw(body: object) -> dict[str, object]:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                client.connect(str(path))
+                client.sendall(json.dumps(body).encode() + b"\n")
+                return cast(dict[str, object], json.loads(client.recv(4096)))
+
+        assert raw([])["ok"] is False
+        assert raw({"method": "RunLs", "session_id": "s1"})["ok"] is False
+        assert (
+            raw({"method": "RunLs", "session_id": "s1", "payload": [], "extra": 1})["ok"] is False
+        )
         assert request("DescribeSession")["ok"] is True
+        assert request("RunLs", payload={"target": "/docs"})["ok"] is True
         assert request("GetRemoteMounts")["ok"] is True
         assert request("GetExpiry")["ok"] is True
         assert request("CloseOwnSession")["ok"] is True
+        client = SessionApiClient(path, session_id="s1", timeout=1)
+        assert client.request("RunLs", {"target": "/docs"})["echo"] == "/docs"
+        with pytest.raises(AstralError):
+            client.request("RunLs")
+        with pytest.raises(AstralError):
+            client.request("GetExpiry", {"unexpected": True})
         assert request("CreateMount")["ok"] is False
+        assert request("RunLs")["ok"] is False
+        assert request("GetExpiry", payload={"unexpected": True})["ok"] is False
         assert request("GetExpiry", "other")["ok"] is False
     finally:
         server.close()
+    with pytest.raises(AstralError):
+        SessionApiClient(tmp_path / "missing.sock", session_id="s1", timeout=1).request("GetExpiry")
+    with pytest.raises(AstralError):
+        SessionApiClient(Path("relative.sock"), session_id="s1")
+    unavailable_path = tmp_path / "unavailable.sock"
+    unavailable = SessionApiServer(
+        unavailable_path,
+        session_id="s1",
+        describe=lambda: {},
+        mounts=lambda: [],
+        expiry=lambda: 1,
+        close=lambda: {},
+    )
+    unavailable.start()
+    try:
+        with pytest.raises(AstralError, match="unavailable"):
+            SessionApiClient(unavailable_path, session_id="s1", timeout=1).request(
+                "RunLs", {"target": "/docs"}
+            )
+    finally:
+        unavailable.close()
+
+    def client_response(response: bytes) -> None:
+        response_path = tmp_path / f"response-{len(response)}.sock"
+        listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        listener.bind(str(response_path))
+        listener.listen(1)
+
+        def serve() -> None:
+            connection, _ = listener.accept()
+            with connection:
+                connection.recv(4096)
+                connection.sendall(response)
+            listener.close()
+            response_path.unlink(missing_ok=True)
+
+        thread = threading.Thread(target=serve)
+        thread.start()
+        try:
+            client = SessionApiClient(response_path, session_id="s1", timeout=1)
+            yield_error = None
+            try:
+                client.request("GetExpiry")
+            except AstralError as error:
+                yield_error = error
+            assert yield_error is not None
+        finally:
+            thread.join(timeout=1)
+
+    client_response(b"not-json\n")
+    client_response(b'{"ok":false,"error":{"message":"rejected"}}\n')
+    client_response(b'{"ok":true,"result":[]}\n')
+
+
+def test_cleanup_never_traverses_uncertain_remote_mount(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mount_path = tmp_path / "mounted"
+    mount_path.mkdir()
+    content = mount_path / "remote-file"
+    content.write_text("must survive", encoding="utf-8")
+    monkeypatch.setattr(Path, "is_mount", lambda _path: True)
+
+    def failed_close(_operation: str, _payload: object = None) -> dict[str, object]:
+        raise AstralError(ErrorCode.DAEMON_UNAVAILABLE, "close failed", "x", "x", "x")
+
+    error = _cleanup_remote_mounts(["rw-mount"], [mount_path], failed_close)
+    assert error is not None
+    assert "close failed" in error.message
+    assert content.read_text(encoding="utf-8") == "must survive"
+    assert mount_path.is_dir()
+
+
+def test_cleanup_removes_only_verified_detached_directory(tmp_path: Path) -> None:
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    assert _cleanup_remote_mounts([], [empty], lambda *_args: {}) is None
+    assert not empty.exists()
+
+    missing = tmp_path / "missing"
+    assert _cleanup_remote_mounts([], [missing], lambda *_args: {}) is None
+
+    nonempty = tmp_path / "nonempty"
+    nonempty.mkdir()
+    (nonempty / "local").write_text("x", encoding="utf-8")
+    error = _cleanup_remote_mounts([], [nonempty], lambda *_args: {})
+    assert error is not None
+    assert nonempty.exists()
+
+
+def test_cleanup_reports_mount_state_probe_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mount_path = tmp_path / "unknown"
+    mount_path.mkdir()
+    monkeypatch.setattr(
+        Path,
+        "is_mount",
+        lambda _path: (_ for _ in ()).throw(OSError("mount probe failed")),
+    )
+    error = _cleanup_remote_mounts([], [mount_path], lambda *_args: {})
+    assert error is not None
+    assert "cannot verify" in error.message
+    assert mount_path.exists()
 
 
 def test_sandbox_remote_orchestration_closes_owned_resources(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr("astral_project.sandbox.plan.os.path.ismount", lambda _path: True)
+    monkeypatch.setattr(Path, "is_mount", lambda _path: False)
     calls: list[tuple[str, object]] = []
 
     def request(operation: str, payload: object = None) -> dict[str, object]:
@@ -289,6 +432,41 @@ def test_sandbox_remote_orchestration_closes_owned_resources(
     assert [name for name, _ in calls].count("mount.close") == 1
     assert [name for name, _ in calls].count("session.close") == 1
 
+    calls.clear()
+    assert (
+        run_sandbox(
+            ["sandbox", "--network", "inherit", "--grant", "g1"],
+            daemon_request=request,
+            runtime=tmp_path,
+        )
+        == 0
+    )
+    shorthand_mount = next(payload for name, payload in calls if name == "mount.open")
+    assert isinstance(shorthand_mount, dict)
+    assert shorthand_mount["source_path"] == "/scratch/alice/project"
+    assert shorthand_mount["virtual_target"] == "/project"
+
+    calls.clear()
+    assert (
+        run_sandbox(
+            [
+                "sandbox",
+                "--network",
+                "inherit",
+                "--grant",
+                "g1",
+                "--remote",
+                "/scratch/alice/project/src=/src",
+            ],
+            daemon_request=request,
+            runtime=tmp_path,
+        )
+        == 0
+    )
+    descendant_mount = next(payload for name, payload in calls if name == "mount.open")
+    assert isinstance(descendant_mount, dict)
+    assert descendant_mount["virtual_target"] == "/project/src"
+
     reused_calls: list[str] = []
 
     def reused(operation: str, _payload: object = None) -> dict[str, object]:
@@ -322,12 +500,30 @@ def test_sandbox_remote_orchestration_closes_owned_resources(
         == 0
     )
     assert "session.open" not in reused_calls and "session.close" not in reused_calls
+    monkeypatch.setattr(Path, "is_mount", lambda _path: True)
+    with pytest.raises(AstralError, match="remains attached"):
+        run_sandbox(
+            [
+                "sandbox",
+                "--network",
+                "inherit",
+                "--grant",
+                "g1",
+                "--remote",
+                "/scratch/alice/project=/remote",
+            ],
+            daemon_request=request,
+            runtime=tmp_path,
+        )
 
 
 def test_sandbox_private_helpers_and_rejections(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     for value in ("", "x/y", "bad=/target", ":/source=/target", "source=/target", "/source=target"):
+        with pytest.raises(AstralError):
+            _parse_remote(value)
+    for value in ("/source/../child=/target", "/source=/target/"):
         with pytest.raises(AstralError):
             _parse_remote(value)
     with pytest.raises(AstralError):
@@ -420,6 +616,104 @@ def test_sandbox_command_error_paths(tmp_path: Path, monkeypatch: pytest.MonkeyP
         )
     assert _session_show("s", lambda *_args: {"session_id": "s"})["session_id"] == "s"
     assert _close_session("s", lambda *_args: {"state": "closed"})["state"] == "closed"
+
+
+def test_session_helpers_bind_scope_and_hide_host_fields() -> None:
+    signed = SignedGrant.create(sample_grant(), generate_private_key())
+    export, virtual = _select_export(signed, "/scratch/alice/project/child")
+    assert export.requested_source == "/scratch/alice/project"
+    assert virtual == "/project/child"
+    with pytest.raises(AstralError):
+        _select_export(signed, "/not-granted")
+    duplicate = replace(signed.grant, exports=(signed.grant.exports[0], signed.grant.exports[0]))
+    with pytest.raises(AstralError, match="ambiguous"):
+        _select_export(
+            SignedGrant.create(duplicate, generate_private_key()), "/scratch/alice/project/child"
+        )
+    root_export = replace(
+        signed.grant.exports[0],
+        requested_source="/",
+        canonical_source="/",
+        virtual_target="/",
+    )
+    _root, root_target = _select_export(
+        SignedGrant.create(replace(signed.grant, exports=(root_export,)), generate_private_key()),
+        "/",
+    )
+    assert root_target == "/"
+
+    mount_values = _session_mounts(
+        "s1",
+        lambda *_args: {
+            "mounts": [
+                {"session_id": "other", "mount_id": "hidden", "state": "ready"},
+                {
+                    "session_id": "s1",
+                    "mount_id": "hidden",
+                    "state": "ready",
+                    "mode": "ro",
+                    "virtual_target": "/project",
+                    "config_path": "/secret",
+                },
+            ]
+        },
+    )
+    assert mount_values == [{"state": "ready", "mode": "ro", "virtual_target": "/project"}]
+    description = _session_description(
+        "s1",
+        lambda *_args: {
+            "session_id": "s1",
+            "grant_id": "g1",
+            "state": "active",
+            "expires_at": 10,
+            "host_metadata": {"identity_file": "/secret"},
+        },
+    )
+    assert description == {
+        "session_id": "s1",
+        "grant_id": "g1",
+        "state": "active",
+        "expires_at": 10,
+    }
+    observed: dict[str, object] = {}
+    result = _session_run_ls(
+        signed,
+        {
+            "target": "/project/child",
+            "filters": [],
+            "json_output": False,
+            "max_depth": None,
+            "no_header": False,
+            "raw_output": False,
+            "recursive": False,
+            "reverse": False,
+            "sort": "path",
+            "stat": False,
+            "timeout_seconds": None,
+        },
+        lambda operation, payload: (
+            observed.update(operation=operation, payload=payload) or {"ok": True}
+        ),
+    )
+    assert result == {"ok": True}
+    assert observed["operation"] == "ls"
+    assert str(signed.grant.grant_id) in str(observed["payload"])
+
+
+def test_grant_shorthand_rejects_multiple_exports(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    signed = SignedGrant.create(
+        replace(sample_grant(), exports=(sample_grant().exports[0], sample_grant().exports[0])),
+        generate_private_key(),
+    )
+    monkeypatch.setattr("astral_project.sandbox.command._load_grant", lambda *_args: signed)
+    with pytest.raises(AstralError, match="exactly one"):
+        run_sandbox(
+            ["sandbox", "--network", "inherit", "--grant", "g"],
+            daemon_request=lambda *_args: {},
+            runtime=tmp_path,
+        )
 
 
 def test_command_helpers_and_session_reuse(tmp_path: Path) -> None:

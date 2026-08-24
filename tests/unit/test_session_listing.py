@@ -3,7 +3,11 @@ from __future__ import annotations
 import pytest
 
 from astral_project.core.errors import AstralError
-from astral_project.session.listing import SessionListingScope, constrain_listing_payload
+from astral_project.session.listing import (
+    SessionListingScope,
+    constrain_listing_payload,
+    constrain_session_listing_payload,
+)
 
 
 def payload(target: str) -> dict[str, object]:
@@ -32,6 +36,10 @@ def test_session_scope_binds_grant_and_export_path() -> None:
         scope.authorize("grant-1:/project/../secret")
     with pytest.raises(AstralError):
         scope.authorize("grant-1:/hidden")
+    target, _ = constrain_session_listing_payload(payload("/project/src"), scope)
+    assert target == "aspr-session:/project/src"
+    with pytest.raises(AstralError):
+        scope.authorize_path("relative")
 
 
 def test_session_scope_rejects_invalid_root() -> None:

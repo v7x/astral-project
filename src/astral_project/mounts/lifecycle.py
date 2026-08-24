@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import secrets
 import signal
@@ -13,7 +14,7 @@ from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from enum import StrEnum
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.core.ids import SessionId
@@ -92,15 +93,28 @@ class MountManager:
         """Create a private config, start fixed rclone, and require positive readiness."""
         now = int(self.clock())
         grant = signed_grant.grant
+        if (
+            not virtual_target.startswith("/")
+            or "\x00" in virtual_target
+            or str(PurePosixPath(virtual_target)) != virtual_target
+            or any(part in {".", ".."} for part in virtual_target.split("/"))
+            or (virtual_target != "/" and virtual_target.endswith("/"))
+        ):
+            raise _error("mount target path is not normalized", ErrorCode.DAEMON_AUTH)
         if self.database.grant_is_revoked(str(grant.grant_id)):
             raise _error("revoked grant cannot create a mount", ErrorCode.DAEMON_AUTH)
         if now < grant.not_before or now >= grant.expires_at:
             raise _error("expired grant cannot create a mount", ErrorCode.CRYPTO_CONTEXT)
-        export = next(
-            (item for item in grant.exports if item.virtual_target == virtual_target), None
-        )
-        if export is None:
+        matches = [
+            item for item in grant.exports if _path_contains(item.virtual_target, virtual_target)
+        ]
+        if not matches:
             raise _error("mount target is outside signed grant", ErrorCode.DAEMON_AUTH)
+        longest = max(len(item.virtual_target) for item in matches)
+        selected = [item for item in matches if len(item.virtual_target) == longest]
+        if len(selected) != 1:
+            raise _error("mount target selects ambiguous signed exports", ErrorCode.DAEMON_AUTH)
+        export = selected[0]
         if mode is not None and not isinstance(mode, AccessMode):
             raise _error("mount mode is invalid")
         requested_mode = export.access_mode if mode is None else mode
@@ -169,7 +183,10 @@ class MountManager:
             transport_thread = threading.Thread(target=transport_server.serve_forever, daemon=True)
             transport_thread.start()
             self._transports[mount_id] = (transport_server, transport_thread)
-            argv = self._argv(config_path, cache_path, virtual_target, mount_path, requested_mode)
+            rc_socket = self.runtime / f"rc-{mount_id}.sock"
+            argv = self._argv(
+                config_path, cache_path, virtual_target, mount_path, requested_mode, rc_socket
+            )
             process = subprocess.Popen(
                 argv,
                 stdin=subprocess.DEVNULL,
@@ -210,30 +227,40 @@ class MountManager:
         self.database.update_mount_runtime(
             mount_id, state=MountState.DRAINING.value, updated_at=int(self.clock())
         )
-        warning: str | None = None
+        rc_socket = self.runtime / f"rc-{mount_id}.sock"
         try:
+            self._wait_for_vfs_uploads(rc_socket, flush_timeout)
             self._unmount(record.mount_path, flush_timeout)
         except Exception as error:
             warning = f"possible unflushed writes: {error}"
+            self.database.update_mount_runtime(
+                mount_id,
+                state=MountState.DRAINING.value,
+                updated_at=int(self.clock()),
+                flush_warning=warning,
+            )
+            return self._record(mount_id)
         process = self._processes.pop(mount_id, None)
         if process is None and record.pid is not None:
             _terminate_pid(record.pid, flush_timeout)
         elif process is not None:
-            _terminate(process, flush_timeout)
+            try:
+                process.wait(timeout=flush_timeout)
+            except subprocess.TimeoutExpired:
+                _terminate(process, flush_timeout)
         self._close_transport(mount_id)
         _remove_authority_marker(record.mount_path, mount_id)
-        final_state = MountState.FAILED if warning else MountState.CLOSED
         self.database.update_mount_runtime(
             mount_id,
-            state=final_state.value,
+            state=MountState.CLOSED.value,
             pid=None,
             ended_at=int(self.clock()),
             updated_at=int(self.clock()),
-            flush_warning=warning,
+            flush_warning=None,
         )
-        if final_state is MountState.CLOSED:
-            _unlink_private(record.config_path)
-            _remove_private_tree(record.cache_path)
+        _unlink_private(record.config_path)
+        _unlink_private(rc_socket)
+        _remove_private_tree(record.cache_path)
         return self._record(mount_id)
 
     def health(self, mount_id: str) -> RemoteMount:
@@ -299,7 +326,13 @@ class MountManager:
         return tuple(closed)
 
     def _argv(
-        self, config: Path, cache: Path, target: str, mount_path: Path, mode: AccessMode
+        self,
+        config: Path,
+        cache: Path,
+        target: str,
+        mount_path: Path,
+        mode: AccessMode,
+        rc_socket: Path | None = None,
     ) -> list[str]:
         argv = [
             str(self.rclone_binary),
@@ -312,20 +345,105 @@ class MountManager:
             str(cache),
             "--log-level",
             "ERROR",
+            "--log-file",
+            str(cache / "rclone.log"),
             "--sftp-connections",
             "1",
             "--sftp-concurrency",
             "1",
             "--vfs-cache-mode",
             "writes",
+            "--vfs-write-back",
+            "1s",
             "--dir-cache-time",
             "1s",
         ]
+        if rc_socket is not None:
+            if not rc_socket.is_absolute():
+                raise _error("rclone remote-control socket path is invalid")
+            argv.extend(["--rc", "--rc-no-auth", "--rc-addr", f"unix://{rc_socket}"])
         if not isinstance(mode, AccessMode):
             raise _error("mount mode is invalid")
         if mode is AccessMode.READ_ONLY:
             argv.append("--read-only")
         return argv
+
+    def _wait_for_vfs_uploads(self, rc_socket: Path, timeout: float) -> None:
+        deadline = time.monotonic() + timeout
+        time.sleep(min(1.1, timeout))
+        while time.monotonic() < deadline:
+            try:
+                result = subprocess.run(
+                    [
+                        str(self.rclone_binary),
+                        "rc",
+                        "--unix-socket",
+                        str(rc_socket),
+                        "vfs/stats",
+                    ],
+                    capture_output=True,
+                    check=False,
+                    timeout=min(2.0, max(0.1, deadline - time.monotonic())),
+                )
+                payload = json.loads(result.stdout)
+                cache = payload.get("diskCache")
+                if result.returncode != 0 or not isinstance(cache, dict):
+                    raise _error("rclone VFS upload status is unavailable")
+                queued = cache.get("uploadsQueued")
+                active = cache.get("uploadsInProgress")
+                if not isinstance(queued, int) or not isinstance(active, int):
+                    raise _error("rclone VFS upload status is invalid")
+                if queued == 0 and active == 0:
+                    return
+                if queued > 0:
+                    queue_result = subprocess.run(
+                        [
+                            str(self.rclone_binary),
+                            "rc",
+                            "--unix-socket",
+                            str(rc_socket),
+                            "vfs/queue",
+                        ],
+                        capture_output=True,
+                        check=False,
+                        timeout=min(2.0, max(0.1, deadline - time.monotonic())),
+                    )
+                    queue_payload = json.loads(queue_result.stdout)
+                    queue = queue_payload.get("queue")
+                    if queue_result.returncode != 0 or not isinstance(queue, list):
+                        raise _error("rclone VFS upload queue is unavailable")
+                    for item in queue:
+                        if not isinstance(item, dict) or not isinstance(item.get("id"), int):
+                            raise _error("rclone VFS upload queue is invalid")
+                        expiry_result = subprocess.run(
+                            [
+                                str(self.rclone_binary),
+                                "rc",
+                                "--unix-socket",
+                                str(rc_socket),
+                                "vfs/queue-set-expiry",
+                                f"id={item['id']}",
+                                "expiry=0",
+                            ],
+                            capture_output=True,
+                            check=False,
+                            timeout=min(2.0, max(0.1, deadline - time.monotonic())),
+                        )
+                        if expiry_result.returncode != 0:
+                            detail = expiry_result.stderr.decode("utf-8", "replace").strip()
+                            raise _error(
+                                "rclone VFS upload expiry update failed: "
+                                f"{detail or 'unknown error'}"
+                            )
+            except (
+                OSError,
+                subprocess.TimeoutExpired,
+                subprocess.CalledProcessError,
+                json.JSONDecodeError,
+            ) as error:
+                raise _error("rclone VFS upload status could not be read") from error
+            time.sleep(0.05)
+        raise _error("rclone VFS writes did not drain before close", ErrorCode.DAEMON_UNAVAILABLE)
 
     def _wait_ready(
         self, mount_id: str, mount_path: Path, process: subprocess.Popen[bytes]
@@ -346,7 +464,7 @@ class MountManager:
         if not os.path.ismount(mount_path):
             return
         result = subprocess.run(
-            [str(self.fusermount_binary), "-u", "-z", str(mount_path)],
+            [str(self.fusermount_binary), "-u", str(mount_path)],
             capture_output=True,
             check=False,
             timeout=timeout,
@@ -362,6 +480,7 @@ class MountManager:
             _terminate(process, 1.0)
         self._processes.pop(mount_id, None)
         self._close_transport(mount_id)
+        _unlink_private(self.runtime / f"rc-{mount_id}.sock")
         with suppress(AstralError):
             self.database.update_mount_runtime(
                 mount_id,
@@ -401,6 +520,10 @@ class MountManager:
             failure_reason=None if raw["failure_reason"] is None else str(raw["failure_reason"]),
             flush_warning=None if raw["flush_warning"] is None else str(raw["flush_warning"]),
         )
+
+
+def _path_contains(root: str, value: str) -> bool:
+    return root == value or root == "/" or value.startswith(root.rstrip("/") + "/")
 
 
 def _error(message: str, code: ErrorCode = ErrorCode.DAEMON_PROTOCOL) -> AstralError:

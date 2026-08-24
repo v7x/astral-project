@@ -196,7 +196,7 @@ Packet 45 and later are post-core.
 
 1. Make `pyproject.toml`.
 2. Pin Python minor version in `.python-version`.
-3. Use `requires-python = ">=3.12,<3.13"` for version 1 unless ADR changes it.
+3. Use `requires-python = ">=3.12"` with Python 3.12 as development baseline; certify distro interpreters through Ubuntu package gates and record exact versions.
 4. Make `src/astral_project` package tree.
 5. Make and commit `uv.lock`.
 6. Add Ruff format and lint.

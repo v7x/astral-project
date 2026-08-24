@@ -1,0 +1,20 @@
+# Packet 24A writeback closure evidence
+
+The installed destructive harness is `scripts/daemon_writeback_acceptance.py`. It creates a real RW grant, opens a daemon-owned rclone mount, writes a 22,020,107-byte payload, closes through the real daemon path, opens an independent readback mount, and compares exact SHA-256 bytes.
+
+The first empirical run found two completed-packet defects. The close path terminated rclone while its VFS queue still held the write, and the fixed `aspr-sftp-v1` AppArmor profile allowed reads but denied creation under an RW export. The durable repair is now:
+
+- the private rclone RC socket is started with `--rc-no-auth` because the socket is private and daemon-owned;
+- close requests immediate queue expiry, bounds queue draining, and leaves the live mount/process/transport/cache in `DRAINING` with `flush_warning` if drain cannot be proven;
+- the final workload profile grants write/create access only inside the already-pinned mount namespace; the mount worker remains the authority for RO versus RW through mount attributes. A read-only mount therefore remains kernel-enforced read-only.
+
+Installed exact-byte results, using the packaged artifact and each pinned binary as `/usr/bin/rclone`, are:
+
+| Ubuntu release | rclone | result | bytes | SHA-256 |
+|---|---:|---|---:|---|
+| 24.04 | 1.73.3 | passed | 22,020,107 | `332d9be652a72e7edfc8fda53a93fd0cdfab0dfca4d3e30dbfdadf13f307de6f` |
+| 24.04 | 1.74.4 | passed | 22,020,107 | `332d9be652a72e7edfc8fda53a93fd0cdfab0dfca4d3e30dbfdadf13f307de6f` |
+| 26.04 | 1.73.3 | passed | 22,020,107 | `332d9be652a72e7edfc8fda53a93fd0cdfab0dfca4d3e30dbfdadf13f307de6f` |
+| 26.04 | 1.74.4 | passed | 22,020,107 | `332d9be652a72e7edfc8fda53a93fd0cdfab0dfca4d3e30dbfdadf13f307de6f` |
+
+Every run returned `first_close=closed`, `independent_readback=passed`, and identical write/read hashes. The temporary VM RW ceiling used for this destructive probe was restored after each run. The failure-injection unit tests continue to prove that an uncertain queue never receives a clean-close result and is retained for recovery.

@@ -21,6 +21,7 @@ from astral_project.daemon.server import DaemonPaths, DaemonServer
 from astral_project.host.probe import run_ssh_probe, subprocess_runner
 from astral_project.host.records import HostRecord
 from astral_project.sandbox.command import run_sandbox
+from astral_project.sandbox.session_api import SessionApiClient
 from astral_project.server.entry import run_ssh_entry
 from astral_project.transport.local import run_transport
 
@@ -293,9 +294,24 @@ def _run_lifecycle(arguments: Sequence[str], stdout: TextIO, stderr: TextIO) -> 
 def _run_ls(arguments: Sequence[str], stdout: TextIO, stderr: TextIO) -> int:
     try:
         payload = _ls_payload(arguments)
-        result = DaemonClient(_daemon_paths().socket).request(
-            request_id="ls", cancellation_id="ls", operation="ls", payload=payload
-        )
+        session_socket = os.environ.get("ASPR_SESSION_SOCKET")
+        session_id = os.environ.get("ASPR_SESSION_ID")
+        if session_socket is not None or session_id is not None:
+            if not session_socket or not session_id:
+                raise AstralError(
+                    code=ErrorCode.DAEMON_AUTH,
+                    message="sandbox session discovery environment is incomplete",
+                    security_result="listing was not started",
+                    unsafe_reason="sandbox listing requires both fixed session variables",
+                    next_action="run listing inside a valid Astral sandbox",
+                )
+            result = SessionApiClient(Path(session_socket), session_id=session_id).request(
+                "RunLs", payload
+            )
+        else:
+            result = DaemonClient(_daemon_paths().socket).request(
+                request_id="ls", cancellation_id="ls", operation="ls", payload=payload
+            )
         if set(result) != {"stderr_b64", "stdout_b64", "version"} or result["version"] != 1:
             raise AstralError(
                 code=ErrorCode.DAEMON_PROTOCOL,
@@ -357,6 +373,20 @@ def _run_internal(mode: str, stderr: TextIO) -> int:
 def run(argv: Sequence[str], *, stdout: TextIO, stderr: TextIO) -> int:
     """Run CLI with explicit streams for deterministic launcher behavior."""
     arguments = list(argv)
+    session_discovered = (
+        os.environ.get("ASPR_SESSION_SOCKET") is not None
+        or os.environ.get("ASPR_SESSION_ID") is not None
+    )
+    if session_discovered and arguments and arguments[0] not in {"version", "ls"}:
+        error = AstralError(
+            code=ErrorCode.DAEMON_AUTH,
+            message="sandbox session exposes only `aspr ls`",
+            security_result="sandbox command was not run",
+            unsafe_reason="sandbox session bearer capability cannot administer host state",
+            next_action="use `aspr ls /path` inside the sandbox",
+        )
+        stderr.write(f"{error.to_text()}\n")
+        return 70
     if arguments == ["version"]:
         _write_version(as_json=False, stdout=stdout)
         return 0

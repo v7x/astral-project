@@ -78,7 +78,12 @@ profile aspr-sftp-v1 flags=(attach_disconnected) {
   /var/lib/astral-project/runtime/sftp_v1/*/sftp-server rixm,
   /var/lib/astral-project/runtime/sftp_v1/*/lib/** mr,
   /var/lib/astral-project/runtime/sftp_v1/*/etc/** r,
-  /** r,
+  # The broker has already pinned the only visible source mounts. The mount
+  # worker enforces RO versus RW with mount attributes; this rule permits the
+  # requested RW mode without adding any host path or network authority.
+  /** rw,
+  /**/ rw,
+  /**/** rw,
   /** mr,
   signal (receive) set=(kill) peer=aspr-broker,
   deny userns,

@@ -11,9 +11,9 @@ Trusted project needs reproducible Python foundation before protocol or daemon c
 
 ## Chosen choice
 
-Use Python `>=3.12,<3.13`; pin development and build dependencies in `uv.lock`; keep code below `src/astral_project`; use Ruff format/lint, strict mypy, pytest, and branch coverage.
+Use Python `>=3.12` in package metadata, with Python 3.12 as the development and type-checking baseline; pin development and build dependencies in `uv.lock`; keep code below `src/astral_project`; use Ruff format/lint, strict mypy, pytest, and branch coverage.
 
-Production trusted processes later use fixed interpreter plus fixed application path with Python `-I`. `uv run` remains development-only.
+Ubuntu package gates certify the distro `/usr/bin/python3` actually exercised: Python 3.12.3 on Ubuntu 24.04 and Python 3.14.4 on Ubuntu 26.04. This is a certified-interpreter matrix, not an unconditional promise for every Python version. Production trusted processes use the fixed distro interpreter plus fixed application path with Python `-I`; `uv run` remains development-only.
 
 ## Security effect
 
@@ -21,7 +21,7 @@ Lockfile gives exact artifacts for review. Isolated launch prevents current-dire
 
 ## Rejected choices
 
-- Broad Python range: behavior and security patches drift.
+- Unbounded interpreter claims: behavior and security patches drift without a certified distro gate.
 - Unlocked dependencies: review cannot identify artifact.
 - `uv run` production launch: user environment controls resolution and interpreter path.
 
@@ -37,4 +37,4 @@ uv run pytest
 
 ## Reconsideration trigger
 
-Supported platform cannot run pinned Python 3.12, or production launcher gate proves `-I` alone insufficient.
+A certified Ubuntu platform changes its distro Python, or a production launcher gate proves `-I` alone insufficient; update the certified matrix and package policy together.

@@ -204,7 +204,7 @@ Packets 45 and later are optional, post-core work.
 
 1. Initialize `pyproject.toml`.
 2. Pin the supported Python minor version in `.python-version`.
-3. Set `requires-python = ">=3.12,<3.13"` for version 1 unless an ADR chooses a broader range.
+3. Set `requires-python = ">=3.12"` with Python 3.12 as development baseline; certify distro interpreters through Ubuntu package gates and record exact versions.
 4. Create the `src/astral_project` package layout.
 5. Create `uv.lock` and require locked synchronization in CI.
 6. Add Ruff for formatting and linting.

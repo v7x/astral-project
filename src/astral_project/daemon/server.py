@@ -12,7 +12,7 @@ import time
 from collections.abc import Callable, Mapping
 from contextlib import suppress
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
 from astral_project.core.errors import AstralError, ErrorCode
@@ -91,6 +91,34 @@ class DaemonLock:
         if self._descriptor is not None:
             os.close(self._descriptor)
             self._descriptor = None
+
+
+def _path_contains(root: str, value: str) -> bool:
+    return root == value or root == "/" or value.startswith(root.rstrip("/") + "/")
+
+
+def _select_source_export(grant: SignedGrant, source: str) -> tuple[object, str]:
+    if (
+        not source.startswith("/")
+        or "\x00" in source
+        or str(PurePosixPath(source)) != source
+        or any(part in {".", ".."} for part in source.split("/"))
+        or (source != "/" and source.endswith("/"))
+    ):
+        raise _error(ErrorCode.DAEMON_AUTH, "remote source path is not normalized")
+    matches = [
+        export for export in grant.grant.exports if _path_contains(export.requested_source, source)
+    ]
+    if not matches:
+        raise _error(ErrorCode.DAEMON_AUTH, "remote source is outside selected signed export")
+    longest = max(len(export.requested_source) for export in matches)
+    selected = [export for export in matches if len(export.requested_source) == longest]
+    if len(selected) != 1:
+        raise _error(ErrorCode.DAEMON_AUTH, "remote source selects ambiguous signed exports")
+    export = selected[0]
+    suffix = source[len(export.requested_source) :]
+    virtual_target = export.virtual_target.rstrip("/") + suffix or "/"
+    return export, virtual_target
 
 
 def _mount_payload(mount: object) -> Mapping[str, object]:
@@ -415,17 +443,9 @@ class DaemonServer:
             virtual_target = str(payload.get("virtual_target", ""))
             source_path = payload.get("source_path")
             if isinstance(source_path, str):
-                export_matches = [
-                    export
-                    for export in session.signed_grant.grant.exports
-                    if export.requested_source == source_path
-                ]
-                if len(export_matches) != 1:
-                    raise _error(
-                        ErrorCode.DAEMON_AUTH,
-                        "remote source is not exactly one signed export",
-                    )
-                virtual_target = export_matches[0].virtual_target
+                _export, virtual_target = _select_source_export(session.signed_grant, source_path)
+            elif source_path is not None:
+                raise _error(ErrorCode.DAEMON_PROTOCOL, "remote source path is invalid")
             mount = self._mounts.open(
                 session_id=session.session_id,
                 signed_grant=session.signed_grant,
