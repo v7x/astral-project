@@ -31,10 +31,12 @@ from astral_project.state.sqlite import StateDatabase
 
 def _record(
     database: StateDatabase, root: Path, grant: SignedGrant, session_id: str, label: str
-) -> tuple[str, Path]:
+) -> tuple[str, Path, Path]:
     mount_id = uuid.uuid4().hex
     mount_path = root / f"{label}-mount"
     mount_path.mkdir(mode=0o700)
+    marker = mount_path / "live-content.txt"
+    marker.write_text("must-survive-close\n", encoding="utf-8")
     cache_path = root / f"{label}-cache"
     cache_path.mkdir(mode=0o700)
     database.create_mount_runtime(
@@ -54,7 +56,7 @@ def _record(
             "updated_at": int(time.time()),
         }
     )
-    return mount_id, mount_path
+    return mount_id, mount_path, marker
 
 
 def main() -> int:
@@ -106,7 +108,9 @@ def main() -> int:
         )
         session_id = state.open_session(str(grant.grant_id))
         manager = MountManager(state, root / "runtime", rclone_binary=Path(rclone))
-        ambiguous_id, ambiguous_path = _record(state, root, signed, session_id, "ambiguous")
+        ambiguous_id, ambiguous_path, ambiguous_marker = _record(
+            state, root, signed, session_id, "ambiguous"
+        )
         with (
             patch.object(manager, "_wait_for_vfs_uploads", lambda *_args: None),
             patch("astral_project.mounts.lifecycle.os.path.ismount", return_value=True),
@@ -117,10 +121,14 @@ def main() -> int:
             patch("astral_project.mounts.lifecycle.time.sleep", lambda _seconds: None),
         ):
             ambiguous = manager.close(ambiguous_id, flush_timeout=0.1)
-        if ambiguous.state.value != "draining" or not ambiguous_path.exists():
-            raise RuntimeError("ambiguous successful unmount did not remain draining and preserved")
+        if (
+            ambiguous.state.value != "draining"
+            or not ambiguous_path.exists()
+            or ambiguous_marker.read_text(encoding="utf-8") != "must-survive-close\n"
+        ):
+            raise RuntimeError("ambiguous unmount did not preserve live mount contents")
 
-        failed_id, failed_path = _record(state, root, signed, session_id, "failed")
+        failed_id, failed_path, failed_marker = _record(state, root, signed, session_id, "failed")
         with (
             patch.object(manager, "_wait_for_vfs_uploads", lambda *_args: None),
             patch("astral_project.mounts.lifecycle.os.path.ismount", return_value=True),
@@ -130,14 +138,24 @@ def main() -> int:
             ),
         ):
             failed = manager.close(failed_id, flush_timeout=0.1)
-        if failed.state.value != "draining" or not failed_path.exists():
-            raise RuntimeError("failed unmount did not remain draining and preserved")
+        if (
+            failed.state.value != "draining"
+            or not failed_path.exists()
+            or failed_marker.read_text(encoding="utf-8") != "must-survive-close\n"
+        ):
+            raise RuntimeError("failed unmount did not preserve live mount contents")
 
-        uncertain_id, uncertain_path = _record(state, root, signed, session_id, "uncertain")
+        uncertain_id, uncertain_path, uncertain_marker = _record(
+            state, root, signed, session_id, "uncertain"
+        )
         with patch.object(manager, "_wait_for_vfs_uploads", side_effect=OSError("queue uncertain")):
             uncertain = manager.close(uncertain_id)
-        if uncertain.state.value != "draining" or not uncertain_path.exists():
-            raise RuntimeError("uncertain close did not remain draining and preserved")
+        if (
+            uncertain.state.value != "draining"
+            or not uncertain_path.exists()
+            or uncertain_marker.read_text(encoding="utf-8") != "must-survive-close\n"
+        ):
+            raise RuntimeError("uncertain close did not preserve live mount contents")
         print(
             json.dumps(
                 {
@@ -145,14 +163,17 @@ def main() -> int:
                     "ambiguous": {
                         "state": ambiguous.state.value,
                         "mount_preserved": ambiguous_path.exists(),
+                        "content_preserved": ambiguous_marker.exists(),
                     },
                     "failed_unmount": {
                         "state": failed.state.value,
                         "mount_preserved": failed_path.exists(),
+                        "content_preserved": failed_marker.exists(),
                     },
                     "uncertain": {
                         "state": uncertain.state.value,
                         "mount_preserved": uncertain_path.exists(),
+                        "content_preserved": uncertain_marker.exists(),
                     },
                 },
                 sort_keys=True,

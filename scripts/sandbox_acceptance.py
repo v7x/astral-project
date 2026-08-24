@@ -274,9 +274,9 @@ def main() -> int:
                     "--",
                     "/bin/sh",
                     "-c",
-                    "test -f /one/one.txt && test -f /two/two.txt "
-                    "&& test ! -e /one/allowed.txt && test ! -e /one/two.txt "
-                    "&& test ! -e /two/allowed.txt && test ! -e /two/one.txt",
+                    f"test -f /one/one.txt && test -f /two/two.txt "
+                    f"&& test ! -e /one/{filename} && test ! -e /one/two.txt "
+                    f"&& test ! -e /two/{filename} && test ! -e /two/one.txt",
                 ],
                 env,
                 timeout=90,
