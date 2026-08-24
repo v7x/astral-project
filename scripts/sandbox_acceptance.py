@@ -194,6 +194,7 @@ def main() -> int:
                 "sibling": f"{grant.grant_id}:{second_root}=/bad:ro",
                 "traversal": f"{grant.grant_id}:{directory}/descendant-one/../=/bad:ro",
             }
+            negative_results: dict[str, str] = {}
             for label, negative_remote in negative_remotes.items():
                 rejected = _run(
                     [
@@ -212,6 +213,7 @@ def main() -> int:
                 )
                 if rejected.returncode == 0:
                     raise RuntimeError(f"sandbox {label} authority request was accepted")
+                negative_results[label] = "rejected"
             remote = f"{grant.grant_id}:{directory}=/remote:ro"
             second_remote = f"{grant.grant_id}:{descendant_two}=/other:ro"
             positive = _run(
@@ -362,7 +364,7 @@ def main() -> int:
                         "remote_loss": "terminated",
                         "network_none": "passed",
                         "hidden_fuse_and_daemon_socket": "passed",
-                        "negative_source_authority": "passed",
+                        "negative_source_authority": negative_results,
                     },
                     sort_keys=True,
                 )
