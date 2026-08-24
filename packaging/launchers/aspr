@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /usr/bin/python3 -I -S -c 'import sys; sys.path.insert(0, "/usr/lib/astral-project/python"); from astral_project.cli import main; main()' "$@"

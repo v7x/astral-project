@@ -1,0 +1,77 @@
+{
+  "packet": "23-24",
+  "artifact": {
+    "launcher": "/usr/libexec/astral-project/aspr-bwrap-launch",
+    "entrypoint": "/usr/libexec/astral-project/aspr-sandbox-entry",
+    "bwrap": "/usr/bin/bwrap",
+    "ownership": "root:root",
+    "mode": "0555",
+    "setuid": false,
+    "file_capabilities": false,
+    "plan_abi": "ASPRSB01",
+    "raw_bwrap_flags": "rejected; launcher accepts only the bounded typed plan",
+    "remote_source_check": "directory plus FUSE_SUPER_MAGIC plus daemon-created .aspr-mount-<mount_id> marker",
+    "runtime_paths": ["/tmp", "/run/user/<uid>/astral-project"],
+    "source_root_include": "local/astral-project-source-roots (administrator-rendered; covers configured /scratch and /datasets roots)"
+  },
+  "profiles": {
+    "setup": "aspr-bwrap-setup",
+    "payload": "aspr-sandbox-payload",
+    "transition": "Px -> aspr-bwrap-setup//&aspr-sandbox-payload",
+    "setup_capabilities": ["CAP_SYS_ADMIN", "CAP_NET_ADMIN", "CAP_SETPCAP"],
+    "runtime_audit": "successful capable records for exactly sys_admin, net_admin, setpcap plus allowed mount; userns and netlink probes passed",
+    "capability_audit": "audit capability rules; runtime denied sys_ptrace and dac_override controls recorded",
+    "packet15_sftp_unix_boundary": "preserved deny unix; no global profile broadening",
+    "load": "apparmor_parser --replace; package configuration fails closed if parser is unavailable"
+  },
+  "platforms": [
+    {
+      "target": "ubuntu-24.04",
+      "installed_package": "astral-project 0.1.0",
+      "bwrap": "/usr/bin/bwrap",
+      "profile_load": "passed",
+      "network_inherit": "passed",
+      "network_none": "passed",
+      "private_loopback_only": "passed",
+      "no_host_route_or_interface": "passed",
+      "payload_profile_label": "aspr-bwrap-setup//&aspr-sandbox-payload (enforce)",
+      "payload_capabilities_zero": "passed",
+      "no_new_privs": "passed",
+      "privileged_mount_rejected": "passed",
+      "remote_loss_terminates": "passed",
+      "packet15f": "passed"
+    },
+    {
+      "target": "ubuntu-26.04",
+      "installed_package": "astral-project 0.1.0",
+      "bwrap": "/usr/bin/bwrap",
+      "profile_load": "passed",
+      "network_inherit": "passed",
+      "network_none": "passed",
+      "private_loopback_only": "passed",
+      "no_host_route_or_interface": "passed",
+      "payload_profile_label": "aspr-bwrap-setup//&aspr-sandbox-payload (enforce)",
+      "payload_capabilities_zero": "passed",
+      "no_new_privs": "passed",
+      "privileged_mount_rejected": "passed",
+      "remote_loss_terminates": "passed",
+      "packet15f": "passed"
+    }
+  ],
+  "negative_controls": {
+    "unknown_plan_version": "rejected",
+    "unknown_plan_fields": "rejected as trailing bytes",
+    "malformed_network_record": "rejected",
+    "malformed_remote_mode": "rejected",
+    "malformed_socket_record": "rejected",
+    "trailing_plan_bytes": "rejected",
+    "non_absolute_payload": "rejected",
+    "alternate_launcher_or_bwrap": "rejected (including valid-plan extra argv)",
+    "direct_entrypoint_outside_profile": "rejected",
+    "network_downgrade": "not implemented; explicit mode required",
+    "profile_load_failure_fallback": "rejected; no fallback",
+    "multiple_same_grant_remotes": "covered by installed harness and Packet 24 regression suite",
+    "second_grant": "rejected",
+    "remote_target_collision": "rejected independently by native launcher"
+  }
+}

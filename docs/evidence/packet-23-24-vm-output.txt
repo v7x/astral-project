@@ -1,0 +1,91 @@
+Packet 23-24 installed evidence (captured after the final package build)
+
+Targets: aspr-test-admin (Ubuntu 26.04), aspr-test-admin-24 (Ubuntu 24.04)
+Package build/install command on each target:
+  ./packaging/debian/build-deb.sh "$out"
+  Ubuntu 26.04 package SHA-256: d744a3eddba9f8933df2db5e8cc92132da6f876a340b357aae5e38ab7185f304
+  Ubuntu 24.04 package SHA-256: c39fe50cc9ecef07d2f8884e8cc0783567fc1938826c0511f6a8e437bad407ef
+  sudo dpkg -i "$pkg"
+  sudo /usr/libexec/astral-project/packet15f-gate
+Result: `sudo dpkg -i "$pkg"` exit 0 on both targets; package hashes above identify the installed artifacts.
+Reproducible installed acceptance: `sudo SUDO_USER=testuser python3 scripts/sandbox_installed_acceptance.py`
+  Ubuntu 26.04: exit 0; dpkg install, stat 0555/root:root, empty getcap, apparmor_parser --replace, aa-status, and enforce harness all passed.
+  Ubuntu 24.04: exit 0; dpkg install, stat 0555/root:root, empty getcap, apparmor_parser --replace, aa-status, setup probes, runtime audit checks, and enforce harness all passed.
+Setup audit stdout (Ubuntu 26.04 representative raw kernel lines):
+  [136640.851454] audit: type=1400 audit(1787493183.543:4326): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=99702 comm="ip" capability=12  capname="net_admin"
+  [136800.313142] audit: type=1400 audit(1787493343.009:5029): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=101242 comm="mount" capability=21  capname="sys_admin"
+  [136247.952422] audit: type=1400 audit(1787492790.634:2480): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=95822 comm="bwrap" capability=8  capname="setpcap"
+  [136800.313137] audit: type=1400 audit(1787493343.009:5028): apparmor="AUDIT" operation="mount" class="mount" profile="aspr-bwrap-setup" name="/tmp/" pid=101242 comm="mount" fstype="tmpfs" srcname="tmpfs" flags="rw, nosuid, nodev"
+  {"setup_audit_capabilities": ["net_admin", "setpcap", "sys_admin"], "setup_audit_operations": ["capable", "mount"], "setup_mount_probe": "passed", "setup_userns_probe": "passed"}
+Final installed acceptance runtime-audit JSON:
+  Ubuntu 26.04: {"setup_audit_capabilities": ["net_admin", "setpcap", "sys_admin"], "setup_audit_operations": ["capable", "mount"], "setup_mount_probe": "passed", "setup_userns_probe": "passed"}
+  Ubuntu 24.04: {"setup_audit_capabilities": ["net_admin", "setpcap", "sys_admin"], "setup_audit_operations": ["capable", "mount", "pivotroot"], "setup_mount_probe": "passed", "setup_userns_probe": "passed"}
+  Final raw 26.04 selected records: net_admin capable (pid=100569), setpcap capable (pid=95822), sys_admin capable (pid=102463), tmpfs mount (pid=102462), all profile=aspr-bwrap-setup apparmor=AUDIT.
+  Final raw 24.04 selected records: net_admin capable (pid=56291), setpcap capable (pid=56661), sys_admin capable (pid=56079), rbind mount (pid=57039), all profile=aspr-bwrap-setup apparmor=AUDIT.
+  Acceptance binds records to a pre-probe kernel-journal audit serial boundary and filters capability records to operation=capable; stale records at or below the boundary cannot satisfy the check.
+
+Command:
+  stat -c '%n %U:%G %a %A' /usr/libexec/astral-project/aspr-bwrap-launch /usr/libexec/astral-project/aspr-sandbox-entry
+  getcap /usr/libexec/astral-project/aspr-bwrap-launch /usr/libexec/astral-project/aspr-sandbox-entry
+  sudo aa-status | grep -E 'aspr-bwrap-setup|aspr-sandbox-payload'
+
+Both targets:
+  /usr/libexec/astral-project/aspr-bwrap-launch root:root 555 -r-xr-xr-x
+  /usr/libexec/astral-project/aspr-sandbox-entry root:root 555 -r-xr-xr-x
+  getcap: empty
+    aspr-bwrap-setup
+    aspr-sandbox-payload
+
+Normal runtime command (XDG_RUNTIME_DIR=/run/user/<testuser-uid>):
+  sudo -u testuser env XDG_RUNTIME_DIR=/run/user/<uid> \
+    XDG_STATE_HOME=/tmp/aspr-state-normal /usr/bin/aspr sandbox --network none -- \
+    /bin/sh -c 'set -e; grep -q aspr-sandbox-payload /proc/self/attr/current; \
+      grep -q "CapEff:[[:space:]]*0000000000000000" /proc/self/status; \
+      grep -q "NoNewPrivs:[[:space:]]*1" /proc/self/status; \
+      test "$(cat /proc/net/route | tail -n +2 | wc -l)" -eq 0'
+Result: normal-runtime=PASS on both targets.
+
+Payload output on both targets:
+  aspr-bwrap-setup//&aspr-sandbox-payload (enforce)
+  CapInh: 0000000000000000
+  CapPrm: 0000000000000000
+  CapEff: 0000000000000000
+  CapBnd: 0000000000000000
+  CapAmb: 0000000000000000
+  NoNewPrivs: 1
+
+Installed acceptance command (run as `testuser` with normal runtime):
+  `sudo -u testuser env XDG_RUNTIME_DIR=/run/user/<uid> python3 /tmp/sandbox_enforce_acceptance.py`
+  aspr-test-admin (Ubuntu 26.04): exit=0, JSON network_inherit=passed, network_none=passed, native_negative_controls=passed, all_capability_sets_zero=passed, all_non_loopback_interfaces_absent=passed, all_network_socket_tables_empty=passed, setup_capabilities=[capability net_admin, capability setpcap, capability sys_admin]
+  aspr-test-admin-24 (Ubuntu 24.04): exit=0, JSON network_inherit=passed, network_none=passed, native_negative_controls=passed, all_capability_sets_zero=passed, all_non_loopback_interfaces_absent=passed, all_network_socket_tables_empty=passed, setup_capabilities=[capability net_admin, capability setpcap, capability sys_admin]
+  Unedited stdout (26.04): {"all_capability_sets_zero": "passed", "all_network_socket_tables_empty": "passed", "all_non_loopback_interfaces_absent": "passed", "credentials_and_sockets_absent": "passed", "dns_absent": "passed", "entrypoint": "/usr/libexec/astral-project/aspr-sandbox-entry", "launcher": "/usr/libexec/astral-project/aspr-bwrap-launch", "native_negative_controls": "passed", "network_inherit": "passed", "network_none": "passed", "runtime": "/run/user/1001", "setup_capabilities": ["capability net_admin", "capability setpcap", "capability sys_admin"]}
+  Unedited stdout (24.04): {"all_capability_sets_zero": "passed", "all_network_socket_tables_empty": "passed", "all_non_loopback_interfaces_absent": "passed", "credentials_and_sockets_absent": "passed", "dns_absent": "passed", "entrypoint": "/usr/libexec/astral-project/aspr-sandbox-entry", "launcher": "/usr/libexec/astral-project/aspr-bwrap-launch", "native_negative_controls": "passed", "network_inherit": "passed", "network_none": "passed", "runtime": "/run/user/1002", "setup_capabilities": ["capability net_admin", "capability setpcap", "capability sys_admin"]}
+
+Network-none negative controls on both targets:
+  loopback present; eth host interface absent; host route count 0;
+  mount -t tmpfs tmpfs /tmp/blocked -> cannot mount tmpfs read-only;
+  result: PASS.
+
+Native negative controls on both targets:
+  printf BADPLAN! | /usr/libexec/astral-project/aspr-bwrap-launch
+    -> exit 70, ASPR_SANDBOX_LAUNCH: sandbox plan magic or version is invalid
+  /usr/libexec/astral-project/aspr-sandbox-entry /bin/true
+    -> exit 70, ASPR_SANDBOX_ENTRY: sandbox entrypoint is not running under the fixed setup profile
+  ASPRSB01 plan plus trailing byte -> exit 70, unknown fields/trailing bytes rejected
+  malformed network/mode/socket records -> exit 70
+  ASPRSB01 plan with relative payload -> exit 70, non-absolute payload rejected
+  Native target paths with trailing slash are rejected before collision checks.
+  Result: native-controls=PASS on both targets.
+
+Postinst fail-closed control on both targets:
+  `PATH=/tmp/aspr-no-aa /bin/sh /tmp/aspr-postinst-test configure`
+    -> exit 1, `Astral requires AppArmor to load sandbox confinement`
+  Result: postinst-fail-closed=PASS on both targets. The parser invocation is under `set -e`, so a nonzero parser result also aborts configuration.
+
+Runtime AppArmor audit excerpt (Ubuntu 24.04; same control on 26.04):
+  profile=aspr-bwrap-setup, operation=capable, capname=sys_ptrace -> DENIED
+  profile=aspr-bwrap-setup, operation=capable, capname=dac_override -> DENIED
+  profile=aspr-bwrap-setup, operation=mount, name=/tmp/blocked/ -> DENIED
+  This records active enforcement of capabilities and privileged operations outside the fixed setup set; successful setup behavior is reported by the installed harness.
+
+Each daemon-ready mount creates a private `.aspr-mount-<mount_id>` marker beside its FUSE mount; ASPRSB01 carries and the launcher verifies that identity before binding. The AppArmor source-root include is loaded with `#include if exists <local/astral-project-source-roots>`; the package renderer supplies exact administrator-approved roots, including configured /scratch and /datasets roots when present. A parser reload with exact `/scratch` and `/datasets` rules returned success and both profiles remained loaded on both targets (`source-root-include=PASS`).

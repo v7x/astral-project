@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import re
+import struct
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -69,7 +70,9 @@ def authorized_key_entry(public_key: bytes, transport_key_id: str) -> str:
         or _TRANSPORT_KEY_ID.fullmatch(transport_key_id) is None
     ):
         raise _error("transport key material or identifier is invalid")
-    encoded = base64.b64encode(public_key).decode("ascii")
+    key_blob = struct.pack(">I", len(b"ssh-ed25519")) + b"ssh-ed25519"
+    key_blob += struct.pack(">I", len(public_key)) + public_key
+    encoded = base64.b64encode(key_blob).decode("ascii")
     command = f"{ENROLLED_SERVER_EXECUTABLE} server ssh-entry --transport-key {transport_key_id}"
     return (
         "restrict,no-pty,no-port-forwarding,no-agent-forwarding,no-X11-forwarding,"

@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import os
 import platform
 import subprocess
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import TextIO
+from typing import BinaryIO, TextIO, cast
 
 from astral_project import PROTOCOL_VERSION, TARGET_PLATFORM, __version__
 from astral_project.core.errors import AstralError, ErrorCode
@@ -18,7 +20,9 @@ from astral_project.daemon.client import DaemonClient
 from astral_project.daemon.server import DaemonPaths, DaemonServer
 from astral_project.host.probe import run_ssh_probe, subprocess_runner
 from astral_project.host.records import HostRecord
+from astral_project.sandbox.command import run_sandbox
 from astral_project.server.entry import run_ssh_entry
+from astral_project.transport.local import run_transport
 
 _INTERNAL_MODES = frozenset({"daemon", "homed", "server", "transport"})
 
@@ -80,6 +84,251 @@ def _write_unknown_command(command: str, stderr: TextIO) -> int:
 def _daemon_paths() -> DaemonPaths:
     paths = resolve_xdg_paths(os.environ)
     return DaemonPaths(runtime=paths.runtime, state=paths.state / "state.sqlite3")
+
+
+def _write_bytes(stream: TextIO, value: bytes) -> None:
+    binary = getattr(stream, "buffer", None)
+    if binary is not None:
+        binary.write(value)
+        binary.flush()
+    else:
+        stream.write(value.decode("utf-8", "replace"))
+        stream.flush()
+
+
+def _ls_payload(arguments: Sequence[str]) -> dict[str, object]:
+    if len(arguments) < 2:
+        raise AstralError(
+            code=ErrorCode.DAEMON_PROTOCOL,
+            message="aspr ls requires one target",
+            security_result="listing was not started",
+            unsafe_reason="listing target must be explicit and bounded",
+            next_action="use `aspr ls <grant>:/path`",
+        )
+    target = arguments[1]
+    values: dict[str, object] = {
+        "filters": [],
+        "json_output": False,
+        "max_depth": None,
+        "no_header": False,
+        "raw_output": False,
+        "recursive": False,
+        "reverse": False,
+        "sort": "path",
+        "stat": False,
+        "target": target,
+        "timeout_seconds": None,
+    }
+    index = 2
+    while index < len(arguments):
+        option = arguments[index]
+        if option in {"--recursive", "-R"}:
+            values["recursive"] = True
+        elif option == "--stat":
+            values["stat"] = True
+        elif option == "--json":
+            values["json_output"] = True
+        elif option == "--raw":
+            values["raw_output"] = True
+        elif option == "--no-header":
+            values["no_header"] = True
+        elif option == "--reverse":
+            values["reverse"] = True
+        elif option in {"--max-depth", "--timeout", "--sort", "--filter"}:
+            index += 1
+            if index >= len(arguments):
+                raise AstralError(
+                    code=ErrorCode.DAEMON_PROTOCOL,
+                    message=f"{option} requires a value",
+                    security_result="listing was not started",
+                    unsafe_reason="listing options must be complete typed values",
+                    next_action="supply a value for the option",
+                )
+            value = arguments[index]
+            if option == "--max-depth":
+                try:
+                    values["max_depth"] = int(value)
+                except ValueError as error:
+                    raise AstralError(
+                        code=ErrorCode.DAEMON_PROTOCOL,
+                        message="--max-depth must be an integer",
+                        security_result="listing was not started",
+                        unsafe_reason="listing depth must be bounded integer",
+                        next_action="supply an integer depth",
+                    ) from error
+            elif option == "--timeout":
+                try:
+                    values["timeout_seconds"] = float(value)
+                except ValueError as error:
+                    raise AstralError(
+                        code=ErrorCode.DAEMON_PROTOCOL,
+                        message="--timeout must be numeric",
+                        security_result="listing was not started",
+                        unsafe_reason="listing timeout must be bounded numeric value",
+                        next_action="supply a positive timeout",
+                    ) from error
+            elif option == "--sort":
+                values["sort"] = value
+            else:
+                cast_filters = values["filters"]
+                assert isinstance(cast_filters, list)
+                cast_filters.append(value)
+        else:
+            raise AstralError(
+                code=ErrorCode.CLI_UNKNOWN_COMMAND,
+                message=f"unknown ls option {option!r}",
+                security_result="listing was not started",
+                unsafe_reason="listing option surface is fixed",
+                next_action="use documented `aspr ls` options",
+            )
+        index += 1
+    return values
+
+
+def _daemon_request(
+    operation: str, payload: Mapping[str, object] | None = None
+) -> dict[str, object]:
+    result = DaemonClient(_daemon_paths().socket).request(
+        request_id=operation,
+        cancellation_id=operation,
+        operation=operation,
+        payload=payload,
+    )
+    if not isinstance(result, dict):
+        raise AstralError(
+            code=ErrorCode.DAEMON_PROTOCOL,
+            message="daemon returned invalid result",
+            security_result="daemon result was discarded",
+            unsafe_reason="control responses must be versioned maps",
+            next_action="restart compatible daemon",
+        )
+    return dict(result)
+
+
+def _run_json_operation(
+    operation: str,
+    payload: Mapping[str, object] | None,
+    stdout: TextIO,
+    stderr: TextIO,
+) -> int:
+    try:
+        result = _daemon_request(operation, payload)
+    except AstralError as error:
+        stderr.write(f"{error.to_text()}\n")
+        return 70
+    stdout.write(json.dumps(result, separators=(",", ":"), sort_keys=True))
+    stdout.write("\n")
+    return 0
+
+
+def _run_lifecycle(arguments: Sequence[str], stdout: TextIO, stderr: TextIO) -> int:
+    if len(arguments) >= 2 and arguments[0] == "grant":
+        command = arguments[1]
+        if command == "list":
+            include_revoked = "--all" in arguments[2:]
+            return _run_json_operation(
+                "grant.list", {"include_revoked": include_revoked}, stdout, stderr
+            )
+        if command in {"import", "create"} and len(arguments) in {3, 4}:
+            try:
+                envelope = base64.b64encode(Path(arguments[2]).read_bytes()).decode("ascii")
+                import_payload: dict[str, object] = {"cbor_b64": envelope}
+                if len(arguments) == 4:
+                    import_payload["issuer_key_b64"] = base64.b64encode(
+                        Path(arguments[3]).read_bytes()
+                    ).decode("ascii")
+            except OSError as error:
+                stderr.write(f"grant input could not be read: {error}\n")
+                return 70
+            return _run_json_operation("grant.import", import_payload, stdout, stderr)
+        if command == "show" and len(arguments) == 3:
+            return _run_json_operation("grant.show", {"grant_id": arguments[2]}, stdout, stderr)
+        if command == "validate" and len(arguments) == 3:
+            return _run_json_operation("grant.validate", {"grant_id": arguments[2]}, stdout, stderr)
+        if command == "revoke" and len(arguments) in {3, 5}:
+            reason = "user request"
+            if len(arguments) == 5 and arguments[3] == "--reason":
+                reason = arguments[4]
+            return _run_json_operation(
+                "grant.revoke", {"grant_id": arguments[2], "reason": reason}, stdout, stderr
+            )
+    if len(arguments) >= 2 and arguments[0] == "session":
+        command = arguments[1]
+        if command == "list" and len(arguments) == 2:
+            return _run_json_operation("session.list", None, stdout, stderr)
+        if command in {"open", "show"} and len(arguments) == 3:
+            operation = "session.open" if command == "open" else "session.show"
+            key = "grant_id" if command == "open" else "session_id"
+            return _run_json_operation(operation, {key: arguments[2]}, stdout, stderr)
+        if command == "close" and len(arguments) == 3:
+            return _run_json_operation(
+                "session.close", {"session_id": arguments[2]}, stdout, stderr
+            )
+    if len(arguments) >= 2 and arguments[0] == "mount":
+        command = arguments[1]
+        if command == "list" and len(arguments) == 2:
+            return _run_json_operation("mount.list", None, stdout, stderr)
+        if command == "show" and len(arguments) == 3:
+            return _run_json_operation("mount.show", {"mount_id": arguments[2]}, stdout, stderr)
+        if command == "close" and len(arguments) == 3:
+            return _run_json_operation("mount.close", {"mount_id": arguments[2]}, stdout, stderr)
+        if command == "open" and len(arguments) in {5, 6}:
+            payload: dict[str, object] = {
+                "mount_path": arguments[2],
+                "virtual_target": arguments[3],
+                "mode": arguments[4],
+            }
+            if len(arguments) == 6 and arguments[5] != "--read-write":
+                raise AstralError(
+                    code=ErrorCode.CLI_UNKNOWN_COMMAND,
+                    message="mount open accepts only --read-write as optional flag",
+                    security_result="mount was not started",
+                    unsafe_reason="mount mode must be explicit and fixed",
+                    next_action="use `aspr mount open PATH TARGET ro|rw [--read-write]`",
+                )
+            return _run_json_operation("mount.open", payload, stdout, stderr)
+    return _write_unknown_command(" ".join(arguments[:2]), stderr)
+
+
+def _run_ls(arguments: Sequence[str], stdout: TextIO, stderr: TextIO) -> int:
+    try:
+        payload = _ls_payload(arguments)
+        result = DaemonClient(_daemon_paths().socket).request(
+            request_id="ls", cancellation_id="ls", operation="ls", payload=payload
+        )
+        if set(result) != {"stderr_b64", "stdout_b64", "version"} or result["version"] != 1:
+            raise AstralError(
+                code=ErrorCode.DAEMON_PROTOCOL,
+                message="daemon listing response is invalid",
+                security_result="listing output was discarded",
+                unsafe_reason="daemon output must be bounded versioned bytes",
+                next_action="restart compatible daemon",
+            )
+        if not isinstance(result["stdout_b64"], str) or not isinstance(result["stderr_b64"], str):
+            raise AstralError(
+                code=ErrorCode.DAEMON_PROTOCOL,
+                message="daemon listing response fields are invalid",
+                security_result="listing output was discarded",
+                unsafe_reason="daemon output encoding must be text",
+                next_action="restart compatible daemon",
+            )
+        try:
+            output = base64.b64decode(result["stdout_b64"], validate=True)
+            diagnostic = base64.b64decode(result["stderr_b64"], validate=True)
+        except (binascii.Error, TypeError) as error:
+            raise AstralError(
+                code=ErrorCode.DAEMON_PROTOCOL,
+                message="daemon listing response encoding is invalid",
+                security_result="listing output was discarded",
+                unsafe_reason="daemon output encoding must be strict",
+                next_action="restart compatible daemon",
+            ) from error
+        _write_bytes(stdout, output)
+        _write_bytes(stderr, diagnostic)
+        return 0
+    except AstralError as error:
+        stderr.write(f"{error.to_text()}\n")
+        return 70
 
 
 def _run_internal(mode: str, stderr: TextIO) -> int:
@@ -157,6 +406,50 @@ def run(argv: Sequence[str], *, stdout: TextIO, stderr: TextIO) -> int:
             stdout=sys.stdout.buffer,
             stderr=stderr,
             environment=os.environ,
+        )
+    if arguments and arguments[0] == "ls":
+        return _run_ls(arguments, stdout, stderr)
+    if arguments and arguments[0] in {"grant", "session", "mount"}:
+        try:
+            return _run_lifecycle(arguments, stdout, stderr)
+        except AstralError as error:
+            stderr.write(f"{error.to_text()}\n")
+            return 70
+    if arguments and arguments[0] == "sandbox":
+        try:
+
+            def sandbox_request(
+                operation: str, payload: Mapping[str, object] | None = None
+            ) -> dict[str, object]:
+                return _daemon_request(operation, payload)
+
+            return run_sandbox(
+                arguments, daemon_request=sandbox_request, runtime=_daemon_paths().runtime
+            )
+        except AstralError as error:
+            stderr.write(f"{error.to_text()}\n")
+            return 70
+    if arguments and arguments[0] == "transport":
+        return run_transport(
+            arguments[1:],
+            environment=os.environ,
+            stdin=cast(
+                BinaryIO,
+                getattr(
+                    getattr(sys.stdin, "buffer", sys.stdin),
+                    "raw",
+                    getattr(sys.stdin, "buffer", sys.stdin),
+                ),
+            ),
+            stdout=cast(
+                BinaryIO,
+                getattr(
+                    getattr(sys.stdout, "buffer", sys.stdout),
+                    "raw",
+                    getattr(sys.stdout, "buffer", sys.stdout),
+                ),
+            ),
+            stderr=cast(BinaryIO, getattr(sys.stderr, "buffer", sys.stderr)),
         )
     if arguments == ["doctor"]:
         try:

@@ -103,6 +103,24 @@ def test_daemon_translates_protocol_error_to_error_frame(
     assert connection.payload is not None
     assert json.loads(connection.payload[4:])["kind"] == "error"
 
+    connection2 = Connection()
+    server._listener = type("Listener", (), {"accept": lambda _self: (connection2, None)})()
+    monkeypatch.setattr(
+        "astral_project.daemon.server.receive",
+        lambda _connection: {
+            "cancellation_id": "cancel",
+            "kind": "request",
+            "operation": "status",
+            "request_id": "request",
+            "version": 1,
+        },
+    )
+    server.serve_once()
+    assert connection2.payload is not None
+    decoded = json.loads(connection2.payload[4:])
+    assert decoded["kind"] == "response"
+    assert decoded["ok"] is False
+
 
 def test_other_uid_and_bad_frames_do_not_crash_daemon(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch

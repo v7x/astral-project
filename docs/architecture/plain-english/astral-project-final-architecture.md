@@ -889,7 +889,7 @@ Rclone’s generated SFTP configuration shall use an external SSH command:
 ```ini
 [aspr-session]
 type = sftp
-ssh = /path/to/aspr transport
+ssh = /path/to/aspr-transport
 disable_hashcheck = true
 ```
 
@@ -2588,23 +2588,49 @@ A packet that discovereth an architectural contradiction shall stop and write an
 **Accept:** Ubuntu 26.04 amd64 Packet 15F evidence passed. Ubuntu 24.04 amd64 Packet 15F evidence passed after explicit AppArmor ABI pinning; historical pre-ABI failure remains recorded. Bubblewrap is not production remote backend; local-agent bubblewrap remains separate.
 
 ### Packet 16 — Full SFTP functional acceptance and integration
-**Target:** Current next packet.
+**Target:** Current next packet; implementation order is fixed.
 
-**Deliver:** Complete SFTP operation matrix, concurrent connections, external modifications, rename/overwrite, large files, traversal, extension allowlist, hardlink/symlink policy, stable errors, expiry/revocation, remote preface, rclone compatibility, readiness, and production logging.
+Packet 16 exercises frozen Packet 15 boundary. Completed inputs are root-broker authority, signed-grant validation, server-ceiling enforcement, target-user-DAC source resolution, descriptor pinning, sealed bounded plan, mapped namespace/mount worker, synthetic root, fixed digest-verified `sftp_v1` runtime and workload, setup-authority removal, AppArmor confinement, expiry/cancellation supervision foundation, forced-command entry, and broker bridge.
 
-**Accept:** All work exercises frozen Packet 15 boundary. Runtime closure, synthetic root, fixed workload, and confinement construction are not Packet 16 work.
+Any change to `aspr-mount-worker.c`, fixed SFTP argv, worker FD ABI, runtime closure, namespace construction, AppArmor confinement, or broker authority is a Packet 15 trusted-boundary change. It may occur only when necessary, must remain fixed and caller-unselectable, and requires relevant Packet 15 regression evidence on certified platforms.
+
+#### Packet 16A — Direct SFTP acceptance harness
+
+Use actual packaged path: SFTP client → forced `aspr-server` → root broker → Packet 15 worker → confined OpenSSH `sftp-server`. Test INIT/VERSION, REALPATH, STAT/LSTAT, OPENDIR/READDIR, OPEN/READ/CLOSE, OPEN/WRITE/CLOSE, MKDIR/RMDIR, REMOVE, basic RENAME, and RO/RW baselines. Complete direct SFTP before rclone.
+
+#### Packet 16B — Filesystem and authority-sensitive semantics
+
+Test traversal, rename/overwrite, cross-export rename, symlinks (relative, absolute, dangling, `..`, other export, STAT/LSTAT, replacement races), file versus directory grants, RO/RW, extension discovery and allowlist, nested/export boundaries, and stable SFTP failures. OpenSSH defaults are not Astral policy. Symlinks never enlarge authority beyond synthetic namespace. Test hardlinks within one RW export, reject on RO, and preserve kernel/filesystem failure across exports or mounts; no bespoke inode policy without evidence.
+
+#### Packet 16C — Concurrency, coherence, and large I/O
+
+Test active sessions, multiple handles, external changes, rename/delete/recreate races, large and offset reads/writes, EOF, partial/interrupted transfers, source truncation, and disconnect during I/O. Descriptor pinning stabilizes export-root identity, not descendant contents as a snapshot: rename/replacement of `/host/project` leaves an existing session on its pinned object; changes inside that object follow normal kernel/filesystem semantics. Test both cases. Brief serialized broker setup plus independently supervised workers is acceptable; do not add concurrent broker machinery without acceptance evidence.
+
+Cover zero-length files, multi-packet transfers, large metadata, and files over 32-bit size where supported. Slow acceptance may cover expensive sizes; no multi-gigabyte fixture requirement.
+
+#### Packet 16D — Lifecycle, readiness, errors, and logging
+
+Own active-session expiry, explicit cancellation, cleanup, expired-grant setup rejection, worker termination, setup failures, and validation of existing revocation interfaces. This is expiry and cancellation integration; revocation acceptance uses only already-defined authoritative interfaces, while broader grant lifecycle remains later. No new revocation database, polling system, daemon-to-broker protocol, public revoke CLI, or distribution mechanism.
+
+`RemoteSessionReadyV1` means the authenticated, confined SFTP byte stream is established and ready to receive client `SSH_FXP_INIT`; VERSION exchange has not occurred. Preserve: authenticated request → worker registration → `NamespaceReadyV1` → `RemoteSessionReadyV1` → raw stream → client INIT → server VERSION. Do not consume or synthesize negotiation before Ready. Setup/control failures remain `RemoteSessionRejectedV1` or `NamespaceRejectedV1`; ordinary SFTP failures remain SFTP responses, generally `SSH_FXP_STATUS`; established-stream expiry, cancellation, worker death, or transport loss terminate stream with trusted diagnostics only.
+
+SFTP stdout is protocol data only. `aspr-server` stdout carries framing until Ready, then raw SFTP bytes; worker diagnostics use worker stderr/log; broker/server diagnostics use stderr/journal. Add negative SFTP and worker-error test proving byte-clean stream.
+
+#### Packet 16E — rclone compatibility
+
+Compatibility evidence only against fixed remote SFTP and ADR-0007 pinned versions. Narrow test wrapper allowed. Packet 16 must not implement `aspr transport`, private per-rclone sockets, environment-bound tokens, daemon `OpenSftpStream`, local sandbox transport authority, or final production rclone plumbing. Those remain Packet 18. ADR-0007 remains authoritative unless new evidence triggers reconsideration.
+
+**Accept:** 16A–16D pass on certified target; protocol stream stays clean; 16E pinned rclone compatibility passes without weakening or reimplementing Packet 15.
 
 ### Packet 17 and later
 **Target:** Later work only.
 
-**Note:** Broker-side server-ceiling validation and related remote policy enforcement were absorbed into Packet 15. Do not duplicate or weaken them. New portability or security-boundary work requires evidence and ADR/security review.
+Broker-side server-ceiling validation and related remote policy enforcement belong to completed Packet 15. Do not duplicate or weaken them. New portability or security-boundary work requires evidence and ADR/security review.
 
-### Packet 14 — Private local transport capability
-**Target:** Medium.
+### Packet 18 — Private local transport capability
+**Target:** Later; separate from Packet 16.
 
-**Prerequisites:** Packets 3, 6, 7, and 12.
-
-**Deliver:** per-rclone private socket/token environment, `aspr transport`, strict argument parser, daemon-spawned OpenSSH, preface exchange, transparent proxy, cancellation.
+**Deliver:** per-rclone private socket/token environment, `aspr transport`, strict argument parser, daemon-owned OpenSSH, preface exchange, transparent proxy, and cancellation.
 
 **Accept:** No host/grant selection in wrapper; non-SFTP invocations fail; transport secrets appear neither in config nor command line; stdout is byte-clean.
 
@@ -2617,28 +2643,24 @@ A packet that discovereth an architectural contradiction shall stop and write an
 
 **Accept:** Default output matches golden table fixtures; hostile filenames cannot alter terminal structure; `--json` matches the Astral schema; `--raw` is byte-identical to the pinned rclone `lsjson` fixture; sandbox API can list only its grant; environment overrides cannot replace transport; malformed or oversized rclone JSON fails closed.
 
-### Packet 16 — Host mount creation and readiness
-**Target:** Medium.
+### Later host mount creation and readiness
+**Target:** Later product work; not Packet 16.
 
-**Prerequisites:** Packets 14–15.
+**Prerequisites:** local transport and lifecycle decisions.
 
 **Deliver:** rclone mount spawn, cache isolation, positive readiness probe, mount records, health checks, permission checks, host CLI.
 
 **Accept:** RO/RW behavior matches grant; stale startup failures cleanly unwind; no sandbox integration yet.
 
-### Packet 17 — Mount drain, recovery, expiry, and revocation
-**Target:** Medium; stand alone from Packet 16.
-
-**Prerequisites:** Packet 16.
+### Later mount drain, recovery, expiry, and revocation
+**Target:** Later product work; not Packet 16.
 
 **Deliver:** drain state, flush timeout, unmount, forced-close warning, daemon-restart recovery, expiry reaction, revocation reaction, cache cleanup.
 
 **Accept:** Crash/network/expiry tests report write uncertainty honestly; stale mounts are discovered and cleaned; no silent successful close with failed flush.
 
-### Packet 18 — Grant lifecycle and remote revocation
-**Target:** Medium.
-
-**Prerequisites:** Packets 13–17.
+### Later grant lifecycle and remote revocation
+**Target:** Later product work; not Packet 16.
 
 **Deliver:** create/validate/list/show/renew/revoke, remote revocation markers, parent-supervisor polling, local session termination, audit events.
 

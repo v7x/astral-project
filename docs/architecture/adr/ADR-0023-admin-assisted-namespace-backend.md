@@ -41,7 +41,7 @@ Worker receives sealed `memfd` execution plan and directly inherited pinned desc
 
 Worker FD ABI V1 is fixed: mapping-ready `3`, mapping-continue `4`, sealed plan `5`, broker stream `6`, source descriptors from `10` through `73`. Broker duplicates source descriptors into slots, retains ownership until child fork succeeds, then closes parent copies. Worker may never receive source path bytes.
 
-Remote server sends framed `CreateNamespaceV1`, waits framed `NamespaceReadyV1`, then relays opaque SFTP bytes between SSH stdio and same broker stream. Before ready, disconnect cancels request. After ready, broker owns child lifetime; worker has parent-death kill and stream EOF ends workload. Terminal state goes to broker audit, never SFTP stdout.
+Remote server sends framed `CreateNamespaceV1`, waits framed `NamespaceReadyV1`, then establishes `RemoteSessionReadyV1` before exposing the opaque SFTP stream. `RemoteSessionReadyV1` means the authenticated, confined byte stream is ready to receive client `SSH_FXP_INIT`; it does not include SFTP VERSION exchange. Before this point, disconnect cancels request and the bridge must not consume or synthesize client negotiation. After ready, broker owns child lifetime; worker has parent-death kill and stream EOF ends workload. Terminal state goes to broker audit, never SFTP stdout.
 
 Fixed packaging identities: `aspr-broker.service`; runtime directory `/run/astral-project`; automatic AppArmor profiles `usr.libexec.astral-project.aspr-broker`, `usr.libexec.astral-project.aspr-mount-worker`, and `usr.libexec.astral-project.aspr-sftp-server`. No caller invokes `aa-exec` or selects profile.
 

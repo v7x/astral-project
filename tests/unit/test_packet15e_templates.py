@@ -53,7 +53,7 @@ def test_final_workload_apparmor_has_explicit_device_and_mapping_rules() -> None
         "  /dev/urandom r,",
         "  unix (getattr, getopt, setopt, shutdown),",
         "  /** mr,",
-        "  deny unix (create),",
+        "  deny unix,",
     ):
         assert rule in profile
 
@@ -127,7 +127,22 @@ def test_source_root_renderer_is_packaged_and_provisioned() -> None:
     postinst = (PACKAGING / "debian" / "postinst").read_text(encoding="utf-8")
     assert "render-apparmor-roots" in build
     assert "render-apparmor-roots" in postinst
-    assert "apparmor_parser" not in postinst
+    assert "apparmor_parser --replace" in postinst
+    profile = (PACKAGING / "apparmor" / "usr.libexec.astral-project.aspr-bwrap-launch").read_text(
+        encoding="utf-8"
+    )
+    assert "profile aspr-bwrap-setup" in profile
+    assert "profile aspr-sandbox-payload" in profile
+    assert "Px -> aspr-bwrap-setup//&aspr-sandbox-payload" in profile
+    assert "capability sys_admin" in profile
+    assert "capability sys_chroot" not in profile
+    assert "local/astral-project-source-roots" in profile
+    assert "owner /run/user/*/astral-project/** rw," in profile
+    assert "audit userns," in profile
+    assert "audit capability sys_admin," in profile
+    assert "audit capability net_admin," in profile
+    assert "audit capability setpcap," in profile
+    assert "audit mount fstype=tmpfs options=(rw nosuid nodev) tmpfs -> /tmp/," in profile
 
 
 def test_deb_builder_handles_old_and_new_dpkg_deb() -> None:

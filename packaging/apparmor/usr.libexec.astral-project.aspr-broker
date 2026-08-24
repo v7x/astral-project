@@ -66,6 +66,8 @@ profile aspr-sftp-v1 flags=(attach_disconnected) {
   /dev/full rw,
   /dev/random r,
   /dev/urandom r,
+  # Preserve the Packet 15 final-workload Unix boundary; socket creation and
+  # data transfer remain denied by the global rule below.
   unix (getattr, getopt, setopt, shutdown),
   /.astral-project-runtime/ld.so rixm,
   /.astral-project-runtime/sftp-server rixm,
@@ -83,7 +85,6 @@ profile aspr-sftp-v1 flags=(attach_disconnected) {
   deny network,
   deny network inet,
   deny unix,
-  deny unix (create),
   deny capability,
   deny mount,
   deny /proc/** rwklx,

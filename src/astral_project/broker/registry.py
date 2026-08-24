@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import threading
 import time
 from collections.abc import Callable
@@ -88,6 +89,7 @@ class ActiveSessionRegistry:
                     f"exit_code={result.exit_code} signal={result.signal} "
                     f"stderr={result.stderr.decode('utf-8', 'replace')!r} "
                     f"stderr_truncated={result.stderr_truncated}",
+                    file=sys.stderr,
                     flush=True,
                 )
         finally:

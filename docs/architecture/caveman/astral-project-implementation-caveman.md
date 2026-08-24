@@ -923,13 +923,59 @@ uv run pytest
 
 ## Packet 16 — Full SFTP functional acceptance and integration
 
-**Goal:** Exercise complete SFTP behavior atop frozen Packet 15 boundary.
+**Goal:** Test packaged SFTP on frozen Packet 15 boundary. No redesign.
 
-**Packet 16 owns:** complete operation matrix, concurrent connections, external modifications, rename/overwrite, large files, traversal, extension allowlist, hardlink/symlink policy, stable errors, expiry/revocation, remote preface, rclone compatibility, readiness, and production logging.
+**Frozen Packet 15 input:** root broker sole remote namespace authority; signed grant and server ceiling checks; target-user DAC source resolution; descriptor pinning; sealed bounded plan; mapped namespace/mount worker; synthetic root; fixed digest-verified `sftp_v1`; fixed workload/argv; setup-authority removal; AppArmor confinement; expiry/cancel supervision; forced-command entry and broker bridge.
 
-**Packet 16 does not own:** runtime closure, synthetic root, fixed workload, namespace construction, authority removal, or Packet 15 confinement.
+Any change to `aspr-mount-worker.c`, fixed SFTP argv, worker FD ABI, runtime closure, namespace construction, AppArmor confinement, or broker authority is Packet 15 trusted-boundary change. Keep it fixed and caller-unselectable. Rerun relevant Packet 15 regression evidence on certified platforms.
 
-**Stop when:** Full SFTP acceptance passes on certified target.
+### Packet 16A — Direct SFTP acceptance harness
+
+Use reusable harness on actual packaged path:
+
+```text
+SFTP client → forced aspr-server → root broker → Packet 15 worker → confined OpenSSH sftp-server
+```
+
+Test INIT/VERSION, REALPATH, STAT/LSTAT, OPENDIR/READDIR, OPEN/READ/CLOSE, OPEN/WRITE/CLOSE, MKDIR/RMDIR, REMOVE, basic RENAME, and RO/RW baselines. Direct SFTP first. Rclone later.
+
+### Packet 16B — Filesystem and authority semantics
+
+Test traversal; rename/overwrite; cross-export rename; relative/absolute/dangling/`..` symlinks; symlink to other export; STAT/LSTAT; replacement race; file/dir grants; RO/RW; nested/export boundary; stable SFTP failures; fixed-server extension discovery and allowlist. OpenSSH defaults are not Astral policy. Synthetic namespace is wall; no duplicate pathname filter without evidence.
+
+Rule: symlink never enlarges authority beyond objects reachable inside synthetic namespace. Test symlinks on RO exports. Test hardlink inside one RW export; RO hardlink fails; cross-export/mount hardlink fails where kernel/filesystem forbids; hardlink cannot reach outside grant. Prefer kernel behavior. No bespoke inode rule without evidence.
+
+### Packet 16C — Concurrency, coherence, large I/O
+
+Test many active sessions, many handles in one session, external changes, rename/delete/recreate race, large read/write, partial/interrupted transfer, disconnect during I/O. Descriptor pinning fixes export-root identity, not snapshot contents: rename/replace `/host/project` leaves old session on pinned object; changes inside object follow normal kernel/filesystem behavior. Test both. No snapshot claim.
+
+Concurrent active workers, not concurrent broker parser, is required. Brief serialized setup plus independently supervised workers is acceptable. No thread pool, async broker rewrite, or concurrent authority-state mutation without acceptance failure.
+
+Test zero-length files, multi-packet transfers, offset read/write, EOF, interrupted write, source truncation, large metadata, and >32-bit files where available. Slow tests may hold expensive sizes; no multi-gigabyte fixture requirement.
+
+### Packet 16D — Lifecycle, readiness, errors, logging
+
+Own active-session expiry, explicit cancel, stream termination/cleanup, expired-grant setup rejection, worker death, broker/setup failure, and tests of already-defined revocation interface. Wording: **expiry and cancellation integration; revocation acceptance only through existing authoritative interfaces; broader grant lifecycle later**. Do not add revocation DB, polling system, daemon-broker revocation protocol, public revoke CLI, or revocation distribution.
+
+Exact contract:
+
+> `RemoteSessionReadyV1` means authenticated, confined SFTP byte stream is established and ready for client SFTP INIT.
+
+No VERSION exchange yet. Order:
+
+```text
+remote request authenticated → broker creates/registers worker → NamespaceReadyV1 → RemoteSessionReadyV1 → raw SFTP → client SSH_FXP_INIT → server SSH_FXP_VERSION
+```
+
+Do not consume or synthesize client negotiation before Ready. Setup/control failure is `RemoteSessionRejectedV1` or `NamespaceRejectedV1`. Normal SFTP failure stays SFTP response, usually `SSH_FXP_STATUS`. Expiry, cancel, worker death, transport loss terminate stream and log trusted diagnostics. Never put diagnostics in SFTP bytes.
+
+SFTP stdout protocol only. `aspr-server` stdout framing until Ready, raw SFTP after. Worker diagnostics stderr/log. Broker/server diagnostics stderr/journal. Negative test: force SFTP and worker errors; stream remains byte-clean.
+
+### Packet 16E — rclone compatibility
+
+Compatibility evidence only against fixed remote SFTP and ADR-0007 pinned rclone versions. Narrow test wrapper allowed. Do not build `aspr transport`, private rclone sockets, environment tokens, daemon `OpenSftpStream`, local transport authority, or production rclone plumbing. Those are Packet 18. ADR-0007 stays authoritative unless new evidence triggers review.
+
+**Stop when:** 16A–16D pass on certified target, stream stays clean, and pinned rclone compatibility passes.
 
 ---
 

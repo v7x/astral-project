@@ -191,15 +191,23 @@ def _issuer_error(message: str) -> AstralError:
 def main() -> None:
     """Standalone remote entry for fixed launcher bundles."""
     arguments = sys.argv[1:]
-    if len(arguments) != 2 or arguments[0] != "--transport-key":
+    if len(arguments) == 2 and arguments[0] == "--transport-key":
+        transport_key_id = arguments[1]
+    elif len(arguments) == 4 and arguments[:3] == ["server", "ssh-entry", "--transport-key"]:
+        transport_key_id = arguments[3]
+    else:
         raise SystemExit(70)
     raise SystemExit(
         run_ssh_entry(
-            arguments[1],
-            stdin=sys.stdin.buffer,
-            stdout=sys.stdout.buffer,
+            transport_key_id,
+            stdin=getattr(sys.stdin.buffer, "raw", sys.stdin.buffer),
+            stdout=getattr(sys.stdout.buffer, "raw", sys.stdout.buffer),
             stderr=sys.stderr,
             environment=os.environ,
             broker_dispatch=True,
         )
     )
+
+
+if __name__ == "__main__":  # pragma: no cover
+    main()

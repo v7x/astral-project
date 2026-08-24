@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /usr/bin/python3 -I -S -c 'import runpy, sys; sys.path.insert(0, "/usr/lib/astral-project/python"); runpy.run_module("astral_project.transport.main", run_name="__main__")' "$@"

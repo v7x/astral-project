@@ -11,6 +11,7 @@ import pytest
 from astral_project.broker.execution_plan import (
     ExecutionPlanV1,
     _kind,
+    _libc_memfd_create,
     create_sealed_execution_plan,
 )
 from astral_project.core.errors import AstralError
@@ -42,6 +43,14 @@ def _plan() -> ExecutionPlanV1:
         ),
     )
     return ExecutionPlanV1(build_namespace_plan(grant).exports, (7,))
+
+
+def test_libc_memfd_compatibility_helper_creates_sealable_fd() -> None:
+    descriptor = _libc_memfd_create("aspr-test", 0x0001 | 0x0002)
+    try:
+        assert descriptor >= 0
+    finally:
+        os.close(descriptor)
 
 
 def test_plan_has_no_source_path_and_uses_fixed_descriptor_slots() -> None:

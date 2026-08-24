@@ -68,7 +68,9 @@ Skill is not wall.
 Harness setting is not wall.
 Rclone filter is not wall.
 
-Packet 15 wall is frozen: root broker sole namespace authority; caller stays unprivileged; peer credentials authenticate but do not authorize alone; grant and root ceiling both checked; target-user DAC; pinned descriptors; sealed bounded plan; fixed `sftp_v1`; final child gets no mount, user namespace, network, shell, or broker-state power; RO stays kernel RO; expiry/cancel kill supervised work; failure closes.
+Packet 15 wall is frozen: root broker sole namespace authority; caller stays unprivileged; peer credentials authenticate but do not authorize alone; grant and root ceiling both checked; target-user DAC; pinned descriptors; sealed bounded plan; fixed `sftp_v1`; final child gets no mount, user namespace, network, shell, or broker-state power; RO stays kernel RO; expiry/cancel kill supervised work; forced-command entry and broker bridge are fixed; failure closes.
+
+Packet 16 follows five ordered subphases: **16A** direct packaged SFTP harness and baseline operations; **16B** filesystem and authority-sensitive semantics; **16C** concurrency, coherence, and large I/O; **16D** lifecycle, readiness, errors, and logging; **16E** rclone compatibility evidence. Direct SFTP comes before rclone. `RemoteSessionReadyV1` means authenticated confined SFTP stream ready for client `SSH_FXP_INIT`, not completed VERSION exchange. Packet 16 does not build Packet 18 private local transport or broader grant lifecycle. Existing revocation interfaces may be tested; new revocation machinery remains later.
 
 Certified POC targets: Ubuntu 26.04 and Ubuntu 24.04 amd64. Ubuntu 24.04 passed after explicit AppArmor ABI pinning; historical pre-ABI failure remains in evidence. Support needs evidence per distro/release/architecture. Debian, Fedora, Rocky are future targets. systemd/AppArmor are Ubuntu host integration, not protocol authority. Bubblewrap remains local-agent sandbox tool only.
 
@@ -916,7 +918,7 @@ Generated remote:
 ```ini
 [aspr-session]
 type = sftp
-ssh = /path/to/aspr transport
+ssh = /path/to/aspr-transport
 disable_hashcheck = true
 ```
 

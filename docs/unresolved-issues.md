@@ -18,15 +18,21 @@ Ubuntu 24.04 AppArmor rule downgrade was diagnosed and fixed by explicit `abi <a
 
 ## Packet 16 — genuinely remaining
 
-- complete SFTP operation matrix;
-- concurrent connections and coherent external modifications;
-- rename/overwrite, large-file, traversal, extension, hardlink, and symlink semantics;
-- stable SFTP error mapping;
-- expiry/revocation integration with functional client behavior;
-- remote preface integration;
-- rclone compatibility;
-- readiness semantics;
-- production logging.
+Packet 16 is split into five ordered subphases:
+
+- **16A — Direct SFTP acceptance harness:** packaged-path harness; INIT/VERSION, REALPATH, STAT/LSTAT, directory enumeration, read/write handles, MKDIR/RMDIR, REMOVE, basic RENAME, and RO/RW baselines. Direct SFTP precedes rclone.
+- **16B — Filesystem and authority-sensitive semantics:** traversal, rename/overwrite, cross-export behavior, symlinks, hardlinks, file/dir grants, RO/RW, extension allowlist, nested/export boundaries, and stable SFTP failures.
+- **16C — Concurrency, coherence, and large I/O:** active sessions and handles, external changes, identity-versus-descendant semantics, races, offsets, interruption, disconnects, and boundary-oriented large-file cases.
+- **16D — Lifecycle, readiness, errors, and logging:** expiry, cancellation, cleanup, expired setup rejection, existing revocation-interface validation, readiness order, failure classes, and clean logging.
+- **16E — rclone compatibility:** compatibility evidence for ADR-0007 pinned versions against fixed remote SFTP only.
+
+`RemoteSessionReadyV1` means authenticated, confined SFTP byte stream is ready to receive client `SSH_FXP_INIT`; it does not include VERSION exchange. Order is authenticated request → worker registration → `NamespaceReadyV1` → `RemoteSessionReadyV1` → raw stream → client INIT → server VERSION.
+
+Packet 16 owns expiry and cancellation integration. Revocation acceptance is limited to already-defined authoritative interfaces; broader grant lifecycle remains later work. No new revocation database, polling system, daemon-to-broker protocol, public revoke CLI, or background distribution belongs here.
+
+Descriptor pinning stabilizes export-root identity, not descendant snapshots. A renamed/replaced export pathname leaves an existing session on its pinned object; changes inside that object follow normal kernel/filesystem semantics. Symlinks must not enlarge authority beyond the synthetic namespace. Hardlinks follow normal kernel/filesystem limits and must not escape the grant; no bespoke inode policy without evidence.
+
+Concurrent active workers do not require concurrent broker parsing. Brief serialized setup plus independently supervised workers is acceptable until acceptance proves otherwise. Packet 16 is not `aspr transport` or any private local transport capability; those remain Packet 18. Fixed Packet 15 boundary changes require Packet 15 regression evidence on certified platforms.
 
 ## Later product work
 

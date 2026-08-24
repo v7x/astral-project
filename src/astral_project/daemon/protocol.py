@@ -14,11 +14,33 @@ MAX_FRAME_BYTES = 64 * 1024
 _PROTOCOL_VERSION = 1
 
 
+Operation = Literal[
+    "ping",
+    "status",
+    "cancel",
+    "ls",
+    "grant.list",
+    "grant.show",
+    "grant.import",
+    "grant.validate",
+    "grant.revoke",
+    "session.open",
+    "session.list",
+    "session.show",
+    "session.close",
+    "mount.open",
+    "mount.list",
+    "mount.show",
+    "mount.close",
+]
+
+
 @dataclass(frozen=True, slots=True)
 class Request:
     request_id: str
     cancellation_id: str
-    operation: Literal["ping", "status", "cancel"]
+    operation: Operation
+    payload: Mapping[str, object] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,17 +112,44 @@ def _read_exact(receiver: Callable[[int], bytes], length: int) -> bytes:
 
 def parse_request(payload: Mapping[str, object]) -> Request:
     """Validate one request frame; reject unknown fields and operations."""
-    if set(payload) != {"cancellation_id", "kind", "operation", "request_id", "version"}:
+    fields = set(payload)
+    base_fields = {"cancellation_id", "kind", "operation", "request_id", "version"}
+    if fields not in (base_fields, base_fields | {"payload"}):
         raise _error("request fields are invalid")
     if payload["version"] != _PROTOCOL_VERSION or payload["kind"] != "request":
         raise _error("request protocol version or kind is invalid")
     operation = payload["operation"]
-    if operation not in {"ping", "status", "cancel"}:
+    allowed_operations = {
+        "ping",
+        "status",
+        "cancel",
+        "ls",
+        "grant.list",
+        "grant.show",
+        "grant.import",
+        "grant.validate",
+        "grant.revoke",
+        "session.open",
+        "session.list",
+        "session.show",
+        "session.close",
+        "mount.open",
+        "mount.list",
+        "mount.show",
+        "mount.close",
+    }
+    if operation not in allowed_operations:
         raise _error("request operation is not permitted")
+    raw_payload = payload.get("payload")
+    if raw_payload is not None and (
+        not isinstance(raw_payload, dict) or operation in {"ping", "status", "cancel"}
+    ):
+        raise _error("request payload is not permitted")
     return Request(
         request_id=_identifier(payload["request_id"], "request_id"),
         cancellation_id=_identifier(payload["cancellation_id"], "cancellation_id"),
-        operation=cast(Literal["ping", "status", "cancel"], operation),
+        operation=cast(Operation, operation),
+        payload=raw_payload,
     )
 
 

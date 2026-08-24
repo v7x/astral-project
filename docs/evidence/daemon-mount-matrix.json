@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "acceptance": "installed daemon-backed mount lifecycle",
+  "rows": [
+    {"target":"Ubuntu 26.04 amd64","rclone":"1.73.3","package":"astral-project 0.1.0","packet15f_gate_exit":0,"grant_id":"5986ab65-034e-4839-9943-78ecfa6bd9d6","session_id":"f7b747a2-23de-47a5-8e2c-9e1abdeb395b","mount_id":"fbfc33eabc2be2e96d62d13a32d3c54f","states":["ready","closed"],"read_io":"allowed"},
+    {"target":"Ubuntu 26.04 amd64","rclone":"1.74.4","package":"astral-project 0.1.0","packet15f_gate_exit":0,"grant_id":"78bd0ee5-04a6-4fcd-8294-1d7c9ee290c3","session_id":"96a9c41e-fdf6-496f-937d-3ba0a591b22e","mount_id":"08e61eb1fe0b9886a975e5f3212490f4","states":["ready","closed"],"read_io":"allowed"},
+    {"target":"Ubuntu 24.04 amd64","rclone":"1.73.3","package":"astral-project 0.1.0","packet15f_gate_exit":0,"grant_id":"4ad24004-0782-42d4-b962-ad924646d21f","session_id":"fd05fd62-5258-431d-91b9-2438a821d2f6","mount_id":"f93dbf3854607ec1712d3393aaedfa2f","states":["ready","closed"],"read_io":"allowed"},
+    {"target":"Ubuntu 24.04 amd64","rclone":"1.74.4","package":"astral-project 0.1.0","packet15f_gate_exit":0,"grant_id":"1f183320-5145-4d05-99b1-3343464b9465","session_id":"17deaf5d-5731-4366-82a6-5eb09ebd4ef8","mount_id":"7a4c82e49b6cbab40e64e50c4e607999","states":["ready","closed"],"read_io":"allowed"}
+  ]
+}

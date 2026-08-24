@@ -13,7 +13,7 @@ pkg="$stage/astral-project_0.1.0_amd64"
 dist="$stage/dist"
 requirements="$stage/runtime-requirements.txt"
 runtime="$pkg/usr/lib/astral-project/python"
-mkdir -p "$pkg/DEBIAN" "$pkg/usr/libexec/astral-project" "$runtime" "$pkg/usr/share/doc/astral-project" "$pkg/etc/astral-project" "$pkg/lib/systemd/system" "$pkg/usr/lib/sysusers.d" "$pkg/usr/lib/tmpfiles.d" "$pkg/etc/apparmor.d"
+mkdir -p "$pkg/DEBIAN" "$pkg/usr/bin" "$pkg/usr/libexec/astral-project" "$runtime" "$pkg/usr/share/doc/astral-project" "$pkg/etc/astral-project" "$pkg/lib/systemd/system" "$pkg/usr/lib/sysusers.d" "$pkg/usr/lib/tmpfiles.d" "$pkg/etc/apparmor.d"
 cp "$root/packaging/debian/postinst" "$pkg/DEBIAN/postinst"
 cp "$root/packaging/debian/prerm" "$pkg/DEBIAN/prerm"
 cp "$root/packaging/debian/postrm" "$pkg/DEBIAN/postrm"
@@ -23,7 +23,7 @@ printf '%s\n' \
   'Version: 0.1.0' \
   'Architecture: amd64' \
   'Maintainer: Astral Project contributors' \
-  'Depends: python3 (>= 3.12)' \
+  'Depends: python3 (>= 3.12), bubblewrap (>= 0.9.0)' \
   'Description: Astral Project root broker' \
   >"$pkg/DEBIAN/control"
 # Exported lock hashes and target install make runtime dependency set explicit and complete.
@@ -35,8 +35,14 @@ wheel=$(find "$dist" -maxdepth 1 -type f -name 'astral_project-*.whl' -print -qu
 [ -n "$wheel" ] || { printf '%s\n' 'project wheel was not built' >&2; exit 70; }
 uv pip install --python /usr/bin/python3 --target "$runtime" --no-deps --no-index --link-mode=copy "$wheel"
 cc -std=c11 -O2 -Wall -Wextra -Werror "$root/packaging/native/aspr-mount-worker.c" -o "$pkg/usr/libexec/astral-project/aspr-mount-worker"
+cc -std=c11 -O2 -Wall -Wextra -Werror "$root/packaging/native/aspr-bwrap-launch.c" -o "$pkg/usr/libexec/astral-project/aspr-bwrap-launch"
+cc -std=c11 -O2 -Wall -Wextra -Werror "$root/packaging/native/aspr-sandbox-entry.c" -o "$pkg/usr/libexec/astral-project/aspr-sandbox-entry"
 cc -std=c11 -O2 -Wall -Wextra -Werror "$root/packaging/native/aspr-namespace-worker.c" -o "$pkg/usr/libexec/astral-project/aspr-namespace-worker"
+cp "$root/packaging/launchers/aspr" "$pkg/usr/bin/aspr"
+cp "$root/packaging/launchers/aspr" "$pkg/usr/bin/astral-project"
 cp "$root/packaging/launchers/aspr-broker" "$pkg/usr/libexec/astral-project/aspr-broker"
+cp "$root/packaging/launchers/aspr-server" "$pkg/usr/libexec/astral-project/aspr-server"
+cp "$root/packaging/launchers/aspr-transport" "$pkg/usr/libexec/astral-project/aspr-transport"
 cp "$root/packaging/tools/packet15f-gate.py" "$pkg/usr/libexec/astral-project/packet15f-gate"
 cp "$root/packaging/tools/render-apparmor-roots.py" "$pkg/usr/libexec/astral-project/render-apparmor-roots"
 cp "$root/packaging/tools/ubuntu-matrix.py" "$pkg/usr/libexec/astral-project/ubuntu-matrix"
@@ -46,7 +52,11 @@ cp "$root/packaging/sysusers.d/"* "$pkg/usr/lib/sysusers.d/"
 cp "$root/packaging/tmpfiles.d/"* "$pkg/usr/lib/tmpfiles.d/"
 cp "$root/packaging/apparmor/"* "$pkg/etc/apparmor.d/"
 chmod 0755 "$pkg/DEBIAN/postinst" "$pkg/DEBIAN/prerm" "$pkg/DEBIAN/postrm"
-find "$pkg/usr/libexec/astral-project" -type f -exec chmod 0755 {} +
+find "$pkg/usr/bin" "$pkg/usr/libexec/astral-project" -type f -exec chmod 0755 {} +
+# Security entrypoints are immutable after installation: root-owned and executable,
+# but not writable by any principal. dpkg can replace them during upgrades.
+chmod 0555 "$pkg/usr/libexec/astral-project/aspr-bwrap-launch" \
+  "$pkg/usr/libexec/astral-project/aspr-sandbox-entry"
 find "$runtime" -type d -exec chmod 0755 {} +
 find "$runtime" -type f -exec chmod 0644 {} +
 find "$pkg/usr/share/doc/astral-project" "$pkg/etc/astral-project" "$pkg/lib/systemd/system" "$pkg/usr/lib/sysusers.d" "$pkg/usr/lib/tmpfiles.d" "$pkg/etc/apparmor.d" -type f -exec chmod 0644 {} +

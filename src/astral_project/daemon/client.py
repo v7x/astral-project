@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import socket
 from collections.abc import Mapping
 from pathlib import Path
@@ -28,30 +29,47 @@ class DaemonClient:
         self.socket_path = socket_path
 
     def request(
-        self, *, request_id: str, cancellation_id: str, operation: str
+        self,
+        *,
+        request_id: str,
+        cancellation_id: str,
+        operation: str,
+        payload: Mapping[str, object] | None = None,
     ) -> Mapping[str, object]:
         connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         try:
             connection.connect(str(self.socket_path))
-            connection.sendall(
-                encode(
-                    {
-                        "cancellation_id": cancellation_id,
-                        "kind": "request",
-                        "operation": operation,
-                        "request_id": request_id,
-                        "version": 1,
-                    }
-                )
-            )
+            request: dict[str, object] = {
+                "cancellation_id": cancellation_id,
+                "kind": "request",
+                "operation": operation,
+                "request_id": request_id,
+                "version": 1,
+            }
+            if payload is not None:
+                request["payload"] = dict(payload)
+            connection.sendall(encode(request))
             response = receive(connection)
         except OSError as error:
             raise _error("could not contact daemon", str(error)) from error
         finally:
             connection.close()
         if response.get("kind") != "response" or response.get("request_id") != request_id:
-            raise _error("daemon returned invalid response")
+            raise _error(
+                "daemon returned invalid response "
+                + json.dumps(response, separators=(",", ":"), sort_keys=True),
+            )
         result = response.get("result")
         if response.get("ok") is not True or not isinstance(result, dict):
-            raise _error("daemon rejected request")
+            detail = result.get("message") if isinstance(result, dict) else None
+            dependency = result.get("dependency_error") if isinstance(result, dict) else None
+            suffix = ""
+            if isinstance(detail, str):
+                suffix += f": {detail}"
+            if isinstance(dependency, str) and dependency:
+                suffix += f" ({dependency})"
+            raise _error(
+                "daemon rejected request" + suffix,
+                dependency if isinstance(dependency, str) else None,
+            )
         return result

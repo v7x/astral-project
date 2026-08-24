@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import fcntl
 import os
 import struct
@@ -19,6 +20,28 @@ _HEADER = struct.Struct("<8sII")
 _ENTRY = struct.Struct("<IBBHQQQH")
 _MAX_EXPORTS = WORKER_FD_LAYOUT.source_limit - WORKER_FD_LAYOUT.source_base
 _MAX_TARGET_BYTES = 4096
+_MFD_CLOEXEC = 0x0001
+_MFD_ALLOW_SEALING = 0x0002
+
+
+def _libc_memfd_create(name: str, flags: int) -> int:
+    libc = ctypes.CDLL(None, use_errno=True)
+    function = libc.memfd_create
+    function.argtypes = [ctypes.c_char_p, ctypes.c_uint]
+    function.restype = ctypes.c_int
+    descriptor = int(function(name.encode("ascii"), flags))
+    if descriptor < 0:  # pragma: no cover
+        error_number = ctypes.get_errno()
+        raise OSError(error_number, os.strerror(error_number))
+    return descriptor
+
+
+if not hasattr(os, "memfd_create"):  # pragma: no cover
+    setattr(os, "memfd_create", _libc_memfd_create)  # noqa: B010
+if not hasattr(os, "MFD_CLOEXEC"):  # pragma: no cover
+    setattr(os, "MFD_CLOEXEC", _MFD_CLOEXEC)  # noqa: B010
+if not hasattr(os, "MFD_ALLOW_SEALING"):  # pragma: no cover
+    setattr(os, "MFD_ALLOW_SEALING", _MFD_ALLOW_SEALING)  # noqa: B010
 
 
 @dataclass(frozen=True, slots=True)

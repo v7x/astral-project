@@ -267,6 +267,7 @@ class GrantVerificationContext:
 class SignedGrant:
     grant: Grant
     signature: bytes
+    issuer_public_key: Ed25519PublicKey | None = field(default=None, compare=False, repr=False)
 
     def __post_init__(self) -> None:
         if len(self.signature) != SIGNATURE_LENGTH:
@@ -274,7 +275,11 @@ class SignedGrant:
 
     @classmethod
     def create(cls, grant: Grant, key: Ed25519PrivateKey) -> Self:
-        return cls(grant=grant, signature=sign(key, grant.canonical_bytes()))
+        return cls(
+            grant=grant,
+            signature=sign(key, grant.canonical_bytes()),
+            issuer_public_key=key.public_key(),
+        )
 
     def to_cbor(self) -> bytes:
         return canonical_dumps({"grant": self.grant.to_payload(), "signature": self.signature})

@@ -45,6 +45,12 @@ uv run python scripts/rclone_external_ssh_spike.py \
 
 On Linux amd64, 2026-07-27, both candidates passed all required operations. Both emitted only `-s sftp` as accepted wrapper argv and one rejected shell-detection probe.
 
+## Packet ownership
+
+Packet 16E is compatibility evidence only: it runs ADR-0007's pinned versions against the fixed remote SFTP service and records operation patterns. It does not implement local transport authority, private per-rclone sockets, environment-bound tokens, `aspr transport`, daemon `OpenSftpStream`, or production rclone plumbing. Those belong to Packet 18. Packet 16E may use a narrow test wrapper.
+
+ADR-0007 remains authoritative unless new rclone evidence triggers reconsideration. Packet 16 must not infer transport ownership from compatibility success.
+
 ## Reconsideration trigger
 
 Any new supported rclone version, changed accepted argv, required shell command, host/user override, failed matrix operation, or non-Linux-amd64 target requires new evidence. If direct wrapper fails, run Packet 11.

@@ -886,11 +886,70 @@ Store:
 
 ## Packet 16 — Full SFTP functional acceptance and integration
 
-**Objective:** Exercise OpenSSH `sftp-server` atop frozen Packet 15 boundary. Runtime closure, synthetic-root construction, fixed workload selection, and confinement construction are complete and not Packet 16 work.
+**Goal:** Exercise packaged SFTP behavior atop frozen Packet 15C–15F, without absorbing Packet 15 trusted-boundary work.
 
-**Scope:** complete SFTP operation matrix; concurrent connections; external filesystem modifications; rename/overwrite; large-file transfer; directory traversal; extension allowlist; hardlink/symlink policy; stable error mapping; expiry/revocation; remote preface; rclone compatibility; readiness; production logging.
+**Frozen Packet 15 input:** root broker is sole remote namespace authority; signed grants and server ceilings are enforced; source resolution uses target-user DAC; descriptors are pinned; execution plan is sealed and bounded; mapped namespace/mount worker builds synthetic root; runtime is fixed, digest-verified `sftp_v1`; workload selection and argv are fixed; setup authority is removed; AppArmor confines final workload; expiry/cancellation supervision exists; forced-command entry and broker bridge exist.
 
-**Acceptance work:** Packet 16 must complete required SFTP operation matrix, concurrent connections, coherent external modifications, rename/overwrite, large-file transfer, traversal semantics, extension allowlist, hardlink/symlink policy, stable errors, expiry/revocation, remote preface, rclone compatibility, readiness, and production logging.
+Packet 16 may make narrowly necessary fixed-workload integration changes. Any change to `aspr-mount-worker.c`, fixed SFTP argv, worker FD ABI, runtime closure, namespace construction, AppArmor confinement, or broker authority model is a Packet 15 trusted-boundary change. It must remain fixed and caller-unselectable and must rerun relevant Packet 15 regression evidence on certified platforms.
+
+### Packet 16A — Direct SFTP acceptance harness
+
+Build reusable harness against actual packaged path:
+
+```text
+SFTP test client
+→ forced aspr-server entry
+→ root broker
+→ Packet 15 worker
+→ confined OpenSSH sftp-server
+```
+
+Own SFTP INIT/VERSION, REALPATH, STAT/LSTAT, OPENDIR/READDIR, OPEN/READ/CLOSE, OPEN/WRITE/CLOSE, MKDIR/RMDIR, REMOVE, basic RENAME, and RO/RW baselines. Direct SFTP must pass before rclone testing.
+
+### Packet 16B — Filesystem and authority-sensitive semantics
+
+Own traversal; rename/overwrite; cross-export rename; relative, absolute, dangling, and `..`-attempting symlinks; symlink to another granted export; STAT/LSTAT; replacement races; file versus directory grants; RO/RW behavior; nested/export boundaries; stable SFTP-visible failures; and discovery plus allowlisting of extensions exposed by fixed OpenSSH `sftp-server`. OpenSSH defaults are not Astral policy. Disable or reject unsupported/unsafe extensions. The synthetic namespace is authority boundary; do not duplicate it with pathname filtering without evidence.
+
+Symlinks must never enlarge authority beyond objects reachable inside constructed synthetic namespace. Test symlink operations on RO exports. Test hardlink creation within one RW export; reject on RO export; require kernel/filesystem failure across exports or mounts where forbidden; prove no hardlink reaches outside granted namespace. Prefer normal kernel/filesystem behavior; no bespoke inode policy without evidence.
+
+### Packet 16C — Concurrency, coherence, and large I/O
+
+Own multiple active SFTP sessions, multiple handles per session, external filesystem changes, rename/delete/recreate races, large reads/writes, partial/interrupted transfers, and disconnect during I/O. Descriptor pinning stabilizes export-root identity, not descendant contents as a snapshot: renaming/replacing `/host/project` leaves an existing session on the originally pinned object, while changes inside that object follow normal kernel/filesystem semantics. Test identity and descendant behavior separately; do not claim snapshot consistency.
+
+Concurrent active workers are required, not concurrent broker parsing. Brief serialized broker setup followed by independently supervised workers is acceptable. Change broker concurrency only if acceptance proves current behavior insufficient; do not add thread pools, async rewrites, or concurrent authority-state mutation by assumption.
+
+Large-file acceptance covers zero-length files, multi-packet transfers, offset reads/writes, EOF, interrupted writes, source truncation during access, large metadata, and files over 32-bit size where supported. Slow/package acceptance may cover expensive sizes; routine tests need not transfer multi-gigabyte fixtures.
+
+### Packet 16D — Lifecycle, readiness, errors, and logging
+
+Own active-session expiry, explicit cancellation, stream termination and cleanup, rejection of already-expired grants at setup, worker termination, broker/setup failures, and validation of any already-defined revocation interface. Wording is **expiry and cancellation integration; revocation acceptance only through already-defined authoritative interfaces, with broader grant lifecycle remaining later work**. Do not add revocation databases, polling systems, daemon-to-broker revocation protocols, public revoke CLI, or background revocation distribution.
+
+Exact readiness contract:
+
+> `RemoteSessionReadyV1` means the authenticated, confined SFTP byte stream is established and ready to receive the client's SFTP INIT packet.
+
+It does not mean SFTP VERSION exchange occurred. Preserve:
+
+```text
+remote request authenticated
+→ broker creates and registers confined worker
+→ NamespaceReadyV1
+→ RemoteSessionReadyV1
+→ raw SFTP stream begins
+→ client sends SSH_FXP_INIT
+→ server returns SSH_FXP_VERSION
+```
+
+Do not consume or synthesize client negotiation before `RemoteSessionReadyV1`. Astral setup/control failures remain `RemoteSessionRejectedV1` or `NamespaceRejectedV1`. Once SFTP is established, ordinary filesystem failures remain SFTP responses, generally `SSH_FXP_STATUS`. Expiry, cancellation, worker death, and transport loss terminate the stream and produce trusted diagnostics only; never inject text into SFTP bytes.
+
+Logging invariant: SFTP stdout is protocol data only; `aspr-server` stdout carries framing until Ready, then raw SFTP bytes; worker diagnostics go to worker stderr/log; broker/server diagnostics go to stderr/journal. Add a negative test which causes SFTP and worker errors and verifies byte-clean protocol output.
+
+### Packet 16E — rclone compatibility
+
+Own compatibility evidence only. Test ADR-0007's pinned rclone versions against fixed remote SFTP and operation patterns they emit, using a narrow wrapper if useful. Do not implement `aspr transport`, private per-rclone sockets, environment-bound transport tokens, daemon `OpenSftpStream`, local sandbox transport authority, or final production rclone transport plumbing; those remain Packet 18. ADR-0007 remains authoritative unless new rclone evidence triggers reconsideration.
+
+**Stop when:** Direct 16A–16D acceptance passes on certified target, protocol bytes remain clean, and pinned rclone compatibility passes without weakening or reimplementing Packet 15.
+
 
 ---
 

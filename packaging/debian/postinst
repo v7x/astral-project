@@ -10,6 +10,11 @@ case "${1:-}" in
     if [ -f /etc/astral-project/authority.toml ]; then
       /usr/libexec/astral-project/render-apparmor-roots
     fi
+    if ! command -v apparmor_parser >/dev/null 2>&1; then
+      echo "Astral requires AppArmor to load sandbox confinement" >&2
+      exit 1
+    fi
+    apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
     ;;
   *)
     exit 0

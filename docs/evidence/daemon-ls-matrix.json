@@ -1,0 +1,398 @@
+{
+  "generated_at": 1787434015,
+  "rows": [
+    {
+      "command": "sudo -u testuser sh -c 'cd /tmp/astral-real2 && timeout 240 /usr/bin/python3 -I -S scripts/daemon_ls_acceptance.py /tmp/rclone-pins/rclone-1.73.3 /home/testuser/.ssh/aspr-transport /home/testuser/.local/state/astral-project-test/issuer.key 33a29bae-80a6-485e-a5a0-8af304e21d4a SHA256:vm-gate'",
+      "package_preflight": {
+        "package": {
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "astral-project 0.1.0\n"
+        },
+        "packet15f_gate": {
+          "returncode": 0,
+          "stderr": "",
+          "stdout": ""
+        },
+        "sha256": {
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "41bd63149d3bd281f9d8fb02fd8c0406234634a59cd0f591b86ad3f1e2f6abb7  /usr/bin/rclone\n"
+        },
+        "version": {
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "rclone v1.73.3\n- os/version: ubuntu 26.04 (64 bit)\n- os/kernel: 7.0.0-30-generic (x86_64)\n- os/type: linux\n- os/arch: amd64\n- go/version: go1.25.8\n- go/linking: static\n- go/tags: none\n"
+        }
+      },
+      "rclone": "1.73.3",
+      "rclone_sha256": "41bd63149d3bd281f9d8fb02fd8c0406234634a59cd0f591b86ad3f1e2f6abb7",
+      "result": {
+        "checks": {
+          "after_timeout": {
+            "exit": 0,
+            "stderr": "",
+            "stdout_b64": "VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjQ6MzhaICAgICAgLmFzcHItYWNjZXB0YW5jZS04MmExMThmZjE1Y2Y0MWVjYWYyYmY5MjAyMGIwMWE2ZgpmaWxlICA5IEIgICAyMDI2LTA4LTA2VDAxOjU4OjM3WiAgICAgIGFsbG93ZWQudHh0Cg==",
+            "stdout_sha256": "c449587899f483d8545637cea2a8d4ee1eb98e120217eb4478709ae85d7b3086"
+          },
+          "alternate_grant": {
+            "exit": 70,
+            "stderr": "ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target selects another grant or host\nSecurity result: daemon request was not sent\nWhy: trusted daemon control socket is unavailable\nFix: start trusted daemon, then retry\n",
+            "stdout_b64": "",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "json": {
+            "exit": 0,
+            "stderr": "",
+            "stdout_b64": "eyJlbnRyaWVzIjpbeyJpc19kaXIiOnRydWUsIm1pbWVfdHlwZSI6Imlub2RlL2RpcmVjdG9yeSIsIm1vZGlmaWVkIjoiMjAyNi0wOC0yMlQyMToyNDozOFoiLCJuYW1lIjoiLmFzcHItYWNjZXB0YW5jZS04MmExMThmZjE1Y2Y0MWVjYWYyYmY5MjAyMGIwMWE2ZiIsInBhdGgiOiIuYXNwci1hY2NlcHRhbmNlLTgyYTExOGZmMTVjZjQxZWNhZjJiZjkyMDIwYjAxYTZmIiwic2l6ZSI6LTF9LHsiaXNfZGlyIjpmYWxzZSwibWltZV90eXBlIjoidGV4dC9wbGFpbjsgY2hhcnNldD11dGYtOCIsIm1vZGlmaWVkIjoiMjAyNi0wOC0wNlQwMTo1ODozN1oiLCJuYW1lIjoiYWxsb3dlZC50eHQiLCJwYXRoIjoiYWxsb3dlZC50eHQiLCJzaXplIjo5fV0sInZlcnNpb24iOjF9Cg==",
+            "stdout_sha256": "2b7518f4de317eaa71abd6472e22da69f13155491d1b6104b1d8e9a8f59ad952"
+          },
+          "raw": {
+            "exit": 0,
+            "stderr": "",
+            "stdout_b64": "Wwp7IlBhdGgiOiIuYXNwci1hY2NlcHRhbmNlLTgyYTExOGZmMTVjZjQxZWNhZjJiZjkyMDIwYjAxYTZmIiwiTmFtZSI6Ii5hc3ByLWFjY2VwdGFuY2UtODJhMTE4ZmYxNWNmNDFlY2FmMmJmOTIwMjBiMDFhNmYiLCJTaXplIjotMSwiTWltZVR5cGUiOiJpbm9kZS9kaXJlY3RvcnkiLCJNb2RUaW1lIjoiMjAyNi0wOC0yMlQyMToyNDozOFoiLCJJc0RpciI6dHJ1ZX0sCnsiUGF0aCI6ImFsbG93ZWQudHh0IiwiTmFtZSI6ImFsbG93ZWQudHh0IiwiU2l6ZSI6OSwiTWltZVR5cGUiOiJ0ZXh0L3BsYWluOyBjaGFyc2V0PXV0Zi04IiwiTW9kVGltZSI6IjIwMjYtMDgtMDZUMDE6NTg6MzdaIiwiSXNEaXIiOmZhbHNlfQpdCg==",
+            "stdout_sha256": "e22f921b639103db0afd46ada586a7d49da0647812cea0ec6b2b0571ed36c347"
+          },
+          "recursive": {
+            "exit": 0,
+            "stderr": "",
+            "stdout_b64": "VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjQ6MzhaICAgICAgLmFzcHItYWNjZXB0YW5jZS04MmExMThmZjE1Y2Y0MWVjYWYyYmY5MjAyMGIwMWE2ZgpkaXIgICAtICAgICAyMDI2LTA4LTIyVDIxOjI0OjM4WiAgICAgIC5hc3ByLWFjY2VwdGFuY2UtODJhMTE4ZmYxNWNmNDFlY2FmMmJmOTIwMjBiMDFhNmYvZGVlcGVyCmZpbGUgIDcgQiAgIDIwMjYtMDgtMjJUMjE6MjQ6MzhaICAgICAgLmFzcHItYWNjZXB0YW5jZS04MmExMThmZjE1Y2Y0MWVjYWYyYmY5MjAyMGIwMWE2Zi9uZXN0ZWQudHh0CmZpbGUgIDkgQiAgIDIwMjYtMDgtMDZUMDE6NTg6MzdaICAgICAgYWxsb3dlZC50eHQK",
+            "stdout_sha256": "05d7b772c12aecb4eea80ffaee91444d4cbc36cfc271141a5006c06a2d5e38b5"
+          },
+          "table": {
+            "exit": 0,
+            "stderr": "",
+            "stdout_b64": "VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjQ6MzhaICAgICAgLmFzcHItYWNjZXB0YW5jZS04MmExMThmZjE1Y2Y0MWVjYWYyYmY5MjAyMGIwMWE2ZgpmaWxlICA5IEIgICAyMDI2LTA4LTA2VDAxOjU4OjM3WiAgICAgIGFsbG93ZWQudHh0Cg==",
+            "stdout_sha256": "c449587899f483d8545637cea2a8d4ee1eb98e120217eb4478709ae85d7b3086"
+          },
+          "timeout": {
+            "exit": 70,
+            "stderr": "ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: rclone listing timed out\nSecurity result: daemon request was not sent\nWhy: trusted daemon control socket is unavailable\nFix: start trusted daemon, then retry\n",
+            "stdout_b64": "",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "traversal": {
+            "exit": 70,
+            "stderr": "ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target contains traversal\nSecurity result: daemon request was not sent\nWhy: trusted daemon control socket is unavailable\nFix: start trusted daemon, then retry\n",
+            "stdout_b64": "",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "ungranted": {
+            "exit": 70,
+            "stderr": "ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target is outside bound export\nSecurity result: daemon request was not sent\nWhy: trusted daemon control socket is unavailable\nFix: start trusted daemon, then retry\n",
+            "stdout_b64": "",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        "grant_id": "7887d3f6-5422-4dad-9979-41a3e37f8243",
+        "grant_signature_verified": true,
+        "rclone": "/tmp/rclone-pins/rclone-1.73.3",
+        "session_id": "a8dcf832-faed-447c-a1c9-7e696d09ff1e",
+        "session_state": "active",
+        "state_active_verified": true,
+        "version": 1
+      },
+      "returncode": 0,
+      "source_dir": "/tmp/astral-real2",
+      "ssh_host": "aspr-test-admin",
+      "stderr": "",
+      "stdout": "{\"checks\": {\"after_timeout\": {\"exit\": 0, \"stderr\": \"\", \"stdout_b64\": \"VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjQ6MzhaICAgICAgLmFzcHItYWNjZXB0YW5jZS04MmExMThmZjE1Y2Y0MWVjYWYyYmY5MjAyMGIwMWE2ZgpmaWxlICA5IEIgICAyMDI2LTA4LTA2VDAxOjU4OjM3WiAgICAgIGFsbG93ZWQudHh0Cg==\", \"stdout_sha256\": \"c449587899f483d8545637cea2a8d4ee1eb98e120217eb4478709ae85d7b3086\"}, \"alternate_grant\": {\"exit\": 70, \"stderr\": \"ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target selects another grant or host\\nSecurity result: daemon request was not sent\\nWhy: trusted daemon control socket is unavailable\\nFix: start trusted daemon, then retry\\n\", \"stdout_b64\": \"\", \"stdout_sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}, \"json\": {\"exit\": 0, \"stderr\": \"\", \"stdout_b64\": \"eyJlbnRyaWVzIjpbeyJpc19kaXIiOnRydWUsIm1pbWVfdHlwZSI6Imlub2RlL2RpcmVjdG9yeSIsIm1vZGlmaWVkIjoiMjAyNi0wOC0yMlQyMToyNDozOFoiLCJuYW1lIjoiLmFzcHItYWNjZXB0YW5jZS04MmExMThmZjE1Y2Y0MWVjYWYyYmY5MjAyMGIwMWE2ZiIsInBhdGgiOiIuYXNwci1hY2NlcHRhbmNlLTgyYTExOGZmMTVjZjQxZWNhZjJiZjkyMDIwYjAxYTZmIiwic2l6ZSI6LTF9LHsiaXNfZGlyIjpmYWxzZSwibWltZV90eXBlIjoidGV4dC9wbGFpbjsgY2hhcnNldD11dGYtOCIsIm1vZGlmaWVkIjoiMjAyNi0wOC0wNlQwMTo1ODozN1oiLCJuYW1lIjoiYWxsb3dlZC50eHQiLCJwYXRoIjoiYWxsb3dlZC50eHQiLCJzaXplIjo5fV0sInZlcnNpb24iOjF9Cg==\", \"stdout_sha256\": \"2b7518f4de317eaa71abd6472e22da69f13155491d1b6104b1d8e9a8f59ad952\"}, \"raw\": {\"exit\": 0, \"stderr\": \"\", \"stdout_b64\": \"Wwp7IlBhdGgiOiIuYXNwci1hY2NlcHRhbmNlLTgyYTExOGZmMTVjZjQxZWNhZjJiZjkyMDIwYjAxYTZmIiwiTmFtZSI6Ii5hc3ByLWFjY2VwdGFuY2UtODJhMTE4ZmYxNWNmNDFlY2FmMmJmOTIwMjBiMDFhNmYiLCJTaXplIjotMSwiTWltZVR5cGUiOiJpbm9kZS9kaXJlY3RvcnkiLCJNb2RUaW1lIjoiMjAyNi0wOC0yMlQyMToyNDozOFoiLCJJc0RpciI6dHJ1ZX0sCnsiUGF0aCI6ImFsbG93ZWQudHh0IiwiTmFtZSI6ImFsbG93ZWQudHh0IiwiU2l6ZSI6OSwiTWltZVR5cGUiOiJ0ZXh0L3BsYWluOyBjaGFyc2V0PXV0Zi04IiwiTW9kVGltZSI6IjIwMjYtMDgtMDZUMDE6NTg6MzdaIiwiSXNEaXIiOmZhbHNlfQpdCg==\", \"stdout_sha256\": \"e22f921b639103db0afd46ada586a7d49da0647812cea0ec6b2b0571ed36c347\"}, \"recursive\": {\"exit\": 0, \"stderr\": \"\", \"stdout_b64\": \"VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjQ6MzhaICAgICAgLmFzcHItYWNjZXB0YW5jZS04MmExMThmZjE1Y2Y0MWVjYWYyYmY5MjAyMGIwMWE2ZgpkaXIgICAtICAgICAyMDI2LTA4LTIyVDIxOjI0OjM4WiAgICAgIC5hc3ByLWFjY2VwdGFuY2UtODJhMTE4ZmYxNWNmNDFlY2FmMmJmOTIwMjBiMDFhNmYvZGVlcGVyCmZpbGUgIDcgQiAgIDIwMjYtMDgtMjJUMjE6MjQ6MzhaICAgICAgLmFzcHItYWNjZXB0YW5jZS04MmExMThmZjE1Y2Y0MWVjYWYyYmY5MjAyMGIwMWE2Zi9uZXN0ZWQudHh0CmZpbGUgIDkgQiAgIDIwMjYtMDgtMDZUMDE6NTg6MzdaICAgICAgYWxsb3dlZC50eHQK\", \"stdout_sha256\": \"05d7b772c12aecb4eea80ffaee91444d4cbc36cfc271141a5006c06a2d5e38b5\"}, \"table\": {\"exit\": 0, \"stderr\": \"\", \"stdout_b64\": \"VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjQ6MzhaICAgICAgLmFzcHItYWNjZXB0YW5jZS04MmExMThmZjE1Y2Y0MWVjYWYyYmY5MjAyMGIwMWE2ZgpmaWxlICA5IEIgICAyMDI2LTA4LTA2VDAxOjU4OjM3WiAgICAgIGFsbG93ZWQudHh0Cg==\", \"stdout_sha256\": \"c449587899f483d8545637cea2a8d4ee1eb98e120217eb4478709ae85d7b3086\"}, \"timeout\": {\"exit\": 70, \"stderr\": \"ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: rclone listing timed out\\nSecurity result: daemon request was not sent\\nWhy: trusted daemon control socket is unavailable\\nFix: start trusted daemon, then retry\\n\", \"stdout_b64\": \"\", \"stdout_sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}, \"traversal\": {\"exit\": 70, \"stderr\": \"ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target contains traversal\\nSecurity result: daemon request was not sent\\nWhy: trusted daemon control socket is unavailable\\nFix: start trusted daemon, then retry\\n\", \"stdout_b64\": \"\", \"stdout_sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}, \"ungranted\": {\"exit\": 70, \"stderr\": \"ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target is outside bound export\\nSecurity result: daemon request was not sent\\nWhy: trusted daemon control socket is unavailable\\nFix: start trusted daemon, then retry\\n\", \"stdout_b64\": \"\", \"stdout_sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}}, \"grant_id\": \"7887d3f6-5422-4dad-9979-41a3e37f8243\", \"grant_signature_verified\": true, \"rclone\": \"/tmp/rclone-pins/rclone-1.73.3\", \"session_id\": \"a8dcf832-faed-447c-a1c9-7e696d09ff1e\", \"session_state\": \"active\", \"state_active_verified\": true, \"version\": 1}\n",
+      "target": "Ubuntu 26.04 amd64"
+    },
+    {
+      "command": "sudo -u testuser sh -c 'cd /tmp/astral-real2 && timeout 240 /usr/bin/python3 -I -S scripts/daemon_ls_acceptance.py /tmp/rclone-pins/rclone-1.74.4 /home/testuser/.ssh/aspr-transport /home/testuser/.local/state/astral-project-test/issuer.key 33a29bae-80a6-485e-a5a0-8af304e21d4a SHA256:vm-gate'",
+      "package_preflight": {
+        "package": {
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "astral-project 0.1.0\n"
+        },
+        "packet15f_gate": {
+          "returncode": 0,
+          "stderr": "",
+          "stdout": ""
+        },
+        "sha256": {
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "9f56ca5edfac24a3ed37226c2ba1de69f1ec9e05fa2526cddee5cd97e202be6b  /usr/bin/rclone\n"
+        },
+        "version": {
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "rclone v1.74.4\n- os/version: ubuntu 26.04 (64 bit)\n- os/kernel: 7.0.0-30-generic (x86_64)\n- os/type: linux\n- os/arch: amd64\n- go/version: go1.26.5\n- go/linking: static\n- go/tags: none\n"
+        }
+      },
+      "rclone": "1.74.4",
+      "rclone_sha256": "9f56ca5edfac24a3ed37226c2ba1de69f1ec9e05fa2526cddee5cd97e202be6b",
+      "result": {
+        "checks": {
+          "after_timeout": {
+            "exit": 0,
+            "stderr": "",
+            "stdout_b64": "VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjU6MTJaICAgICAgLmFzcHItYWNjZXB0YW5jZS1mYzk5ZTQ2OTkzNWY0YmFhYjg3ODdmOWY0ODBhNDI0OQpmaWxlICA5IEIgICAyMDI2LTA4LTA2VDAxOjU4OjM3WiAgICAgIGFsbG93ZWQudHh0Cg==",
+            "stdout_sha256": "7f26f3abe0e26dfed1f6c635885a49114c0ffc84879304888361ecc349e73723"
+          },
+          "alternate_grant": {
+            "exit": 70,
+            "stderr": "ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target selects another grant or host\nSecurity result: daemon request was not sent\nWhy: trusted daemon control socket is unavailable\nFix: start trusted daemon, then retry\n",
+            "stdout_b64": "",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "json": {
+            "exit": 0,
+            "stderr": "",
+            "stdout_b64": "eyJlbnRyaWVzIjpbeyJpc19kaXIiOnRydWUsIm1pbWVfdHlwZSI6Imlub2RlL2RpcmVjdG9yeSIsIm1vZGlmaWVkIjoiMjAyNi0wOC0yMlQyMToyNToxMloiLCJuYW1lIjoiLmFzcHItYWNjZXB0YW5jZS1mYzk5ZTQ2OTkzNWY0YmFhYjg3ODdmOWY0ODBhNDI0OSIsInBhdGgiOiIuYXNwci1hY2NlcHRhbmNlLWZjOTllNDY5OTM1ZjRiYWFiODc4N2Y5ZjQ4MGE0MjQ5Iiwic2l6ZSI6LTF9LHsiaXNfZGlyIjpmYWxzZSwibWltZV90eXBlIjoidGV4dC9wbGFpbjsgY2hhcnNldD11dGYtOCIsIm1vZGlmaWVkIjoiMjAyNi0wOC0wNlQwMTo1ODozN1oiLCJuYW1lIjoiYWxsb3dlZC50eHQiLCJwYXRoIjoiYWxsb3dlZC50eHQiLCJzaXplIjo5fV0sInZlcnNpb24iOjF9Cg==",
+            "stdout_sha256": "b233f8814a8aec2c2feb98605c253288e8d53e5f0f9c30d53c8965acdf2a42ad"
+          },
+          "raw": {
+            "exit": 0,
+            "stderr": "",
+            "stdout_b64": "Wwp7IlBhdGgiOiIuYXNwci1hY2NlcHRhbmNlLWZjOTllNDY5OTM1ZjRiYWFiODc4N2Y5ZjQ4MGE0MjQ5IiwiTmFtZSI6Ii5hc3ByLWFjY2VwdGFuY2UtZmM5OWU0Njk5MzVmNGJhYWI4Nzg3ZjlmNDgwYTQyNDkiLCJTaXplIjotMSwiTWltZVR5cGUiOiJpbm9kZS9kaXJlY3RvcnkiLCJNb2RUaW1lIjoiMjAyNi0wOC0yMlQyMToyNToxMloiLCJJc0RpciI6dHJ1ZX0sCnsiUGF0aCI6ImFsbG93ZWQudHh0IiwiTmFtZSI6ImFsbG93ZWQudHh0IiwiU2l6ZSI6OSwiTWltZVR5cGUiOiJ0ZXh0L3BsYWluOyBjaGFyc2V0PXV0Zi04IiwiTW9kVGltZSI6IjIwMjYtMDgtMDZUMDE6NTg6MzdaIiwiSXNEaXIiOmZhbHNlfQpdCg==",
+            "stdout_sha256": "4cb8f0c84476e7fb6443afa36d6b8fe9fc6dc8abbd052949c76082f85fe8957f"
+          },
+          "recursive": {
+            "exit": 0,
+            "stderr": "",
+            "stdout_b64": "VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjU6MTJaICAgICAgLmFzcHItYWNjZXB0YW5jZS1mYzk5ZTQ2OTkzNWY0YmFhYjg3ODdmOWY0ODBhNDI0OQpkaXIgICAtICAgICAyMDI2LTA4LTIyVDIxOjI1OjEyWiAgICAgIC5hc3ByLWFjY2VwdGFuY2UtZmM5OWU0Njk5MzVmNGJhYWI4Nzg3ZjlmNDgwYTQyNDkvZGVlcGVyCmZpbGUgIDcgQiAgIDIwMjYtMDgtMjJUMjE6MjU6MTJaICAgICAgLmFzcHItYWNjZXB0YW5jZS1mYzk5ZTQ2OTkzNWY0YmFhYjg3ODdmOWY0ODBhNDI0OS9uZXN0ZWQudHh0CmZpbGUgIDkgQiAgIDIwMjYtMDgtMDZUMDE6NTg6MzdaICAgICAgYWxsb3dlZC50eHQK",
+            "stdout_sha256": "2bbd466be7002a6e9f62a919ac6f5f0a7c0f88a950ada236ba433a1421e34b3e"
+          },
+          "table": {
+            "exit": 0,
+            "stderr": "",
+            "stdout_b64": "VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjU6MTJaICAgICAgLmFzcHItYWNjZXB0YW5jZS1mYzk5ZTQ2OTkzNWY0YmFhYjg3ODdmOWY0ODBhNDI0OQpmaWxlICA5IEIgICAyMDI2LTA4LTA2VDAxOjU4OjM3WiAgICAgIGFsbG93ZWQudHh0Cg==",
+            "stdout_sha256": "7f26f3abe0e26dfed1f6c635885a49114c0ffc84879304888361ecc349e73723"
+          },
+          "timeout": {
+            "exit": 70,
+            "stderr": "ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: rclone listing timed out\nSecurity result: daemon request was not sent\nWhy: trusted daemon control socket is unavailable\nFix: start trusted daemon, then retry\n",
+            "stdout_b64": "",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "traversal": {
+            "exit": 70,
+            "stderr": "ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target contains traversal\nSecurity result: daemon request was not sent\nWhy: trusted daemon control socket is unavailable\nFix: start trusted daemon, then retry\n",
+            "stdout_b64": "",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "ungranted": {
+            "exit": 70,
+            "stderr": "ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target is outside bound export\nSecurity result: daemon request was not sent\nWhy: trusted daemon control socket is unavailable\nFix: start trusted daemon, then retry\n",
+            "stdout_b64": "",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        "grant_id": "f35738ea-d5e8-4fd7-8de2-c3db632ce19b",
+        "grant_signature_verified": true,
+        "rclone": "/tmp/rclone-pins/rclone-1.74.4",
+        "session_id": "fb087b72-53e5-4f33-9829-0d94790f6e7a",
+        "session_state": "active",
+        "state_active_verified": true,
+        "version": 1
+      },
+      "returncode": 0,
+      "source_dir": "/tmp/astral-real2",
+      "ssh_host": "aspr-test-admin",
+      "stderr": "",
+      "stdout": "{\"checks\": {\"after_timeout\": {\"exit\": 0, \"stderr\": \"\", \"stdout_b64\": \"VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjU6MTJaICAgICAgLmFzcHItYWNjZXB0YW5jZS1mYzk5ZTQ2OTkzNWY0YmFhYjg3ODdmOWY0ODBhNDI0OQpmaWxlICA5IEIgICAyMDI2LTA4LTA2VDAxOjU4OjM3WiAgICAgIGFsbG93ZWQudHh0Cg==\", \"stdout_sha256\": \"7f26f3abe0e26dfed1f6c635885a49114c0ffc84879304888361ecc349e73723\"}, \"alternate_grant\": {\"exit\": 70, \"stderr\": \"ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target selects another grant or host\\nSecurity result: daemon request was not sent\\nWhy: trusted daemon control socket is unavailable\\nFix: start trusted daemon, then retry\\n\", \"stdout_b64\": \"\", \"stdout_sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}, \"json\": {\"exit\": 0, \"stderr\": \"\", \"stdout_b64\": \"eyJlbnRyaWVzIjpbeyJpc19kaXIiOnRydWUsIm1pbWVfdHlwZSI6Imlub2RlL2RpcmVjdG9yeSIsIm1vZGlmaWVkIjoiMjAyNi0wOC0yMlQyMToyNToxMloiLCJuYW1lIjoiLmFzcHItYWNjZXB0YW5jZS1mYzk5ZTQ2OTkzNWY0YmFhYjg3ODdmOWY0ODBhNDI0OSIsInBhdGgiOiIuYXNwci1hY2NlcHRhbmNlLWZjOTllNDY5OTM1ZjRiYWFiODc4N2Y5ZjQ4MGE0MjQ5Iiwic2l6ZSI6LTF9LHsiaXNfZGlyIjpmYWxzZSwibWltZV90eXBlIjoidGV4dC9wbGFpbjsgY2hhcnNldD11dGYtOCIsIm1vZGlmaWVkIjoiMjAyNi0wOC0wNlQwMTo1ODozN1oiLCJuYW1lIjoiYWxsb3dlZC50eHQiLCJwYXRoIjoiYWxsb3dlZC50eHQiLCJzaXplIjo5fV0sInZlcnNpb24iOjF9Cg==\", \"stdout_sha256\": \"b233f8814a8aec2c2feb98605c253288e8d53e5f0f9c30d53c8965acdf2a42ad\"}, \"raw\": {\"exit\": 0, \"stderr\": \"\", \"stdout_b64\": \"Wwp7IlBhdGgiOiIuYXNwci1hY2NlcHRhbmNlLWZjOTllNDY5OTM1ZjRiYWFiODc4N2Y5ZjQ4MGE0MjQ5IiwiTmFtZSI6Ii5hc3ByLWFjY2VwdGFuY2UtZmM5OWU0Njk5MzVmNGJhYWI4Nzg3ZjlmNDgwYTQyNDkiLCJTaXplIjotMSwiTWltZVR5cGUiOiJpbm9kZS9kaXJlY3RvcnkiLCJNb2RUaW1lIjoiMjAyNi0wOC0yMlQyMToyNToxMloiLCJJc0RpciI6dHJ1ZX0sCnsiUGF0aCI6ImFsbG93ZWQudHh0IiwiTmFtZSI6ImFsbG93ZWQudHh0IiwiU2l6ZSI6OSwiTWltZVR5cGUiOiJ0ZXh0L3BsYWluOyBjaGFyc2V0PXV0Zi04IiwiTW9kVGltZSI6IjIwMjYtMDgtMDZUMDE6NTg6MzdaIiwiSXNEaXIiOmZhbHNlfQpdCg==\", \"stdout_sha256\": \"4cb8f0c84476e7fb6443afa36d6b8fe9fc6dc8abbd052949c76082f85fe8957f\"}, \"recursive\": {\"exit\": 0, \"stderr\": \"\", \"stdout_b64\": \"VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjU6MTJaICAgICAgLmFzcHItYWNjZXB0YW5jZS1mYzk5ZTQ2OTkzNWY0YmFhYjg3ODdmOWY0ODBhNDI0OQpkaXIgICAtICAgICAyMDI2LTA4LTIyVDIxOjI1OjEyWiAgICAgIC5hc3ByLWFjY2VwdGFuY2UtZmM5OWU0Njk5MzVmNGJhYWI4Nzg3ZjlmNDgwYTQyNDkvZGVlcGVyCmZpbGUgIDcgQiAgIDIwMjYtMDgtMjJUMjE6MjU6MTJaICAgICAgLmFzcHItYWNjZXB0YW5jZS1mYzk5ZTQ2OTkzNWY0YmFhYjg3ODdmOWY0ODBhNDI0OS9uZXN0ZWQudHh0CmZpbGUgIDkgQiAgIDIwMjYtMDgtMDZUMDE6NTg6MzdaICAgICAgYWxsb3dlZC50eHQK\", \"stdout_sha256\": \"2bbd466be7002a6e9f62a919ac6f5f0a7c0f88a950ada236ba433a1421e34b3e\"}, \"table\": {\"exit\": 0, \"stderr\": \"\", \"stdout_b64\": \"VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjU6MTJaICAgICAgLmFzcHItYWNjZXB0YW5jZS1mYzk5ZTQ2OTkzNWY0YmFhYjg3ODdmOWY0ODBhNDI0OQpmaWxlICA5IEIgICAyMDI2LTA4LTA2VDAxOjU4OjM3WiAgICAgIGFsbG93ZWQudHh0Cg==\", \"stdout_sha256\": \"7f26f3abe0e26dfed1f6c635885a49114c0ffc84879304888361ecc349e73723\"}, \"timeout\": {\"exit\": 70, \"stderr\": \"ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: rclone listing timed out\\nSecurity result: daemon request was not sent\\nWhy: trusted daemon control socket is unavailable\\nFix: start trusted daemon, then retry\\n\", \"stdout_b64\": \"\", \"stdout_sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}, \"traversal\": {\"exit\": 70, \"stderr\": \"ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target contains traversal\\nSecurity result: daemon request was not sent\\nWhy: trusted daemon control socket is unavailable\\nFix: start trusted daemon, then retry\\n\", \"stdout_b64\": \"\", \"stdout_sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}, \"ungranted\": {\"exit\": 70, \"stderr\": \"ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target is outside bound export\\nSecurity result: daemon request was not sent\\nWhy: trusted daemon control socket is unavailable\\nFix: start trusted daemon, then retry\\n\", \"stdout_b64\": \"\", \"stdout_sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}}, \"grant_id\": \"f35738ea-d5e8-4fd7-8de2-c3db632ce19b\", \"grant_signature_verified\": true, \"rclone\": \"/tmp/rclone-pins/rclone-1.74.4\", \"session_id\": \"fb087b72-53e5-4f33-9829-0d94790f6e7a\", \"session_state\": \"active\", \"state_active_verified\": true, \"version\": 1}\n",
+      "target": "Ubuntu 26.04 amd64"
+    },
+    {
+      "command": "sudo -u testuser sh -c 'cd /tmp/astral-real2 && timeout 240 /usr/bin/python3 -I -S scripts/daemon_ls_acceptance.py /tmp/rclone-pins/rclone-1.73.3 /home/testuser/.ssh/aspr-transport /home/testuser/.local/state/astral-project-test/issuer.key 33a29bae-80a6-485e-a5a0-8af304e21d4a SHA256:vm-gate'",
+      "package_preflight": {
+        "package": {
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "astral-project 0.1.0\n"
+        },
+        "packet15f_gate": {
+          "returncode": 0,
+          "stderr": "",
+          "stdout": ""
+        },
+        "sha256": {
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "41bd63149d3bd281f9d8fb02fd8c0406234634a59cd0f591b86ad3f1e2f6abb7  /usr/bin/rclone\n"
+        },
+        "version": {
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "rclone v1.73.3\n- os/version: ubuntu 24.04 (64 bit)\n- os/kernel: 6.8.0-138-generic (x86_64)\n- os/type: linux\n- os/arch: amd64\n- go/version: go1.25.8\n- go/linking: static\n- go/tags: none\n"
+        }
+      },
+      "rclone": "1.73.3",
+      "rclone_sha256": "41bd63149d3bd281f9d8fb02fd8c0406234634a59cd0f591b86ad3f1e2f6abb7",
+      "result": {
+        "checks": {
+          "after_timeout": {
+            "exit": 0,
+            "stderr": "",
+            "stdout_b64": "VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjU6NDdaICAgICAgLmFzcHItYWNjZXB0YW5jZS1kYjY0ZmZiZTQ0ZDI0MDNiOGZjMTdhZjE4ZWRkYzYzMgpmaWxlICA5IEIgICAyMDI2LTA4LTE1VDAxOjQyOjU4WiAgICAgIGFsbG93ZWQudHh0Cg==",
+            "stdout_sha256": "d46ad5cb8d3a512f3f7cb1f38ebebb92efddd1822e5dbd52df7cc1f14262de81"
+          },
+          "alternate_grant": {
+            "exit": 70,
+            "stderr": "ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target selects another grant or host\nSecurity result: daemon request was not sent\nWhy: trusted daemon control socket is unavailable\nFix: start trusted daemon, then retry\n",
+            "stdout_b64": "",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "json": {
+            "exit": 0,
+            "stderr": "",
+            "stdout_b64": "eyJlbnRyaWVzIjpbeyJpc19kaXIiOnRydWUsIm1pbWVfdHlwZSI6Imlub2RlL2RpcmVjdG9yeSIsIm1vZGlmaWVkIjoiMjAyNi0wOC0yMlQyMToyNTo0N1oiLCJuYW1lIjoiLmFzcHItYWNjZXB0YW5jZS1kYjY0ZmZiZTQ0ZDI0MDNiOGZjMTdhZjE4ZWRkYzYzMiIsInBhdGgiOiIuYXNwci1hY2NlcHRhbmNlLWRiNjRmZmJlNDRkMjQwM2I4ZmMxN2FmMThlZGRjNjMyIiwic2l6ZSI6LTF9LHsiaXNfZGlyIjpmYWxzZSwibWltZV90eXBlIjoidGV4dC9wbGFpbjsgY2hhcnNldD11dGYtOCIsIm1vZGlmaWVkIjoiMjAyNi0wOC0xNVQwMTo0Mjo1OFoiLCJuYW1lIjoiYWxsb3dlZC50eHQiLCJwYXRoIjoiYWxsb3dlZC50eHQiLCJzaXplIjo5fV0sInZlcnNpb24iOjF9Cg==",
+            "stdout_sha256": "7dc950e74f70782b87791babb50edb953a8f89129b0fbfa677d680a90393fb4e"
+          },
+          "raw": {
+            "exit": 0,
+            "stderr": "",
+            "stdout_b64": "Wwp7IlBhdGgiOiIuYXNwci1hY2NlcHRhbmNlLWRiNjRmZmJlNDRkMjQwM2I4ZmMxN2FmMThlZGRjNjMyIiwiTmFtZSI6Ii5hc3ByLWFjY2VwdGFuY2UtZGI2NGZmYmU0NGQyNDAzYjhmYzE3YWYxOGVkZGM2MzIiLCJTaXplIjotMSwiTWltZVR5cGUiOiJpbm9kZS9kaXJlY3RvcnkiLCJNb2RUaW1lIjoiMjAyNi0wOC0yMlQyMToyNTo0N1oiLCJJc0RpciI6dHJ1ZX0sCnsiUGF0aCI6ImFsbG93ZWQudHh0IiwiTmFtZSI6ImFsbG93ZWQudHh0IiwiU2l6ZSI6OSwiTWltZVR5cGUiOiJ0ZXh0L3BsYWluOyBjaGFyc2V0PXV0Zi04IiwiTW9kVGltZSI6IjIwMjYtMDgtMTVUMDE6NDI6NThaIiwiSXNEaXIiOmZhbHNlfQpdCg==",
+            "stdout_sha256": "01b604e3b492632a1953a63fec15e842867f5ddef5996c8cf98710897200b03f"
+          },
+          "recursive": {
+            "exit": 0,
+            "stderr": "",
+            "stdout_b64": "VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjU6NDdaICAgICAgLmFzcHItYWNjZXB0YW5jZS1kYjY0ZmZiZTQ0ZDI0MDNiOGZjMTdhZjE4ZWRkYzYzMgpkaXIgICAtICAgICAyMDI2LTA4LTIyVDIxOjI1OjQ3WiAgICAgIC5hc3ByLWFjY2VwdGFuY2UtZGI2NGZmYmU0NGQyNDAzYjhmYzE3YWYxOGVkZGM2MzIvZGVlcGVyCmZpbGUgIDcgQiAgIDIwMjYtMDgtMjJUMjE6MjU6NDdaICAgICAgLmFzcHItYWNjZXB0YW5jZS1kYjY0ZmZiZTQ0ZDI0MDNiOGZjMTdhZjE4ZWRkYzYzMi9uZXN0ZWQudHh0CmZpbGUgIDkgQiAgIDIwMjYtMDgtMTVUMDE6NDI6NThaICAgICAgYWxsb3dlZC50eHQK",
+            "stdout_sha256": "439459093e11f2fe8ee73867ca84b8dc220aa94961ca8f7970bda26c899d34e0"
+          },
+          "table": {
+            "exit": 0,
+            "stderr": "",
+            "stdout_b64": "VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjU6NDdaICAgICAgLmFzcHItYWNjZXB0YW5jZS1kYjY0ZmZiZTQ0ZDI0MDNiOGZjMTdhZjE4ZWRkYzYzMgpmaWxlICA5IEIgICAyMDI2LTA4LTE1VDAxOjQyOjU4WiAgICAgIGFsbG93ZWQudHh0Cg==",
+            "stdout_sha256": "d46ad5cb8d3a512f3f7cb1f38ebebb92efddd1822e5dbd52df7cc1f14262de81"
+          },
+          "timeout": {
+            "exit": 70,
+            "stderr": "ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: rclone listing timed out\nSecurity result: daemon request was not sent\nWhy: trusted daemon control socket is unavailable\nFix: start trusted daemon, then retry\n",
+            "stdout_b64": "",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "traversal": {
+            "exit": 70,
+            "stderr": "ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target contains traversal\nSecurity result: daemon request was not sent\nWhy: trusted daemon control socket is unavailable\nFix: start trusted daemon, then retry\n",
+            "stdout_b64": "",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "ungranted": {
+            "exit": 70,
+            "stderr": "ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target is outside bound export\nSecurity result: daemon request was not sent\nWhy: trusted daemon control socket is unavailable\nFix: start trusted daemon, then retry\n",
+            "stdout_b64": "",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        "grant_id": "7043ebd7-5ee0-4dbc-934e-5b9e773598a3",
+        "grant_signature_verified": true,
+        "rclone": "/tmp/rclone-pins/rclone-1.73.3",
+        "session_id": "3f918975-9cd3-4c22-adea-abe116a41e41",
+        "session_state": "active",
+        "state_active_verified": true,
+        "version": 1
+      },
+      "returncode": 0,
+      "source_dir": "/tmp/astral-real2",
+      "ssh_host": "aspr-test-admin-24",
+      "stderr": "",
+      "stdout": "{\"checks\": {\"after_timeout\": {\"exit\": 0, \"stderr\": \"\", \"stdout_b64\": \"VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjU6NDdaICAgICAgLmFzcHItYWNjZXB0YW5jZS1kYjY0ZmZiZTQ0ZDI0MDNiOGZjMTdhZjE4ZWRkYzYzMgpmaWxlICA5IEIgICAyMDI2LTA4LTE1VDAxOjQyOjU4WiAgICAgIGFsbG93ZWQudHh0Cg==\", \"stdout_sha256\": \"d46ad5cb8d3a512f3f7cb1f38ebebb92efddd1822e5dbd52df7cc1f14262de81\"}, \"alternate_grant\": {\"exit\": 70, \"stderr\": \"ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target selects another grant or host\\nSecurity result: daemon request was not sent\\nWhy: trusted daemon control socket is unavailable\\nFix: start trusted daemon, then retry\\n\", \"stdout_b64\": \"\", \"stdout_sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}, \"json\": {\"exit\": 0, \"stderr\": \"\", \"stdout_b64\": \"eyJlbnRyaWVzIjpbeyJpc19kaXIiOnRydWUsIm1pbWVfdHlwZSI6Imlub2RlL2RpcmVjdG9yeSIsIm1vZGlmaWVkIjoiMjAyNi0wOC0yMlQyMToyNTo0N1oiLCJuYW1lIjoiLmFzcHItYWNjZXB0YW5jZS1kYjY0ZmZiZTQ0ZDI0MDNiOGZjMTdhZjE4ZWRkYzYzMiIsInBhdGgiOiIuYXNwci1hY2NlcHRhbmNlLWRiNjRmZmJlNDRkMjQwM2I4ZmMxN2FmMThlZGRjNjMyIiwic2l6ZSI6LTF9LHsiaXNfZGlyIjpmYWxzZSwibWltZV90eXBlIjoidGV4dC9wbGFpbjsgY2hhcnNldD11dGYtOCIsIm1vZGlmaWVkIjoiMjAyNi0wOC0xNVQwMTo0Mjo1OFoiLCJuYW1lIjoiYWxsb3dlZC50eHQiLCJwYXRoIjoiYWxsb3dlZC50eHQiLCJzaXplIjo5fV0sInZlcnNpb24iOjF9Cg==\", \"stdout_sha256\": \"7dc950e74f70782b87791babb50edb953a8f89129b0fbfa677d680a90393fb4e\"}, \"raw\": {\"exit\": 0, \"stderr\": \"\", \"stdout_b64\": \"Wwp7IlBhdGgiOiIuYXNwci1hY2NlcHRhbmNlLWRiNjRmZmJlNDRkMjQwM2I4ZmMxN2FmMThlZGRjNjMyIiwiTmFtZSI6Ii5hc3ByLWFjY2VwdGFuY2UtZGI2NGZmYmU0NGQyNDAzYjhmYzE3YWYxOGVkZGM2MzIiLCJTaXplIjotMSwiTWltZVR5cGUiOiJpbm9kZS9kaXJlY3RvcnkiLCJNb2RUaW1lIjoiMjAyNi0wOC0yMlQyMToyNTo0N1oiLCJJc0RpciI6dHJ1ZX0sCnsiUGF0aCI6ImFsbG93ZWQudHh0IiwiTmFtZSI6ImFsbG93ZWQudHh0IiwiU2l6ZSI6OSwiTWltZVR5cGUiOiJ0ZXh0L3BsYWluOyBjaGFyc2V0PXV0Zi04IiwiTW9kVGltZSI6IjIwMjYtMDgtMTVUMDE6NDI6NThaIiwiSXNEaXIiOmZhbHNlfQpdCg==\", \"stdout_sha256\": \"01b604e3b492632a1953a63fec15e842867f5ddef5996c8cf98710897200b03f\"}, \"recursive\": {\"exit\": 0, \"stderr\": \"\", \"stdout_b64\": \"VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjU6NDdaICAgICAgLmFzcHItYWNjZXB0YW5jZS1kYjY0ZmZiZTQ0ZDI0MDNiOGZjMTdhZjE4ZWRkYzYzMgpkaXIgICAtICAgICAyMDI2LTA4LTIyVDIxOjI1OjQ3WiAgICAgIC5hc3ByLWFjY2VwdGFuY2UtZGI2NGZmYmU0NGQyNDAzYjhmYzE3YWYxOGVkZGM2MzIvZGVlcGVyCmZpbGUgIDcgQiAgIDIwMjYtMDgtMjJUMjE6MjU6NDdaICAgICAgLmFzcHItYWNjZXB0YW5jZS1kYjY0ZmZiZTQ0ZDI0MDNiOGZjMTdhZjE4ZWRkYzYzMi9uZXN0ZWQudHh0CmZpbGUgIDkgQiAgIDIwMjYtMDgtMTVUMDE6NDI6NThaICAgICAgYWxsb3dlZC50eHQK\", \"stdout_sha256\": \"439459093e11f2fe8ee73867ca84b8dc220aa94961ca8f7970bda26c899d34e0\"}, \"table\": {\"exit\": 0, \"stderr\": \"\", \"stdout_b64\": \"VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjU6NDdaICAgICAgLmFzcHItYWNjZXB0YW5jZS1kYjY0ZmZiZTQ0ZDI0MDNiOGZjMTdhZjE4ZWRkYzYzMgpmaWxlICA5IEIgICAyMDI2LTA4LTE1VDAxOjQyOjU4WiAgICAgIGFsbG93ZWQudHh0Cg==\", \"stdout_sha256\": \"d46ad5cb8d3a512f3f7cb1f38ebebb92efddd1822e5dbd52df7cc1f14262de81\"}, \"timeout\": {\"exit\": 70, \"stderr\": \"ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: rclone listing timed out\\nSecurity result: daemon request was not sent\\nWhy: trusted daemon control socket is unavailable\\nFix: start trusted daemon, then retry\\n\", \"stdout_b64\": \"\", \"stdout_sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}, \"traversal\": {\"exit\": 70, \"stderr\": \"ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target contains traversal\\nSecurity result: daemon request was not sent\\nWhy: trusted daemon control socket is unavailable\\nFix: start trusted daemon, then retry\\n\", \"stdout_b64\": \"\", \"stdout_sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}, \"ungranted\": {\"exit\": 70, \"stderr\": \"ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target is outside bound export\\nSecurity result: daemon request was not sent\\nWhy: trusted daemon control socket is unavailable\\nFix: start trusted daemon, then retry\\n\", \"stdout_b64\": \"\", \"stdout_sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}}, \"grant_id\": \"7043ebd7-5ee0-4dbc-934e-5b9e773598a3\", \"grant_signature_verified\": true, \"rclone\": \"/tmp/rclone-pins/rclone-1.73.3\", \"session_id\": \"3f918975-9cd3-4c22-adea-abe116a41e41\", \"session_state\": \"active\", \"state_active_verified\": true, \"version\": 1}\n",
+      "target": "Ubuntu 24.04 amd64"
+    },
+    {
+      "command": "sudo -u testuser sh -c 'cd /tmp/astral-real2 && timeout 240 /usr/bin/python3 -I -S scripts/daemon_ls_acceptance.py /tmp/rclone-pins/rclone-1.74.4 /home/testuser/.ssh/aspr-transport /home/testuser/.local/state/astral-project-test/issuer.key 33a29bae-80a6-485e-a5a0-8af304e21d4a SHA256:vm-gate'",
+      "package_preflight": {
+        "package": {
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "astral-project 0.1.0\n"
+        },
+        "packet15f_gate": {
+          "returncode": 0,
+          "stderr": "",
+          "stdout": ""
+        },
+        "sha256": {
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "9f56ca5edfac24a3ed37226c2ba1de69f1ec9e05fa2526cddee5cd97e202be6b  /usr/bin/rclone\n"
+        },
+        "version": {
+          "returncode": 0,
+          "stderr": "",
+          "stdout": "rclone v1.74.4\n- os/version: ubuntu 24.04 (64 bit)\n- os/kernel: 6.8.0-138-generic (x86_64)\n- os/type: linux\n- os/arch: amd64\n- go/version: go1.26.5\n- go/linking: static\n- go/tags: none\n"
+        }
+      },
+      "rclone": "1.74.4",
+      "rclone_sha256": "9f56ca5edfac24a3ed37226c2ba1de69f1ec9e05fa2526cddee5cd97e202be6b",
+      "result": {
+        "checks": {
+          "after_timeout": {
+            "exit": 0,
+            "stderr": "",
+            "stdout_b64": "VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjY6MjFaICAgICAgLmFzcHItYWNjZXB0YW5jZS1kOTNiNmZhMGIwZDc0YjQyYjBlODJlNjFlNGVmNzdlYgpmaWxlICA5IEIgICAyMDI2LTA4LTE1VDAxOjQyOjU4WiAgICAgIGFsbG93ZWQudHh0Cg==",
+            "stdout_sha256": "937b9843d137e6c49f15963179c9f36760eba5431a9264f0e854aa8a86256113"
+          },
+          "alternate_grant": {
+            "exit": 70,
+            "stderr": "ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target selects another grant or host\nSecurity result: daemon request was not sent\nWhy: trusted daemon control socket is unavailable\nFix: start trusted daemon, then retry\n",
+            "stdout_b64": "",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "json": {
+            "exit": 0,
+            "stderr": "",
+            "stdout_b64": "eyJlbnRyaWVzIjpbeyJpc19kaXIiOnRydWUsIm1pbWVfdHlwZSI6Imlub2RlL2RpcmVjdG9yeSIsIm1vZGlmaWVkIjoiMjAyNi0wOC0yMlQyMToyNjoyMVoiLCJuYW1lIjoiLmFzcHItYWNjZXB0YW5jZS1kOTNiNmZhMGIwZDc0YjQyYjBlODJlNjFlNGVmNzdlYiIsInBhdGgiOiIuYXNwci1hY2NlcHRhbmNlLWQ5M2I2ZmEwYjBkNzRiNDJiMGU4MmU2MWU0ZWY3N2ViIiwic2l6ZSI6LTF9LHsiaXNfZGlyIjpmYWxzZSwibWltZV90eXBlIjoidGV4dC9wbGFpbjsgY2hhcnNldD11dGYtOCIsIm1vZGlmaWVkIjoiMjAyNi0wOC0xNVQwMTo0Mjo1OFoiLCJuYW1lIjoiYWxsb3dlZC50eHQiLCJwYXRoIjoiYWxsb3dlZC50eHQiLCJzaXplIjo5fV0sInZlcnNpb24iOjF9Cg==",
+            "stdout_sha256": "b199600e41485f0a1a52dd6fd6b62c0cd9eaab8ea4b797460b9e9360bb5e89f5"
+          },
+          "raw": {
+            "exit": 0,
+            "stderr": "",
+            "stdout_b64": "Wwp7IlBhdGgiOiIuYXNwci1hY2NlcHRhbmNlLWQ5M2I2ZmEwYjBkNzRiNDJiMGU4MmU2MWU0ZWY3N2ViIiwiTmFtZSI6Ii5hc3ByLWFjY2VwdGFuY2UtZDkzYjZmYTBiMGQ3NGI0MmIwZTgyZTYxZTRlZjc3ZWIiLCJTaXplIjotMSwiTWltZVR5cGUiOiJpbm9kZS9kaXJlY3RvcnkiLCJNb2RUaW1lIjoiMjAyNi0wOC0yMlQyMToyNjoyMVoiLCJJc0RpciI6dHJ1ZX0sCnsiUGF0aCI6ImFsbG93ZWQudHh0IiwiTmFtZSI6ImFsbG93ZWQudHh0IiwiU2l6ZSI6OSwiTWltZVR5cGUiOiJ0ZXh0L3BsYWluOyBjaGFyc2V0PXV0Zi04IiwiTW9kVGltZSI6IjIwMjYtMDgtMTVUMDE6NDI6NThaIiwiSXNEaXIiOmZhbHNlfQpdCg==",
+            "stdout_sha256": "6c284c4459fde5fa6586da00521b359afb547ac80ec8a4030f97fb1a096516a7"
+          },
+          "recursive": {
+            "exit": 0,
+            "stderr": "",
+            "stdout_b64": "VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjY6MjFaICAgICAgLmFzcHItYWNjZXB0YW5jZS1kOTNiNmZhMGIwZDc0YjQyYjBlODJlNjFlNGVmNzdlYgpkaXIgICAtICAgICAyMDI2LTA4LTIyVDIxOjI2OjIxWiAgICAgIC5hc3ByLWFjY2VwdGFuY2UtZDkzYjZmYTBiMGQ3NGI0MmIwZTgyZTYxZTRlZjc3ZWIvZGVlcGVyCmZpbGUgIDcgQiAgIDIwMjYtMDgtMjJUMjE6MjY6MjFaICAgICAgLmFzcHItYWNjZXB0YW5jZS1kOTNiNmZhMGIwZDc0YjQyYjBlODJlNjFlNGVmNzdlYi9uZXN0ZWQudHh0CmZpbGUgIDkgQiAgIDIwMjYtMDgtMTVUMDE6NDI6NThaICAgICAgYWxsb3dlZC50eHQK",
+            "stdout_sha256": "dc2b4b1267c8dd431810b4358d2a9d16dd354726f2f6d01b65f888d0e70805f5"
+          },
+          "table": {
+            "exit": 0,
+            "stderr": "",
+            "stdout_b64": "VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjY6MjFaICAgICAgLmFzcHItYWNjZXB0YW5jZS1kOTNiNmZhMGIwZDc0YjQyYjBlODJlNjFlNGVmNzdlYgpmaWxlICA5IEIgICAyMDI2LTA4LTE1VDAxOjQyOjU4WiAgICAgIGFsbG93ZWQudHh0Cg==",
+            "stdout_sha256": "937b9843d137e6c49f15963179c9f36760eba5431a9264f0e854aa8a86256113"
+          },
+          "timeout": {
+            "exit": 70,
+            "stderr": "ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: rclone listing timed out\nSecurity result: daemon request was not sent\nWhy: trusted daemon control socket is unavailable\nFix: start trusted daemon, then retry\n",
+            "stdout_b64": "",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "traversal": {
+            "exit": 70,
+            "stderr": "ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target contains traversal\nSecurity result: daemon request was not sent\nWhy: trusted daemon control socket is unavailable\nFix: start trusted daemon, then retry\n",
+            "stdout_b64": "",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "ungranted": {
+            "exit": 70,
+            "stderr": "ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target is outside bound export\nSecurity result: daemon request was not sent\nWhy: trusted daemon control socket is unavailable\nFix: start trusted daemon, then retry\n",
+            "stdout_b64": "",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        "grant_id": "3edeb248-7aa5-4e95-8c83-82ee25c802eb",
+        "grant_signature_verified": true,
+        "rclone": "/tmp/rclone-pins/rclone-1.74.4",
+        "session_id": "4e2fbf55-ed2c-41fa-beef-3c966a6aa0dd",
+        "session_state": "active",
+        "state_active_verified": true,
+        "version": 1
+      },
+      "returncode": 0,
+      "source_dir": "/tmp/astral-real2",
+      "ssh_host": "aspr-test-admin-24",
+      "stderr": "",
+      "stdout": "{\"checks\": {\"after_timeout\": {\"exit\": 0, \"stderr\": \"\", \"stdout_b64\": \"VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjY6MjFaICAgICAgLmFzcHItYWNjZXB0YW5jZS1kOTNiNmZhMGIwZDc0YjQyYjBlODJlNjFlNGVmNzdlYgpmaWxlICA5IEIgICAyMDI2LTA4LTE1VDAxOjQyOjU4WiAgICAgIGFsbG93ZWQudHh0Cg==\", \"stdout_sha256\": \"937b9843d137e6c49f15963179c9f36760eba5431a9264f0e854aa8a86256113\"}, \"alternate_grant\": {\"exit\": 70, \"stderr\": \"ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target selects another grant or host\\nSecurity result: daemon request was not sent\\nWhy: trusted daemon control socket is unavailable\\nFix: start trusted daemon, then retry\\n\", \"stdout_b64\": \"\", \"stdout_sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}, \"json\": {\"exit\": 0, \"stderr\": \"\", \"stdout_b64\": \"eyJlbnRyaWVzIjpbeyJpc19kaXIiOnRydWUsIm1pbWVfdHlwZSI6Imlub2RlL2RpcmVjdG9yeSIsIm1vZGlmaWVkIjoiMjAyNi0wOC0yMlQyMToyNjoyMVoiLCJuYW1lIjoiLmFzcHItYWNjZXB0YW5jZS1kOTNiNmZhMGIwZDc0YjQyYjBlODJlNjFlNGVmNzdlYiIsInBhdGgiOiIuYXNwci1hY2NlcHRhbmNlLWQ5M2I2ZmEwYjBkNzRiNDJiMGU4MmU2MWU0ZWY3N2ViIiwic2l6ZSI6LTF9LHsiaXNfZGlyIjpmYWxzZSwibWltZV90eXBlIjoidGV4dC9wbGFpbjsgY2hhcnNldD11dGYtOCIsIm1vZGlmaWVkIjoiMjAyNi0wOC0xNVQwMTo0Mjo1OFoiLCJuYW1lIjoiYWxsb3dlZC50eHQiLCJwYXRoIjoiYWxsb3dlZC50eHQiLCJzaXplIjo5fV0sInZlcnNpb24iOjF9Cg==\", \"stdout_sha256\": \"b199600e41485f0a1a52dd6fd6b62c0cd9eaab8ea4b797460b9e9360bb5e89f5\"}, \"raw\": {\"exit\": 0, \"stderr\": \"\", \"stdout_b64\": \"Wwp7IlBhdGgiOiIuYXNwci1hY2NlcHRhbmNlLWQ5M2I2ZmEwYjBkNzRiNDJiMGU4MmU2MWU0ZWY3N2ViIiwiTmFtZSI6Ii5hc3ByLWFjY2VwdGFuY2UtZDkzYjZmYTBiMGQ3NGI0MmIwZTgyZTYxZTRlZjc3ZWIiLCJTaXplIjotMSwiTWltZVR5cGUiOiJpbm9kZS9kaXJlY3RvcnkiLCJNb2RUaW1lIjoiMjAyNi0wOC0yMlQyMToyNjoyMVoiLCJJc0RpciI6dHJ1ZX0sCnsiUGF0aCI6ImFsbG93ZWQudHh0IiwiTmFtZSI6ImFsbG93ZWQudHh0IiwiU2l6ZSI6OSwiTWltZVR5cGUiOiJ0ZXh0L3BsYWluOyBjaGFyc2V0PXV0Zi04IiwiTW9kVGltZSI6IjIwMjYtMDgtMTVUMDE6NDI6NThaIiwiSXNEaXIiOmZhbHNlfQpdCg==\", \"stdout_sha256\": \"6c284c4459fde5fa6586da00521b359afb547ac80ec8a4030f97fb1a096516a7\"}, \"recursive\": {\"exit\": 0, \"stderr\": \"\", \"stdout_b64\": \"VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjY6MjFaICAgICAgLmFzcHItYWNjZXB0YW5jZS1kOTNiNmZhMGIwZDc0YjQyYjBlODJlNjFlNGVmNzdlYgpkaXIgICAtICAgICAyMDI2LTA4LTIyVDIxOjI2OjIxWiAgICAgIC5hc3ByLWFjY2VwdGFuY2UtZDkzYjZmYTBiMGQ3NGI0MmIwZTgyZTYxZTRlZjc3ZWIvZGVlcGVyCmZpbGUgIDcgQiAgIDIwMjYtMDgtMjJUMjE6MjY6MjFaICAgICAgLmFzcHItYWNjZXB0YW5jZS1kOTNiNmZhMGIwZDc0YjQyYjBlODJlNjFlNGVmNzdlYi9uZXN0ZWQudHh0CmZpbGUgIDkgQiAgIDIwMjYtMDgtMTVUMDE6NDI6NThaICAgICAgYWxsb3dlZC50eHQK\", \"stdout_sha256\": \"dc2b4b1267c8dd431810b4358d2a9d16dd354726f2f6d01b65f888d0e70805f5\"}, \"table\": {\"exit\": 0, \"stderr\": \"\", \"stdout_b64\": \"VFlQRSAgU0laRSAgTU9ESUZJRUQgICAgICAgICAgICAgICAgICBQQVRICmRpciAgIC0gICAgIDIwMjYtMDgtMjJUMjE6MjY6MjFaICAgICAgLmFzcHItYWNjZXB0YW5jZS1kOTNiNmZhMGIwZDc0YjQyYjBlODJlNjFlNGVmNzdlYgpmaWxlICA5IEIgICAyMDI2LTA4LTE1VDAxOjQyOjU4WiAgICAgIGFsbG93ZWQudHh0Cg==\", \"stdout_sha256\": \"937b9843d137e6c49f15963179c9f36760eba5431a9264f0e854aa8a86256113\"}, \"timeout\": {\"exit\": 70, \"stderr\": \"ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: rclone listing timed out\\nSecurity result: daemon request was not sent\\nWhy: trusted daemon control socket is unavailable\\nFix: start trusted daemon, then retry\\n\", \"stdout_b64\": \"\", \"stdout_sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}, \"traversal\": {\"exit\": 70, \"stderr\": \"ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target contains traversal\\nSecurity result: daemon request was not sent\\nWhy: trusted daemon control socket is unavailable\\nFix: start trusted daemon, then retry\\n\", \"stdout_b64\": \"\", \"stdout_sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}, \"ungranted\": {\"exit\": 70, \"stderr\": \"ASPR_DAEMON_UNAVAILABLE [8003]: daemon rejected request: listing target is outside bound export\\nSecurity result: daemon request was not sent\\nWhy: trusted daemon control socket is unavailable\\nFix: start trusted daemon, then retry\\n\", \"stdout_b64\": \"\", \"stdout_sha256\": \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"}}, \"grant_id\": \"3edeb248-7aa5-4e95-8c83-82ee25c802eb\", \"grant_signature_verified\": true, \"rclone\": \"/tmp/rclone-pins/rclone-1.74.4\", \"session_id\": \"4e2fbf55-ed2c-41fa-beef-3c966a6aa0dd\", \"session_state\": \"active\", \"state_active_verified\": true, \"version\": 1}\n",
+      "target": "Ubuntu 24.04 amd64"
+    }
+  ],
+  "schema_version": 1
+}
