@@ -17,6 +17,8 @@ Hosted CI/CD is intentionally deferred while core packet sequence is under devel
 
 Local authoritative gates remain `uv lock --check`, locked dependency synchronization, `./scripts/test` (Ruff format/lint, strict mypy, pytest/coverage), and `git diff --check`. Installed Ubuntu 24.04 and Ubuntu 26.04 acceptance remains required where packet criteria call for it.
 
+Packet numbering and scope are governed by `docs/architecture/adr/ADR-0025-packet-numbering-authority.md`. The final architecture remains authoritative for security/product semantics, but its embedded historical packet schedule does not override the current implementation plans. For the next work, Packet 25 means projected-home FUSE core, Packet 26 means profile schema/pure matcher, and Packet 27 means host-backed read-only projected-home access.
+
 ## Frozen execution boundary
 
 Local sandbox path:
@@ -75,6 +77,7 @@ Packet 25 begins the projected-home FUSE core. Read the authoritative implementa
 
 - `docs/architecture/plain-english/astral-project-implementation-plain-english.md`, section **Packet 25 — Implement the projected-home FUSE core**;
 - `docs/architecture/caveman/astral-project-implementation-caveman.md`, section **Packet 25 — FUSE core**;
+- `docs/architecture/adr/ADR-0025-packet-numbering-authority.md` for packet-number authority;
 - ADR and security constraints in `docs/architecture/` before choosing the FUSE binding.
 
 Packet 25 objective: mount a reliable empty projected home using FUSE before exposing host files.
