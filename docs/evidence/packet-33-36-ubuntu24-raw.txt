@@ -2989,7 +2989,7 @@ COMMAND=sudo -u testuser env -u PYTHONPATH PATH=/usr/bin:/bin /usr/bin/python3 s
 final-artifact-all-acceptance-exit=0
 
 
-## Packet 36A authoritative final closure artifact (synthetic ancestor remediation)
+## Historical superseded Packet 36A closure artifact (not authoritative) (synthetic ancestor remediation)
 source-commit=9542cdb2293baed5aa0d1a5bfe486c0bd2f44378
 artifact-deb-sha256=b729a9ed055daf7b44dbae338f67a2962775b46698bf64f87d52809e0638caeb
 release=Ubuntu 24.04.4 LTS
@@ -3213,5 +3213,648 @@ case-learner-end-to-end=passed
 learner-case-count=26
 COMMAND=sudo -u testuser env -u PYTHONPATH PATH=/usr/bin:/bin /usr/bin/python3 scripts/sandbox_acceptance.py /tmp/rclone-pins/rclone-1.73.3 /home/testuser/.ssh/aspr-transport /home/testuser/.local/state/astral-project-test/issuer.key 33a29bae-80a6-485e-a5a0-8af304e21d4a SHA256:vm-gate
 {"descendant_scope_isolated": "passed", "hidden_fuse_and_daemon_socket": "passed", "negative_source_authority": {"ancestor": "rejected", "sibling": "rejected", "traversal": "rejected"}, "network_none": "passed", "package": "installed", "remote_loss": "terminated", "sandbox_positive": "passed", "session_id": "e8ced376-375c-49b8-a3e2-f786f1da77e5", "target": "unknown"}
+
+final-artifact-all-acceptance-exit=0
+
+
+## Historical superseded Packet 36A closure artifact (not authoritative) (final4 synthetic ancestor gate)
+source-commit=6fbd4adf115fb154d33f4de13acae4c108c2af91
+artifact-deb-sha256=5e272dc240d41aa1d6aefb2766bc30cb99b4a832a1c7f9c0405362744d6e4f64
+release=Ubuntu 24.04.4 LTS
+kernel=6.8.0-138-generic
+python3-pyfuse3=3.3.0-0.1
+python3-trio=0.24.0
+apparmor-parser-version=4.0.1
+apparmor-package-version=4.0.1really4.0.1-0ubuntu0.24.04.7
+apparmor-securityfs-revision=805
+apparmor-module-version=kernel-side version not exposed; securityfs revision recorded
+sandbox-installed-driver-sha256=9591213292d4fa744d0f3f505087bfe8248eb1552786da12cc17a0f3e4b10064
+composite-driver-sha256=5f91552d9ec72e67b0344336f9bfb62d6dee56a30bccaa497565564227f5e715
+net-admin-probe-sha256=76fa1e66d24ccc31796d84e3b16a8149b761e42712ce16dc74d8b060edcb5298
+learner-driver-sha256=f4a9965cb09dc6ae30151d4d22079d9aed533c624653d75f548dc06a76a2352a
+remote-driver-sha256=d6c0ecb37517e92aff0dba730d44daefb3bcbaa0048a493961e4d205a27b5ed0
+installed-confinement-command=ASPR_PACKAGE=/tmp/f36b4-pkg24.deb /usr/bin/python3 scripts/sandbox_installed_acceptance.py
+mounted-composite-command=sudo -u testuser env -u PYTHONPATH PATH=/usr/bin:/bin /usr/bin/python3 /tmp/packet36b-source/scripts/composite_projected_home_acceptance.py
+learner-command=sudo -u testuser env -u PYTHONPATH PATH=/usr/bin:/bin /usr/bin/python3 scripts/learner_acceptance.py
+remote-command=sudo -u testuser env -u PYTHONPATH PATH=/usr/bin:/bin /usr/bin/python3 scripts/sandbox_acceptance.py ... rclone-1.73.3
+root-listing-errno=EACCES
+callbacks-suppressed-after-baseline=none observed in captured acceptance logs
+
+--- installed confinement transcript ---
+$ dpkg -i /tmp/astral-project_0.1.0_amd64.deb
+(Reading database ... 134154 files and directories currently installed.)
+Preparing to unpack .../astral-project_0.1.0_amd64.deb ...
+Unpacking astral-project (0.1.0) over (0.1.0) ...
+Setting up astral-project (0.1.0) ...
+$ stat -c %n %U:%G %a %A /usr/libexec/astral-project/aspr-bwrap-launch
+/usr/libexec/astral-project/aspr-bwrap-launch root:root 555 -r-xr-xr-x
+$ stat -c %n %U:%G %a %A /usr/libexec/astral-project/aspr-sandbox-entry
+/usr/libexec/astral-project/aspr-sandbox-entry root:root 555 -r-xr-xr-x
+$ getcap /usr/libexec/astral-project/aspr-bwrap-launch /usr/libexec/astral-project/aspr-sandbox-entry
+$ apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
+$ aa-status
+apparmor module is loaded.
+122 profiles are loaded.
+28 profiles are in enforce mode.
+   /usr/bin/man
+   /usr/lib/snapd/snap-confine
+   aspr-broker
+   aspr-bwrap-setup
+   aspr-namespace-setup
+   aspr-sandbox-payload
+   aspr-sftp-v1
+   lsb_release
+   man_filter
+   man_groff
+   nvidia_modprobe
+   nvidia_modprobe//kmod
+   plasmashell
+   plasmashell//QtWebEngineProcess
+   rsyslogd
+   tcpdump
+   ubuntu_pro_apt_news
+   ubuntu_pro_esm_cache
+   ubuntu_pro_esm_cache//apt_methods
+   ubuntu_pro_esm_cache//apt_methods_gpgv
+   ubuntu_pro_esm_cache//cloud_id
+   ubuntu_pro_esm_cache//dpkg
+   ubuntu_pro_esm_cache//ps
+   ubuntu_pro_esm_cache//ubuntu_distro_info
+   ubuntu_pro_esm_cache_systemctl
+   ubuntu_pro_esm_cache_systemd_detect_virt
+   unix-chkpwd
+   unprivileged_userns
+4 profiles are in complain mode.
+   transmission-cli
+   transmission-daemon
+   transmission-gtk
+   transmission-qt
+0 profiles are in prompt mode.
+0 profiles are in kill mode.
+90 profiles are in unconfined mode.
+   1password
+   Discord
+   MongoDB Compass
+   QtWebEngineProcess
+   balena-etcher
+   brave
+   buildah
+   bwrap
+   cam
+   ch-checkns
+   ch-run
+   chrome
+   crun
+   devhelp
+   element-desktop
+   epiphany
+   evolution
+   firefox
+   flatpak
+   foliate
+   geary
+   github-desktop
+   goldendict
+   ipa_verify
+   kchmviewer
+   keybase
+   lc-compliance
+   libcamerify
+   linux-sandbox
+   loupe
+   lxc-attach
+   lxc-create
+   lxc-destroy
+   lxc-execute
+   lxc-stop
+   lxc-unshare
+   lxc-usernsexec
+   mmdebstrap
+   msedge
+   notepadqq
+   obsidian
+   opam
+   opera
+   pageedit
+   podman
+   polypane
+   privacybrowser
+   qcam
+   qmapshack
+   qutebrowser
+   rootlesskit
+   rpm
+   rssguard
+   runc
+   sbuild
+   sbuild-abort
+   sbuild-adduser
+   sbuild-apt
+   sbuild-checkpackages
+   sbuild-clean
+   sbuild-createchroot
+   sbuild-destroychroot
+   sbuild-distupgrade
+   sbuild-hold
+   sbuild-shell
+   sbuild-unhold
+   sbuild-update
+   sbuild-upgrade
+   scide
+   signal-desktop
+   slack
+   slirp4netns
+   steam
+   stress-ng
+   surfshark
+   systemd-coredump
+   thunderbird
+   toybox
+   trinity
+   tup
+   tuxedo-control-center
+   userbindmount
+   uwsgi-core
+   vdens
+   virtiofsd
+   vivaldi-bin
+   vpnns
+   vscode
+   wike
+   wpcom
+2 processes have profiles defined.
+2 processes are in enforce mode.
+   /usr/bin/python3.12 (149856) aspr-broker
+   /usr/sbin/rsyslogd (717) rsyslogd
+0 processes are in complain mode.
+0 processes are in prompt mode.
+0 processes are in kill mode.
+0 processes are unconfined but have a profile defined.
+0 processes are in mixed mode.
+$ unshare -m --propagation private aa-exec -p aspr-bwrap-setup -- mount -t tmpfs -o nosuid,nodev tmpfs /tmp
+$ unshare -U -r aa-exec -p aspr-bwrap-setup -- unshare -U -r true
+$ sudo -u testuser env XDG_RUNTIME_DIR=/run/user/1002 python3 /tmp/packet36b-source/scripts/sandbox_enforce_acceptance.py
+python3: can't open file '/tmp/packet36b-source/scripts/sandbox_enforce_acceptance.py': [Errno 2] No such file or directory
+command failed with exit 2: sudo -u testuser env XDG_RUNTIME_DIR=/run/user/1002 python3 /tmp/packet36b-source/scripts/sandbox_enforce_acceptance.py
+
+--- mounted composite, learner, and remote transcript ---
+mounted-nested-host-read=passed
+mounted-root-listing-denied=passed
+mounted-opaque-listing-denied=passed
+mounted-sibling-hidden=passed
+mounted-absent-private-parent=passed
+mounted-absent-overlay-parent=passed
+mounted-overlay-lower-immutable=passed
+installed-composite-synthetic-ancestor-acceptance=passed
+COMMAND=sudo -u testuser env -u PYTHONPATH PATH=/usr/bin:/bin /usr/bin/python3 scripts/learner_acceptance.py
+{"id":"agents-default","name":"agents-default","provenance":3,"revision":3,"rules":1,"sealed":true}
+observer-disabled=passed
+learner-external-approval=passed
+learner-rule-persistence=passed
+learner-second-project-reuse=passed
+learner-sealed-known-path=passed
+learner-unrelated-home-hidden=passed
+case-installed-fixed-aspr=passed
+case-isolated-import-environment=passed
+case-profile-create=passed
+case-external-approval-socket=passed
+case-external-approval-request=passed
+case-unknown-lookup-approved=passed
+case-unknown-read-approved=passed
+case-external-approval-count=passed
+case-approved-rule-persisted=passed
+case-second-project-profile-reuse=passed
+case-second-project-known-read=passed
+case-reuse-without-new-approval=passed
+case-observer-authority-disabled=passed
+case-profile-sealing=passed
+case-sealed-known-lookup=passed
+case-sealed-known-read=passed
+case-sealed-unrelated-path-hidden=passed
+case-projected-home-mounted=passed
+case-projected-home-noexec=passed
+case-host-rx-profile-authorized=passed
+case-host-rx-exact-path=passed
+case-host-rx-fixed-executor-output=passed
+case-host-rx-unapproved-path-denied=passed
+case-host-rx-manifest-lifecycle=passed
+case-network-none-projector=passed
+case-learner-end-to-end=passed
+learner-case-count=26
+COMMAND=sudo -u testuser env -u PYTHONPATH PATH=/usr/bin:/bin /usr/bin/python3 scripts/sandbox_acceptance.py ... rclone-1.73.3
+{"descendant_scope_isolated": "passed", "hidden_fuse_and_daemon_socket": "passed", "negative_source_authority": {"ancestor": "rejected", "sibling": "rejected", "traversal": "rejected"}, "network_none": "passed", "package": "installed", "remote_loss": "terminated", "sandbox_positive": "passed", "session_id": "34959e43-5379-4836-86c8-8fd64340aa66", "target": "unknown"}
+
+final-artifact-all-acceptance-exit=0
+
+
+## Packet 36A authoritative final closure artifact (verified final synthetic ancestor gate)
+source-commit=6fbd4adf115fb154d33f4de13acae4c108c2af91
+artifact-deb-sha256=5e272dc240d41aa1d6aefb2766bc30cb99b4a832a1c7f9c0405362744d6e4f64
+release=Ubuntu 24.04.4 LTS
+kernel=6.8.0-138-generic
+python3-pyfuse3=3.3.0-0.1
+python3-trio=0.24.0
+apparmor-parser-version=4.0.1
+apparmor-package-version=4.0.1really4.0.1-0ubuntu0.24.04.7
+apparmor-securityfs-revision=829
+apparmor-module-version=kernel-side version not exposed; securityfs revision recorded
+sandbox-installed-driver-sha256=9591213292d4fa744d0f3f505087bfe8248eb1552786da12cc17a0f3e4b10064
+composite-driver-sha256=5f91552d9ec72e67b0344336f9bfb62d6dee56a30bccaa497565564227f5e715
+net-admin-probe-sha256=76fa1e66d24ccc31796d84e3b16a8149b761e42712ce16dc74d8b060edcb5298
+learner-driver-sha256=f4a9965cb09dc6ae30151d4d22079d9aed533c624653d75f548dc06a76a2352a
+remote-driver-sha256=d6c0ecb37517e92aff0dba730d44daefb3bcbaa0048a493961e4d205a27b5ed0
+installed-confinement-command=ASPR_PACKAGE=/tmp/f36b4-pkg24.deb /usr/bin/python3 scripts/sandbox_installed_acceptance.py
+mounted-composite-command=sudo -u testuser env -u PYTHONPATH PATH=/usr/bin:/bin /usr/bin/python3 /tmp/packet36b-source/scripts/composite_projected_home_acceptance.py
+learner-command=sudo -u testuser env -u PYTHONPATH PATH=/usr/bin:/bin /usr/bin/python3 scripts/learner_acceptance.py
+remote-command=sudo -u testuser env -u PYTHONPATH PATH=/usr/bin:/bin /usr/bin/python3 scripts/sandbox_acceptance.py ... rclone-1.73.3
+mounted-root-listing-errno=EACCES
+callbacks-suppressed-after-baseline=none observed in unique captured acceptance logs
+
+--- unique installed confinement transcript ---
+artifact-sha256=5e272dc240d41aa1d6aefb2766bc30cb99b4a832a1c7f9c0405362744d6e4f64
+release=Ubuntu-24.04
+kernel=6.8.0-138-generic
+apparmor-parser-version=AppArmor parser version 4.0.1
+apparmor-package-version=4.0.1really4.0.1-0ubuntu0.24.04.7
+apparmor-securityfs-revision=829
+$ dpkg -i /tmp/f36b4-pkg24.deb
+(Reading database ... 134154 files and directories currently installed.)
+Preparing to unpack /tmp/f36b4-pkg24.deb ...
+Unpacking astral-project (0.1.0) over (0.1.0) ...
+Setting up astral-project (0.1.0) ...
+$ stat -c %n %U:%G %a %A /usr/libexec/astral-project/aspr-bwrap-launch
+/usr/libexec/astral-project/aspr-bwrap-launch root:root 555 -r-xr-xr-x
+$ stat -c %n %U:%G %a %A /usr/libexec/astral-project/aspr-sandbox-entry
+/usr/libexec/astral-project/aspr-sandbox-entry root:root 555 -r-xr-xr-x
+$ getcap /usr/libexec/astral-project/aspr-bwrap-launch /usr/libexec/astral-project/aspr-sandbox-entry
+$ apparmor_parser --remove /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
+$ apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
+$ aa-status
+apparmor module is loaded.
+122 profiles are loaded.
+28 profiles are in enforce mode.
+   /usr/bin/man
+   /usr/lib/snapd/snap-confine
+   aspr-broker
+   aspr-bwrap-setup
+   aspr-namespace-setup
+   aspr-sandbox-payload
+   aspr-sftp-v1
+   lsb_release
+   man_filter
+   man_groff
+   nvidia_modprobe
+   nvidia_modprobe//kmod
+   plasmashell
+   plasmashell//QtWebEngineProcess
+   rsyslogd
+   tcpdump
+   ubuntu_pro_apt_news
+   ubuntu_pro_esm_cache
+   ubuntu_pro_esm_cache//apt_methods
+   ubuntu_pro_esm_cache//apt_methods_gpgv
+   ubuntu_pro_esm_cache//cloud_id
+   ubuntu_pro_esm_cache//dpkg
+   ubuntu_pro_esm_cache//ps
+   ubuntu_pro_esm_cache//ubuntu_distro_info
+   ubuntu_pro_esm_cache_systemctl
+   ubuntu_pro_esm_cache_systemd_detect_virt
+   unix-chkpwd
+   unprivileged_userns
+4 profiles are in complain mode.
+   transmission-cli
+   transmission-daemon
+   transmission-gtk
+   transmission-qt
+0 profiles are in prompt mode.
+0 profiles are in kill mode.
+90 profiles are in unconfined mode.
+   1password
+   Discord
+   MongoDB Compass
+   QtWebEngineProcess
+   balena-etcher
+   brave
+   buildah
+   bwrap
+   cam
+   ch-checkns
+   ch-run
+   chrome
+   crun
+   devhelp
+   element-desktop
+   epiphany
+   evolution
+   firefox
+   flatpak
+   foliate
+   geary
+   github-desktop
+   goldendict
+   ipa_verify
+   kchmviewer
+   keybase
+   lc-compliance
+   libcamerify
+   linux-sandbox
+   loupe
+   lxc-attach
+   lxc-create
+   lxc-destroy
+   lxc-execute
+   lxc-stop
+   lxc-unshare
+   lxc-usernsexec
+   mmdebstrap
+   msedge
+   notepadqq
+   obsidian
+   opam
+   opera
+   pageedit
+   podman
+   polypane
+   privacybrowser
+   qcam
+   qmapshack
+   qutebrowser
+   rootlesskit
+   rpm
+   rssguard
+   runc
+   sbuild
+   sbuild-abort
+   sbuild-adduser
+   sbuild-apt
+   sbuild-checkpackages
+   sbuild-clean
+   sbuild-createchroot
+   sbuild-destroychroot
+   sbuild-distupgrade
+   sbuild-hold
+   sbuild-shell
+   sbuild-unhold
+   sbuild-update
+   sbuild-upgrade
+   scide
+   signal-desktop
+   slack
+   slirp4netns
+   steam
+   stress-ng
+   surfshark
+   systemd-coredump
+   thunderbird
+   toybox
+   trinity
+   tup
+   tuxedo-control-center
+   userbindmount
+   uwsgi-core
+   vdens
+   virtiofsd
+   vivaldi-bin
+   vpnns
+   vscode
+   wike
+   wpcom
+2 processes have profiles defined.
+2 processes are in enforce mode.
+   /usr/bin/python3.12 (149856) aspr-broker
+   /usr/sbin/rsyslogd (717) rsyslogd
+0 processes are in complain mode.
+0 processes are in prompt mode.
+0 processes are in kill mode.
+0 processes are unconfined but have a profile defined.
+0 processes are in mixed mode.
+$ unshare -m --propagation private aa-exec -p aspr-bwrap-setup -- mount -t tmpfs -o nosuid,nodev tmpfs /tmp
+$ unshare -U -r aa-exec -p aspr-bwrap-setup -- unshare -U -r true
+$ sudo -u testuser env XDG_RUNTIME_DIR=/run/user/1002 python3 /tmp/packet36b-source/scripts/sandbox_enforce_acceptance.py
+{"all_capability_sets_zero": "passed", "all_network_socket_tables_empty": "passed", "all_non_loopback_interfaces_absent": "passed", "credentials_and_sockets_absent": "passed", "dns_absent": "passed", "entrypoint": "/usr/libexec/astral-project/aspr-sandbox-entry", "launcher": "/usr/libexec/astral-project/aspr-bwrap-launch", "native_negative_controls": "passed", "network_inherit": "passed", "network_none": "passed", "runtime": "/run/user/1002"}
+$ cc -std=c11 -O2 -Wall -Wextra -Werror /tmp/packet36b-source/scripts/apparmor_net_admin_probe.c -o /usr/libexec/astral-project/aspr-apparmor-net-admin-probe
+$ apparmor_parser --remove /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
+$ apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
+$ taskset -c 0 unshare -n aa-exec -p aspr-bwrap-setup -- /usr/libexec/astral-project/aspr-apparmor-net-admin-probe
+setup_net_admin_probe_audit=passed
+audit: type=1400 audit(1787874079.503:13407): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=163751 comm="aspr-apparmor-n" capability=12  capname="net_admin"
+$ apparmor_parser --remove /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
+$ apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
+$ sudo -u testuser env XDG_RUNTIME_DIR=/run/user/1002 /usr/bin/aspr sandbox --network none -- /bin/true
+ASPRB64
+QVNQUlNCMDEBAAAAAQAAAAkvYmluL3RydWUAAAAAAAAAAAAAAQAAADUvcnVuL3VzZXIvMTAwMi9hc3RyYWwtcHJvamVjdC9wcm9qZWN0ZWQtaG9tZS0wcHRjb3c2NgAA
+setup_runtime_capabilities=passed
+audit: type=1400 audit(1787874085.476:13413): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=163766 comm="bwrap" capability=21  capname="sys_admin"
+audit: type=1400 audit(1787874085.477:13415): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=163767 comm="bwrap" capability=8  capname="setpcap"
+audit: type=1400 audit(1787874085.477:13416): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=163767 comm="bwrap" capability=12  capname="net_admin"
+audit: type=1400 audit(1787874085.477:13417): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=163767 comm="bwrap" capability=21  capname="sys_admin"
+$ apparmor_parser --remove /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
+$ apparmor_parser --replace /tmp/aspr-bwrap-no-net-admin
+$ taskset -c 0 unshare -n aa-exec -p aspr-bwrap-setup -- /usr/libexec/astral-project/aspr-apparmor-net-admin-probe
+setup_net_admin_negative_probe=passed
+audit: type=1400 audit(1787874106.306:13425): apparmor="DENIED" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=163776 comm="aspr-apparmor-n" capability=12  capname="net_admin"
+$ sudo -u testuser env XDG_RUNTIME_DIR=/run/user/1002 /usr/bin/aspr sandbox --network none -- /bin/true
+bwrap: loopback: Failed RTM_NEWADDR: No child processes
+setup_net_admin_runtime_dependency=passed
+$ apparmor_parser --remove /tmp/aspr-bwrap-no-net-admin
+$ apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
+$ taskset -c 0 unshare -n aa-exec -p aspr-bwrap-setup -- /usr/libexec/astral-project/aspr-apparmor-net-admin-probe
+setup_profile_restored_net_admin=passed
+audit: type=1400 audit(1787874112.509:13435): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=163794 comm="aspr-apparmor-n" capability=12  capname="net_admin"
+$ sudo -u testuser env XDG_RUNTIME_DIR=/run/user/1002 /usr/bin/aspr sandbox --network none -- /bin/true
+$ aa-status
+apparmor module is loaded.
+122 profiles are loaded.
+28 profiles are in enforce mode.
+   /usr/bin/man
+   /usr/lib/snapd/snap-confine
+   aspr-broker
+   aspr-bwrap-setup
+   aspr-namespace-setup
+   aspr-sandbox-payload
+   aspr-sftp-v1
+   lsb_release
+   man_filter
+   man_groff
+   nvidia_modprobe
+   nvidia_modprobe//kmod
+   plasmashell
+   plasmashell//QtWebEngineProcess
+   rsyslogd
+   tcpdump
+   ubuntu_pro_apt_news
+   ubuntu_pro_esm_cache
+   ubuntu_pro_esm_cache//apt_methods
+   ubuntu_pro_esm_cache//apt_methods_gpgv
+   ubuntu_pro_esm_cache//cloud_id
+   ubuntu_pro_esm_cache//dpkg
+   ubuntu_pro_esm_cache//ps
+   ubuntu_pro_esm_cache//ubuntu_distro_info
+   ubuntu_pro_esm_cache_systemctl
+   ubuntu_pro_esm_cache_systemd_detect_virt
+   unix-chkpwd
+   unprivileged_userns
+4 profiles are in complain mode.
+   transmission-cli
+   transmission-daemon
+   transmission-gtk
+   transmission-qt
+0 profiles are in prompt mode.
+0 profiles are in kill mode.
+90 profiles are in unconfined mode.
+   1password
+   Discord
+   MongoDB Compass
+   QtWebEngineProcess
+   balena-etcher
+   brave
+   buildah
+   bwrap
+   cam
+   ch-checkns
+   ch-run
+   chrome
+   crun
+   devhelp
+   element-desktop
+   epiphany
+   evolution
+   firefox
+   flatpak
+   foliate
+   geary
+   github-desktop
+   goldendict
+   ipa_verify
+   kchmviewer
+   keybase
+   lc-compliance
+   libcamerify
+   linux-sandbox
+   loupe
+   lxc-attach
+   lxc-create
+   lxc-destroy
+   lxc-execute
+   lxc-stop
+   lxc-unshare
+   lxc-usernsexec
+   mmdebstrap
+   msedge
+   notepadqq
+   obsidian
+   opam
+   opera
+   pageedit
+   podman
+   polypane
+   privacybrowser
+   qcam
+   qmapshack
+   qutebrowser
+   rootlesskit
+   rpm
+   rssguard
+   runc
+   sbuild
+   sbuild-abort
+   sbuild-adduser
+   sbuild-apt
+   sbuild-checkpackages
+   sbuild-clean
+   sbuild-createchroot
+   sbuild-destroychroot
+   sbuild-distupgrade
+   sbuild-hold
+   sbuild-shell
+   sbuild-unhold
+   sbuild-update
+   sbuild-upgrade
+   scide
+   signal-desktop
+   slack
+   slirp4netns
+   steam
+   stress-ng
+   surfshark
+   systemd-coredump
+   thunderbird
+   toybox
+   trinity
+   tup
+   tuxedo-control-center
+   userbindmount
+   uwsgi-core
+   vdens
+   virtiofsd
+   vivaldi-bin
+   vpnns
+   vscode
+   wike
+   wpcom
+2 processes have profiles defined.
+2 processes are in enforce mode.
+   /usr/bin/python3.12 (149856) aspr-broker
+   /usr/sbin/rsyslogd (717) rsyslogd
+0 processes are in complain mode.
+0 processes are in prompt mode.
+0 processes are in kill mode.
+0 processes are unconfined but have a profile defined.
+0 processes are in mixed mode.
+setup_profile_restored=passed
+audit: type=1400 audit(1787874062.672:13381): apparmor="AUDIT" operation="mount" class="mount" profile="aspr-bwrap-setup" name="/tmp/" pid=163682 comm="mount" fstype="tmpfs" srcname="tmpfs" flags="rw, nosuid, nodev"
+audit: type=1400 audit(1787874062.672:13382): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=163682 comm="mount" capability=21  capname="sys_admin"
+audit: type=1400 audit(1787874062.674:13384): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=163683 comm="unshare" capability=21  capname="sys_admin"
+audit: type=1400 audit(1787874063.069:13387): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=163694 comm="bwrap" capability=8  capname="setpcap"
+audit: type=1400 audit(1787874063.069:13388): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=163694 comm="bwrap" capability=21  capname="sys_admin"
+audit: type=1400 audit(1787874063.069:13389): apparmor="AUDIT" operation="mount" class="mount" profile="aspr-bwrap-setup" name="/tmp/" pid=163694 comm="bwrap" fstype="tmpfs" srcname="tmpfs" flags="rw, nosuid, nodev"
+{"audit_serial_baseline": 13380, "normal_audit_records": 8, "normal_setup_capabilities": ["setpcap", "sys_admin"], "normal_setup_operations": ["capable", "mount", "userns_create"], "setup_mount_probe": "passed", "setup_net_admin_negative_probe": "passed", "setup_net_admin_probe": "passed", "setup_net_admin_runtime_dependency": "passed", "setup_profile_restored": "passed", "setup_runtime_capabilities": ["net_admin", "setpcap", "sys_admin"], "setup_userns_probe": "passed"}
+
+--- mounted composite, learner, and remote transcript ---
+mounted-nested-host-read=passed
+mounted-root-listing-denied=passed
+mounted-opaque-listing-denied=passed
+mounted-sibling-hidden=passed
+mounted-absent-private-parent=passed
+mounted-absent-overlay-parent=passed
+mounted-overlay-lower-immutable=passed
+installed-composite-synthetic-ancestor-acceptance=passed
+COMMAND=sudo -u testuser env -u PYTHONPATH PATH=/usr/bin:/bin /usr/bin/python3 scripts/learner_acceptance.py
+{"id":"agents-default","name":"agents-default","provenance":3,"revision":3,"rules":1,"sealed":true}
+observer-disabled=passed
+learner-external-approval=passed
+learner-rule-persistence=passed
+learner-second-project-reuse=passed
+learner-sealed-known-path=passed
+learner-unrelated-home-hidden=passed
+case-installed-fixed-aspr=passed
+case-isolated-import-environment=passed
+case-profile-create=passed
+case-external-approval-socket=passed
+case-external-approval-request=passed
+case-unknown-lookup-approved=passed
+case-unknown-read-approved=passed
+case-external-approval-count=passed
+case-approved-rule-persisted=passed
+case-second-project-profile-reuse=passed
+case-second-project-known-read=passed
+case-reuse-without-new-approval=passed
+case-observer-authority-disabled=passed
+case-profile-sealing=passed
+case-sealed-known-lookup=passed
+case-sealed-known-read=passed
+case-sealed-unrelated-path-hidden=passed
+case-projected-home-mounted=passed
+case-projected-home-noexec=passed
+case-host-rx-profile-authorized=passed
+case-host-rx-exact-path=passed
+case-host-rx-fixed-executor-output=passed
+case-host-rx-unapproved-path-denied=passed
+case-host-rx-manifest-lifecycle=passed
+case-network-none-projector=passed
+case-learner-end-to-end=passed
+learner-case-count=26
+COMMAND=sudo -u testuser env -u PYTHONPATH PATH=/usr/bin:/bin /usr/bin/python3 scripts/sandbox_acceptance.py ... rclone-1.73.3
+{"descendant_scope_isolated": "passed", "hidden_fuse_and_daemon_socket": "passed", "negative_source_authority": {"ancestor": "rejected", "sibling": "rejected", "traversal": "rejected"}, "network_none": "passed", "package": "installed", "remote_loss": "terminated", "sandbox_positive": "passed", "session_id": "34959e43-5379-4836-86c8-8fd64340aa66", "target": "unknown"}
 
 final-artifact-all-acceptance-exit=0
