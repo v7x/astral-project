@@ -2,13 +2,13 @@
 
 ## Local verification
 
-- Latest exact `./scripts/test`: `771 passed, 1 skipped, 9 warnings`, strict mypy and Ruff passed.
+- Latest exact `./scripts/test`: `773 passed, 1 skipped, 9 warnings`, strict mypy and Ruff passed.
   It covers profile lifecycle, strict schema migration, mediation, private/overlay
   state, environment and resource policy (including production PATH visible-root
   wiring), native sandbox ABI, remote binding forwarding, learner persistence, and
   failed-learning draft rollback, epoch-zero provenance round-trips, and invalid UTF-8
   profile rejection through the stable CLI failure path.
-- Latest exact `./scripts/test` coverage: `TOTAL 10427 0 3016 0 100%`.
+- Latest exact `./scripts/test` coverage: `TOTAL 10433 0 3020 0 100%`.
 - `uv run ruff check src tests scripts` passes.
 - `uv run mypy` passes in strict mode.
 - Native launcher compiles with `-std=c11 -O2 -Wall -Wextra -Werror`.
@@ -20,6 +20,7 @@ Run, as unprivileged user, after installing built wheel:
 ```text
 python3 scripts/profile_boundary_acceptance.py
 python3 scripts/writable_home_acceptance.py
+python3 scripts/composite_projected_home_acceptance.py
 python3 scripts/learner_acceptance.py
 python3 scripts/learner_interactive_acceptance.py
 ```

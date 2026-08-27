@@ -25,8 +25,10 @@ Raw sockets are disabled by default and remain gated by explicit strong confirma
   denial.
 - Packet 36A closes the integrated learner findings: one composite FUSE inode and
   handle namespace dispatches host/private/overlay operations; cross-root rename
-  fails with `EXDEV`; opaque ancestors permit lookup/stat of sealed descendants but
-  reject enumeration; mediated terminal transport has no external approval authority
+  fails with `EXDEV`; opaque/synthetic ancestors permit only lookup/stat traversal
+  toward known descendants and never derive LIST authority from profile topology;
+  nested private/overlay roots do not depend on host-home ancestors; mediated terminal
+  transport has no external approval authority
   without `--external`; and host-rx executes one exact profile-approved projected-home
   command while the projected HOME mount remains `noexec`.
 - The packaged closure declares `python3-pyfuse3` beside `python3-cbor2` and
@@ -38,7 +40,9 @@ Raw sockets are disabled by default and remain gated by explicit strong confirma
 
 Run unit and integration gates from `docs/evidence/packet-33-36-acceptance.md`.
 Packaged profile/resource acceptance uses `scripts/profile_boundary_acceptance.py`.
-Projected-home FUSE acceptance uses `scripts/writable_home_acceptance.py`.
+Projected-home FUSE acceptance uses `scripts/writable_home_acceptance.py` and
+`scripts/composite_projected_home_acceptance.py`; the latter exercises installed
+synthetic host/private/overlay ancestor behavior on disposable fixtures.
 Integrated learner acceptance uses `scripts/learner_acceptance.py` for external
 approval and `scripts/learner_interactive_acceptance.py` for trusted terminal approval.
 The learner driver also proves reuse from a distinct second home/project with the
@@ -50,7 +54,7 @@ acceptance, unloads/reloads production policy before one positive `SIOCSIFFLAGS`
 request, proves allowed `net_admin`, removes exactly that permission in a temporary
 profile and proves probe/runtime denial, then restores and proves production success.
 The final Packet 36A artifact SHA-256 is
-`6693c1fbf1dbe3067f86ed349d42497c1e91f2283c9f7157bb1479f881c964d9`;
+`b729a9ed055daf7b44dbae338f67a2962775b46698bf64f87d52809e0638caeb`;
 its raw learner/host-rx and final Packet 23–24 confinement outputs are recorded in
 `docs/evidence/packet-33-36-ubuntu24-raw.txt` and
 `docs/evidence/packet-33-36-ubuntu26-raw.txt`. Both releases passed all 26 explicit
@@ -67,7 +71,7 @@ duplicate-key, indefinite-item, and trailing-byte rejection on Ubuntu 24.04's ol
 distro runtime. Fresh remote signed-grant, descendant-isolation, source-authority,
 network-none, and remote-loss checks pass on both releases. The final installed
 AppArmor rerun records parser/package/securityfs revisions `4.0.1` /
-`4.0.1really4.0.1-0ubuntu0.24.04.7` / `709` on Ubuntu 24.04 and
-`5.0.0~beta1` / `5.0.0~beta1-0ubuntu7` / `751` on Ubuntu 26.04. No supplied Packet 36A
+`4.0.1really4.0.1-0ubuntu0.24.04.7` / `781` on Ubuntu 24.04 and
+`5.0.0~beta1` / `5.0.0~beta1-0ubuntu7` / `817` on Ubuntu 26.04. No supplied Packet 36A
 security or correctness finding remains open; Integrated Learner Gate is asserted
 closed only after fresh auditor approval.
