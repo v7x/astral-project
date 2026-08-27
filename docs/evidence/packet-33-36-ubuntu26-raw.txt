@@ -87,6 +87,10 @@ python=Python 3.14.4
 pyfuse3=3.4.0-3build5
 artifact-deb-command=sh packaging/debian/build-deb.sh /tmp/packet36a-release.DLyFIs
 artifact-deb-sha256=b02da997a875c721c2bdb550ed6819ae29d083cc147e44c5cde54f2d4607d498
+source-commit=90de0c06aba6392180c865cb3b1572b530d49c73
+source-tracked-status=clean
+learner-driver-sha256=5c9ffc895bd9363997eeba63adefa7e8fdfc4f01bcdba541bcc150a7e5bb5dc2
+enforce-driver-sha256=463129c5bc798887ddaf10fbd93134a347b223d476683792044c022971781f7e
 command=sudo -u testuser XDG_RUNTIME_DIR=/run/user/1001 PATH=/usr/bin:/bin /usr/bin/python3 /tmp/packet36a-learner-acceptance.py
 {"id":"agents-default","name":"agents-default","provenance":3,"revision":3,"rules":1,"sealed":true}
 observer-disabled=passed
