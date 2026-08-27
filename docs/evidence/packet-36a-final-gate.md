@@ -30,6 +30,11 @@ all 26 learner case results, and signed remote multi-mount/loss results.
 
 Ubuntu 24.04 certified closure: `python3-pyfuse3 3.3.0-0.1`, Trio `0.24.0`.
 Ubuntu 26.04 certified closure: `python3-pyfuse3 3.4.0-3build5`, Trio `0.32.0`.
+The versioned final-artifact rerun records AppArmor parser/package/securityfs
+versions: Ubuntu 24.04 `4.0.1` / `4.0.1really4.0.1-0ubuntu0.24.04.7` / revision
+`709`; Ubuntu 26.04 `5.0.0~beta1` / `5.0.0~beta1-0ubuntu7` / revision `751`.
+The kernel-side version is not exposed by either running kernel; the live securityfs
+revision is recorded rather than inferred.
 The strict CBOR fallback is covered by `tests/unit/test_crypto_cbor.py` (30 focused
 cases plus full-suite coverage) and keeps
 Ubuntu 24.04's older distro decoder fail-closed without ambient `/usr/local` imports.

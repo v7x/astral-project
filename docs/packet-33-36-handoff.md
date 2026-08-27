@@ -65,6 +65,9 @@ abstract socket support, ambient environment inheritance, or real-home writable
 passthrough is introduced. The strict CBOR compatibility decoder preserves canonical,
 duplicate-key, indefinite-item, and trailing-byte rejection on Ubuntu 24.04's older
 distro runtime. Fresh remote signed-grant, descendant-isolation, source-authority,
-network-none, and remote-loss checks pass on both releases. No supplied Packet 36A
+network-none, and remote-loss checks pass on both releases. The final installed
+AppArmor rerun records parser/package/securityfs revisions `4.0.1` /
+`4.0.1really4.0.1-0ubuntu0.24.04.7` / `709` on Ubuntu 24.04 and
+`5.0.0~beta1` / `5.0.0~beta1-0ubuntu7` / `751` on Ubuntu 26.04. No supplied Packet 36A
 security or correctness finding remains open; Integrated Learner Gate is asserted
 closed only after fresh auditor approval.
