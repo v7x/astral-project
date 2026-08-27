@@ -19,6 +19,7 @@ from typing import BinaryIO, Protocol, cast
 
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.core.paths import ensure_private_directory
+from astral_project.sandbox.environment import sanitize_subprocess_environment
 from astral_project.server.protocol import read_outer_response, write_outer_request
 from astral_project.session.contracts import RemoteSessionRequestV1
 
@@ -316,6 +317,16 @@ def open_remote_sftp_stream(
         stdout=subprocess.PIPE,
         stderr=None,
         close_fds=True,
+        env=sanitize_subprocess_environment(
+            os.environ,
+            visible_paths=(
+                Path("/usr"),
+                Path("/bin"),
+                Path("/sbin"),
+                Path("/lib"),
+                Path("/lib64"),
+            ),
+        ),
     )
     stream = ProcessStream(process)
     try:

@@ -322,7 +322,17 @@ def test_open_remote_stream_consumes_ready(monkeypatch: pytest.MonkeyPatch) -> N
             _ = timeout
 
     process = Process()
-    monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: process)
+    captured: dict[str, object] = {}
+
+    def fake_popen(*args: object, **kwargs: object) -> Process:
+        captured.update(kwargs)
+        return process
+
+    monkeypatch.setenv("LANG", "C")
+    monkeypatch.delenv("TERM", raising=False)
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "must-not-appear")
+    monkeypatch.setenv("PATH", "/not-visible")
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
     stream = open_remote_sftp_stream(
         Request(),  # type: ignore[arg-type]
         ssh_binary=Path("/usr/bin/ssh"),
@@ -331,6 +341,9 @@ def test_open_remote_stream_consumes_ready(monkeypatch: pytest.MonkeyPatch) -> N
         remote_user="alice",
     )
     assert process.stdin.getvalue()
+    child_environment = captured["env"]
+    assert isinstance(child_environment, dict)
+    assert child_environment == {"LANG": "C"}
     stream.close()
 
 

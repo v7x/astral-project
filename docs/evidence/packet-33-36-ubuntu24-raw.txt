@@ -1,0 +1,81 @@
+release=Ubuntu 24.04.4 LTS
+python=Python 3.12.3
+pyfuse3=3.5.0
+artifact-build-command=uv build --wheel --out-dir /tmp/aspr-pkg-utf8-final
+artifact-deb-command=sh packaging/debian/build-deb.sh /tmp/aspr-deb-utf8-final
+artifact-native-command=cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-bwrap-launch.c -o /tmp/aspr-bwrap-launch-socket-bind
+artifact-output:
+4d55b0e2b8d5288c033150305906a82b33ab25be33ec0efd4d6135ca4540c695  /tmp/aspr-pkg-utf8-final/astral_project-0.1.0-py3-none-any.whl
+1ed836e6bd9a46c192d675aad2974cb012264cc15bccf277d6e967c0f45292d4  /tmp/aspr-deb-utf8-final/astral-project_0.1.0_amd64.deb
+b9965bef4cdae295fd4d4ec098f902657963537e23f326a058df89f8d0a488af  /tmp/aspr-bwrap-launch-socket-bind
+install-command=python3 -m pip install --break-system-packages --no-deps --force-reinstall /tmp/astral_project-0.1.0-py3-none-any.whl
+native-install-command=install -o root -g root -m 0555 /tmp/aspr-bwrap-launch-socket-bind /usr/libexec/astral-project/aspr-bwrap-launch
+apparmor-install-command=install -o root -g root -m 0644 /tmp/aspr-bwrap-aa /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
+apparmor-reload-command=apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
+script-profile-boundary-sha256=27c8a612c46607af7a2c2746540ef22ca70148a6c27b144ca08e5dc56bef1308
+script-learner-sha256=adbd663277ac5aeaa83685870cb855141cf9b6f77b16c5438c298a6c9802f5ed
+
+COMMAND sudo -u testuser -H python3 /tmp/profile_boundary_acceptance.py
+installed-exact-socket-access=passed
+profile-lifecycle-compatibility=passed
+environment-secret-and-path-boundary=passed
+socket-credential-boundary=passed
+credential-projected-home-confirmation=passed
+raw-socket-denial=passed
+native-path-propagation=passed
+learner-remote-forwarding=passed
+profile-export-import-semantics=passed
+packaged-profile-boundary-acceptance=passed
+EXIT 0
+
+COMMAND sudo -u testuser -H python3 /tmp/writable_home_acceptance.py
+private-fuse-write-read=passed
+private-fuse-persistence=passed
+overlay-fuse-copyup-whiteout-lower-immutable=passed
+installed-writable-fuse-acceptance=passed
+EXIT 0
+
+COMMAND sudo -u testuser -H python3 /tmp/approval_acceptance.py
+ASPRB64
+QVNQUlNCMDEBAAAAAwAAAAcvYmluL3NoAAAAAi1jAAAAPmNhdCAvaG9tZS9zYW5kYm94Ly51bmtub3duID4vdG1wL3Jlc3VsdCAmJiB0ZXN0IC1zIC90bXAvcmVzdWx0AAAAAAAAAAAAAAEAAABGL3RtcC9hc3ByLWFwcHJvdmFsLWFjY2VwdGFuY2UtdDVqYzhzcDQvcnVudGltZS9wcm9qZWN0ZWQtaG9tZS1mZ2o1cm05dAA=
+[approval pending; child input stopped]
+[approval required] session=d79ce09668834608ab571758ef31dc88 request=1 operation=lookup component='.unknown' opaque=False sensitivity=other
+[y] allow once  [n] deny  [h] hide
+[approval resolved]
+[approval pending; child input stopped]
+[approval required] session=d79ce09668834608ab571758ef31dc88 request=2 operation=stat component='.unknown' opaque=False sensitivity=other
+[y] allow once  [n] deny  [h] hide
+[approval resolved]
+[approval pending; child input stopped]
+[approval required] session=d79ce09668834608ab571758ef31dc88 request=3 operation=read component='.unknown' opaque=False sensitivity=other
+[y] allow once  [n] deny  [h] hide
+[approval resolved]
+[approval pending; press Ctrl-] to review]
+trusted-child
+unknown-path-mediation=passed
+timeout-and-queue-bounds=passed
+exact-session-and-deny-hide=passed
+opaque-ancestor-list-deny=passed
+sandbox-projected-mediation=passed
+trusted-pty-terminal=passed
+terminal-cleanup=passed
+terminal-guard-crash=passed
+sandbox-approval-socket-absent=passed
+EXIT 0
+
+COMMAND sudo -u testuser -H python3 /tmp/learner_acceptance.py
+{"id":"agents-default","name":"agents-default","provenance":3,"revision":3,"rules":1,"sealed":true}
+observer-disabled=passed
+learner-external-approval=passed
+learner-rule-persistence=passed
+learner-second-project-reuse=passed
+learner-sealed-known-path=passed
+learner-unrelated-home-hidden=passed
+learner-end-to-end=passed
+EXIT 0
+
+COMMAND sudo -u testuser -H python3 /tmp/learner_interactive_acceptance.py
+learner-trusted-interactive-approval=passed
+learner-trusted-rule-persistence=passed
+learner-interactive-end-to-end=passed
+EXIT 0

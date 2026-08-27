@@ -8,6 +8,8 @@ import pytest
 
 from astral_project import cli
 from astral_project.core.errors import AstralError, ErrorCode
+from astral_project.profile import Profile, ProfileError
+from astral_project.profile_lifecycle import ProfileStore
 
 
 def invoke(
@@ -82,6 +84,40 @@ def test_lifecycle_daemon_errors_and_unknown_shapes(monkeypatch: pytest.MonkeyPa
     assert invoke(["grant", "revoke", "g", "bad"], monkeypatch)[0] == 2
     assert invoke(["session", "close"], monkeypatch)[0] == 2
     assert invoke(["mount", "bogus"], monkeypatch)[0] == 2
+
+
+def test_invalid_utf8_profile_fails_closed_in_cli(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    home = tmp_path / "home"
+    config = tmp_path / "config"
+    runtime = tmp_path / "runtime"
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(config))
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(runtime))
+
+    store = ProfileStore(config / "astral-project")
+    store.create("p")
+    invalid_utf8 = bytes([0xFF])
+    with pytest.raises(ProfileError, match="invalid profile TOML"):
+        Profile.from_toml(invalid_utf8)
+    store.path("p").write_bytes(invalid_utf8)
+    output = StringIO()
+    diagnostic = StringIO()
+    assert cli.run(["profile", "review", "p"], stdout=output, stderr=diagnostic) == 70
+    assert "profile could not be loaded: p" in diagnostic.getvalue()
+    assert "Traceback" not in diagnostic.getvalue()
+
+    invalid_import = tmp_path / "invalid.toml"
+    invalid_import.write_bytes(invalid_utf8)
+    invalid_import.chmod(0o600)
+    output = StringIO()
+    diagnostic = StringIO()
+    assert (
+        cli.run(["profile", "import", str(invalid_import)], stdout=output, stderr=diagnostic) == 70
+    )
+    assert "profile import is invalid" in diagnostic.getvalue()
+    assert "Traceback" not in diagnostic.getvalue()
 
 
 def test_lifecycle_errors_stay_stable(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

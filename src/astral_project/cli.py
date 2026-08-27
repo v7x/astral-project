@@ -20,6 +20,9 @@ from astral_project.daemon.client import DaemonClient
 from astral_project.daemon.server import DaemonPaths, DaemonServer
 from astral_project.host.probe import run_ssh_probe, subprocess_runner
 from astral_project.host.records import HostRecord
+from astral_project.learner import LearnerError, ProfileLearner
+from astral_project.profile import Profile, ProfileError
+from astral_project.profile_lifecycle import ProfileStore
 from astral_project.sandbox.command import run_sandbox
 from astral_project.sandbox.session_api import SessionApiClient
 from astral_project.server.entry import run_ssh_entry
@@ -222,6 +225,112 @@ def _run_json_operation(
     return 0
 
 
+def _profile_store() -> ProfileStore:
+    return ProfileStore(resolve_xdg_paths(os.environ).config)
+
+
+def _profile_json(profile: Profile) -> str:
+    return json.dumps(
+        {
+            "id": profile.profile_id,
+            "name": profile.name,
+            "revision": profile.revision,
+            "sealed": profile.sealed,
+            "rules": len(profile.rules),
+            "provenance": len(profile.provenance),
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
+def _run_profile(arguments: Sequence[str], stdout: TextIO, stderr: TextIO) -> int:
+    if len(arguments) < 2:
+        return _write_unknown_command("profile", stderr)
+    command = arguments[1]
+    store = _profile_store()
+    if command == "learn":
+        if len(arguments) < 4 or "--" not in arguments[3:]:
+            return _write_unknown_command("profile learn", stderr)
+        separator = arguments.index("--", 3)
+        options = list(arguments[3:separator])
+        external_only = False
+        grant_id: str | None = None
+        remotes: list[str] = []
+        index = 0
+        while index < len(options):
+            option = options[index]
+            if option == "--external" and not external_only:
+                external_only = True
+            elif option == "--grant" and grant_id is None and index + 1 < len(options):
+                index += 1
+                grant_id = options[index]
+            elif option == "--remote" and index + 1 < len(options):
+                index += 1
+                remotes.append(options[index])
+            else:
+                return _write_unknown_command("profile learn", stderr)
+            index += 1
+        if bool(remotes) != (grant_id is not None):
+            return _write_unknown_command("profile learn", stderr)
+        learner = ProfileLearner(store, state_root=resolve_xdg_paths(os.environ).state)
+        return learner.run(
+            arguments[2],
+            arguments[separator + 1 :],
+            runtime=resolve_xdg_paths(os.environ).runtime,
+            approval_socket=Path(os.environ["ASPR_APPROVAL_SOCKET"])
+            if os.environ.get("ASPR_APPROVAL_SOCKET")
+            else None,
+            external_only=external_only,
+            session_id=os.environ.get("ASPR_LEARN_SESSION_ID"),
+            grant_id=grant_id,
+            remotes=remotes,
+            daemon_request=_daemon_request,
+        )
+    if command == "create" and len(arguments) in {3, 5}:
+        name = None
+        if len(arguments) == 5 and arguments[3] == "--name":
+            name = arguments[4]
+        elif len(arguments) == 5:
+            return _write_unknown_command("profile create", stderr)
+        stdout.write(_profile_json(store.create(arguments[2], name=name)) + "\n")
+        return 0
+    if command == "list" and len(arguments) == 2:
+        values = [json.loads(_profile_json(profile)) for profile in store.list()]
+        stdout.write(json.dumps(values, separators=(",", ":"), sort_keys=True) + "\n")
+        return 0
+    if command in {"review", "seal", "unseal", "archive"} and len(arguments) == 3:
+        profile_id = arguments[2]
+        if command == "review":
+            value = store.review(profile_id)
+            stdout.write(value)
+            if not value.endswith("\n"):
+                stdout.write("\n")
+            return 0
+        if command == "archive":
+            stdout.write(json.dumps({"archive": str(store.archive_profile(profile_id))}) + "\n")
+        else:
+            profile = store.seal(profile_id) if command == "seal" else store.unseal(profile_id)
+            stdout.write(_profile_json(profile) + "\n")
+        return 0
+    if command == "diff" and len(arguments) == 4:
+        stdout.write(store.diff(arguments[2], Path(arguments[3])))
+        return 0
+    if command == "edit" and len(arguments) == 3:
+        stdout.write(_profile_json(store.edit(arguments[2])) + "\n")
+        return 0
+    if command == "export" and len(arguments) == 4:
+        store.export(arguments[2], Path(arguments[3]))
+        stdout.write(json.dumps({"export": arguments[3]}) + "\n")
+        return 0
+    if command == "import" and len(arguments) in {3, 4}:
+        requested_id = arguments[3] if len(arguments) == 4 else None
+        profile = store.import_profile(Path(arguments[2]), profile_id=requested_id)
+        stdout.write(_profile_json(profile) + "\n")
+        return 0
+    return _write_unknown_command(" ".join(arguments[:2]), stderr)
+
+
 def _run_lifecycle(arguments: Sequence[str], stdout: TextIO, stderr: TextIO) -> int:
     if len(arguments) >= 2 and arguments[0] == "grant":
         command = arguments[1]
@@ -349,6 +458,19 @@ def _run_ls(arguments: Sequence[str], stdout: TextIO, stderr: TextIO) -> int:
 
 def _run_internal(mode: str, stderr: TextIO) -> int:
     """Run hidden trusted-process mode without exposing public command surface."""
+    if mode == "homed":
+        from astral_project.homed.fuse import FuseUnavailable, mount_empty
+
+        mountpoint = os.environ.get("ASPR_HOMED_MOUNTPOINT")
+        if not mountpoint:
+            stderr.write("ASPR_HOMED_MOUNTPOINT is required for internal homed mode\n")
+            return 70
+        try:
+            mount_empty(mountpoint, debug=os.environ.get("ASPR_HOMED_DEBUG") == "1")
+        except (FuseUnavailable, OSError) as error:
+            stderr.write(f"aspr-homed could not start: {error}\n")
+            return 70
+        return 0
     if mode == "daemon":
         daemon = DaemonServer(_daemon_paths())
         try:
@@ -439,6 +561,12 @@ def run(argv: Sequence[str], *, stdout: TextIO, stderr: TextIO) -> int:
         )
     if arguments and arguments[0] == "ls":
         return _run_ls(arguments, stdout, stderr)
+    if arguments and arguments[0] == "profile":
+        try:
+            return _run_profile(arguments, stdout, stderr)
+        except (ProfileError, LearnerError, AstralError) as error:
+            stderr.write(f"{error}\n")
+            return 70
     if arguments and arguments[0] in {"grant", "session", "mount"}:
         try:
             return _run_lifecycle(arguments, stdout, stderr)

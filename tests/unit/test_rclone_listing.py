@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
@@ -129,6 +130,16 @@ def test_ephemeral_sftp_config_has_fixed_transport_and_no_token(tmp_path: Path) 
     path = write_sftp_config(tmp_path / "rclone.conf", remote)
     assert path.read_text() == content
     assert path.stat().st_mode & 0o077 == 0
+
+
+def test_rclone_listing_imports_in_clean_process() -> None:
+    result = subprocess.run(
+        [sys.executable, "-c", "import astral_project.rclone.listing"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_run_rclone_translates_process_failures(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -358,11 +369,20 @@ def test_listing_argv_and_runner_security(tmp_path: Path, monkeypatch: pytest.Mo
         config=tmp_path / "rclone.conf",
         target="remote:/x",
         options=ListingOptions(),
-        environment={"RCLONE_CONFIG": "bad", "HOME": "/tmp"},
+        environment={
+            "RCLONE_CONFIG": "bad",
+            "HOME": "/tmp",
+            "AWS_SECRET_ACCESS_KEY": "must-not-appear",
+            "ASPR_APPROVAL_SOCKET": "/tmp/approval.sock",
+            "PATH": "/usr/bin:/not-visible",
+        },
         runner=runner,
     )
     assert b"TYPE" in output and diagnostic == b"diagnostic"
     assert "RCLONE_CONFIG" not in seen[0][1]
+    assert "AWS_SECRET_ACCESS_KEY" not in seen[0][1]
+    assert "ASPR_APPROVAL_SOCKET" not in seen[0][1]
+    assert seen[0][1]["PATH"] == "/usr/bin"
     entries = parse_lsjson(payload())
     assert b"SIZE" in render_listing(entries, options=ListingOptions(sort="size"))
     assert b"MODIFIED" in render_listing(entries, options=ListingOptions(sort="modified"))

@@ -120,12 +120,11 @@ def test_run_rejects_unknown_and_reserves_internal_modes() -> None:
 
     stderr = StringIO()
     assert cli.run(["__internal", "homed"], stdout=StringIO(), stderr=stderr) == 70
-    assert stderr.getvalue() == (
-        "ASPR_CLI_INTERNAL_UNAVAILABLE [1002]: internal mode 'homed' is unavailable\n"
-        "Security result: internal mode was not started\n"
-        "Why: this build has no trusted implementation for mode\n"
-        "Fix: install compatible Astral Project build\n"
-    )
+    assert stderr.getvalue() == "ASPR_HOMED_MOUNTPOINT is required for internal homed mode\n"
+
+    stderr = StringIO()
+    assert cli._run_internal("unknown", stderr) == 70
+    assert "internal mode 'unknown' is unavailable" in stderr.getvalue()
 
     stderr = StringIO()
     assert cli.run(["__internal", "unknown"], stdout=StringIO(), stderr=stderr) == 2
@@ -135,6 +134,30 @@ def test_run_rejects_unknown_and_reserves_internal_modes() -> None:
         "Why: public command surface is fixed\n"
         "Fix: run `aspr version` for available command\n"
     )
+
+
+def test_homed_internal_mode_reports_start_and_runtime_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, bool]] = []
+
+    def started(path: str, *, debug: bool = False) -> None:
+        calls.append((path, debug))
+
+    monkeypatch.setenv("ASPR_HOMED_MOUNTPOINT", "/tmp/projected")
+    monkeypatch.setenv("ASPR_HOMED_DEBUG", "1")
+    monkeypatch.setattr("astral_project.homed.fuse.mount_empty", started)
+    assert cli.run(["__internal", "homed"], stdout=StringIO(), stderr=StringIO()) == 0
+    assert calls == [("/tmp/projected", True)]
+
+    def failed(_path: str, *, debug: bool = False) -> None:
+        del debug
+        raise OSError("boom")
+
+    monkeypatch.setattr("astral_project.homed.fuse.mount_empty", failed)
+    stderr = StringIO()
+    assert cli.run(["__internal", "homed"], stdout=StringIO(), stderr=stderr) == 70
+    assert "aspr-homed could not start: boom" in stderr.getvalue()
 
 
 def test_main_uses_process_streams(

@@ -7,8 +7,10 @@ import signal
 import subprocess
 import time
 from collections.abc import Callable
+from pathlib import Path
 
 from astral_project.core.errors import AstralError, ErrorCode
+from astral_project.sandbox.environment import EnvironmentPolicy
 from astral_project.sandbox.plan import LocalSandboxPlan
 
 HealthCheck = Callable[[], bool]
@@ -20,17 +22,33 @@ def run_plan(
     health_check: HealthCheck | None = None,
     poll_seconds: float = 0.2,
     popen: Callable[..., subprocess.Popen[bytes]] = subprocess.Popen,
+    approval: object | None = None,
+    environment_policy: EnvironmentPolicy | None = None,
 ) -> int:
     """Run one plan; terminate child when any daemon-owned remote view is lost."""
     if poll_seconds <= 0:
         raise _error("sandbox health interval must be positive")
+    if approval is not None:
+        from astral_project.approval.terminal import ApprovalController, TerminalControllerError
+
+        if not isinstance(approval, ApprovalController):
+            raise _error("sandbox approval controller has invalid type")
+        try:
+            return approval.run(
+                plan.launcher_argv(),
+                env=_sandbox_environment(environment_policy, visible_paths=_visible_paths(plan)),
+                preface=plan.plan_bytes(),
+                health_check=health_check,
+            )
+        except TerminalControllerError as error:
+            raise _error(str(error), ErrorCode.DAEMON_UNAVAILABLE) from error
     try:
         process = popen(
             plan.launcher_argv(),
             stdin=subprocess.PIPE,
             stdout=None,
             stderr=None,
-            env=_sandbox_environment(),
+            env=_sandbox_environment(environment_policy, visible_paths=_visible_paths(plan)),
             close_fds=True,
             start_new_session=True,
         )
@@ -58,9 +76,20 @@ def run_plan(
     return int(process.returncode or 0)
 
 
-def _sandbox_environment() -> dict[str, str]:
-    allowed = {"LANG", "LC_ALL", "LC_CTYPE", "TERM"}
-    return {key: value for key, value in os.environ.items() if key in allowed}
+def _sandbox_environment(
+    policy: EnvironmentPolicy | None = None, *, visible_paths: tuple[Path, ...] = ()
+) -> dict[str, str]:
+    """Return allowlisted, secret-free environment for both launcher paths."""
+    return (policy or EnvironmentPolicy()).sanitize(os.environ, visible_paths=visible_paths).values
+
+
+def _visible_paths(plan: LocalSandboxPlan) -> tuple[Path, ...]:
+    """Mirror fixed system binds and plan-owned roots for PATH containment."""
+    roots = [Path("/usr"), Path("/bin"), Path("/sbin"), Path("/lib"), Path("/lib64")]
+    if plan.projected_home is not None:
+        roots.append(plan.projected_home)
+    roots.extend(binding.host_path for binding in plan.remotes)
+    return tuple(roots)
 
 
 def _terminate(process: subprocess.Popen[bytes]) -> None:

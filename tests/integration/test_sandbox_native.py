@@ -45,7 +45,7 @@ def _remote_plan(
         payload.extend(_string(mount_id))
         payload.extend(_string(source))
         payload.extend(_string(target))
-    payload.extend(b"\x00\x00")
+    payload.extend(b"\x00\x00\x00")
     return bytes(payload)
 
 
@@ -126,7 +126,7 @@ def test_native_launcher_rejects_malformed_and_alternate_authority(tmp_path: Pat
     assert collision.returncode == 70
     assert b"collide or overlap" in collision.stderr
 
-    bad_socket = _run(launcher, valid[:-2] + b"\x02\x00")
+    bad_socket = _run(launcher, valid[:-3] + b"\x02\x00\x00")
     assert bad_socket.returncode == 70
     assert b"socket flag" in bad_socket.stderr
 
@@ -177,3 +177,6 @@ def test_native_sources_pin_all_authority_to_fixed_paths() -> None:
     assert 'ENTRY "/usr/libexec/astral-project/aspr-sandbox-entry"' in entry_source
     assert "cap-drop" in launcher_source
     assert "unshare-net" in launcher_source
+    assert "environment_count" in launcher_source
+    assert "add_environment" in launcher_source
+    assert 'getenv("PATH")' in launcher_source

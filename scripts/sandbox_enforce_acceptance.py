@@ -88,7 +88,7 @@ def main() -> int:
         + struct.pack("!I", 9)
         + b"/bin/true"
         + struct.pack("!I", 0)
-        + b"\x00\x00"
+        + b"\x00\x00\x00"
     )
     for raw_args in (
         ("--unshare-net",),

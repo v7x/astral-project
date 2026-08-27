@@ -66,7 +66,7 @@ profile aspr-bwrap-setup /usr/libexec/astral-project/aspr-bwrap-launch flags=(at
   signal,
 }
 
-profile aspr-sandbox-payload {
+profile aspr-sandbox-payload flags=(attach_disconnected) {
   # Payload has ordinary file/network access only within bwrap's root.
   network unix,
   /usr/** rix,

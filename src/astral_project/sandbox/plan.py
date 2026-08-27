@@ -47,6 +47,9 @@ class LocalSandboxPlan:
     remotes: tuple[RemoteBinding, ...] = ()
     session_socket: Path | None = None
     session_id: str | None = None
+    projected_home: Path | None = None
+    projected_home_writable: bool = False
+    socket_paths: tuple[Path, ...] = ()
     bwrap_binary: Path = Path("/usr/bin/bwrap")
     launcher_binary: Path = Path("/usr/libexec/astral-project/aspr-bwrap-launch")
 
@@ -59,6 +62,26 @@ class LocalSandboxPlan:
             raise _error("sandbox executable is fixed to /usr/bin/bwrap")
         if self.launcher_binary != Path("/usr/libexec/astral-project/aspr-bwrap-launch"):
             raise _error("sandbox launcher is fixed to the installed Astral launcher")
+        if not isinstance(self.projected_home_writable, bool):
+            raise _error("sandbox projected home mutability flag is invalid")
+        if self.projected_home_writable and self.projected_home is None:
+            raise _error("sandbox writable home requires a projected home")
+        for socket_path in self.socket_paths:
+            if (
+                not socket_path.is_absolute()
+                or socket_path == Path("/")
+                or "\x00" in os.fspath(socket_path)
+                or ".." in socket_path.parts
+                or str(socket_path) != os.fspath(socket_path)
+                or not socket_path.is_socket()
+            ):
+                raise _error("sandbox socket path is unavailable or not exact")
+        if self.projected_home is not None and (
+            not self.projected_home.is_absolute()
+            or not self.projected_home.is_dir()
+            or not os.path.ismount(self.projected_home)
+        ):
+            raise _error("sandbox projected home is unavailable or not mounted")
         if self.session_socket is not None and (
             not self.session_socket.is_absolute() or not self.session_socket.exists()
         ):
@@ -105,6 +128,13 @@ class LocalSandboxPlan:
                     raise _error("sandbox remote field is too long")
                 payload.extend(struct.pack("!I", len(encoded)))
                 payload.extend(encoded)
+        payload.extend(struct.pack("!I", len(self.socket_paths)))
+        for socket_path in self.socket_paths:
+            encoded = str(socket_path).encode("utf-8")
+            if not 0 < len(encoded) <= 4096:
+                raise _error("sandbox socket path is too long")
+            payload.extend(struct.pack("!I", len(encoded)))
+            payload.extend(encoded)
         if self.session_socket is None:
             payload.extend(b"\x00")
         else:
@@ -121,6 +151,16 @@ class LocalSandboxPlan:
             payload.extend(b"\x01")
             payload.extend(struct.pack("!I", len(encoded)))
             payload.extend(encoded)
+        if self.projected_home is None:
+            payload.extend(b"\x00")
+        else:
+            encoded = str(self.projected_home).encode("utf-8")
+            if not 0 < len(encoded) <= 4096:
+                raise _error("sandbox projected home path is too long")
+            payload.extend(b"\x01")
+            payload.extend(struct.pack("!I", len(encoded)))
+            payload.extend(encoded)
+            payload.extend(b"\x01" if self.projected_home_writable else b"\x00")
         if len(payload) > 64 * 1024:
             raise _error("sandbox plan exceeds size limit")
         return bytes(payload)
@@ -183,6 +223,19 @@ class LocalSandboxPlan:
                     "--bind" if binding.mode is AccessMode.READ_WRITE else "--ro-bind",
                     str(binding.host_path),
                     binding.target,
+                ]
+            )
+        for socket_path in self.socket_paths:
+            # AF_UNIX clients need a writable bind mount to connect; the bind is
+            # still exact-path and namespace-local, so the host pathname cannot
+            # be replaced from inside the sandbox.
+            argv.extend(["--bind", str(socket_path), str(socket_path)])
+        if self.projected_home is not None:
+            argv.extend(
+                [
+                    "--bind" if self.projected_home_writable else "--ro-bind",
+                    str(self.projected_home),
+                    "/home/sandbox",
                 ]
             )
         if self.session_socket is not None:

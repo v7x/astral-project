@@ -19,7 +19,7 @@ from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.core.ids import SessionId
 from astral_project.core.paths import atomic_write_private, check_private_path
 from astral_project.crypto.grants import SignedGrant
-from astral_project.session.contracts import RemoteSessionRequestV1
+from astral_project.sandbox.environment import sanitize_subprocess_environment
 
 MAX_JSON_BYTES = 16 * 1024 * 1024
 MAX_ENTRIES = 100_000
@@ -195,8 +195,17 @@ def run_rclone(
     environment: Mapping[str, str],
     timeout_seconds: float | None,
 ) -> RcloneOutput:
-    """Run pinned rclone with user RCLONE_* overrides removed."""
-    clean = {key: value for key, value in environment.items() if not key.startswith("RCLONE_")}
+    """Run pinned rclone with secret-free, visible-PATH environment."""
+    capability_environment = {
+        key: value
+        for key, value in environment.items()
+        if key in {"ASPR_TRANSPORT_SOCKET", "ASPR_TRANSPORT_TOKEN"}
+    }
+    clean = sanitize_subprocess_environment(
+        environment,
+        visible_paths=(Path("/usr"), Path("/bin"), Path("/sbin"), Path("/lib"), Path("/lib64")),
+        capability_environment=capability_environment,
+    )
     try:
         with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
             process = subprocess.Popen(
@@ -338,6 +347,7 @@ def daemon_bound_listing_handler(
     runner: Runner = run_rclone,
 ) -> Mapping[str, object]:
     """Run rclone through one daemon-owned capability and bound remote session."""
+    from astral_project.session.contracts import RemoteSessionRequestV1
     from astral_project.transport.local import (
         PrivateTransportServer,
         TransportCapability,
@@ -389,6 +399,7 @@ def daemon_bound_listing_handler(
             target=target,
             options=options,
             environment={**os.environ, **capability.environment.as_dict()},
+            capability_environment=capability.environment.as_dict(),
             runner=runner,
         )
     finally:
@@ -410,14 +421,17 @@ def run_listing(
     target: str,
     options: ListingOptions,
     environment: Mapping[str, str] | None = None,
+    capability_environment: Mapping[str, str] | None = None,
     runner: Runner = run_rclone,
 ) -> tuple[bytes, bytes]:
     """Execute one bounded listing and return stdout plus diagnostic stderr."""
     argv = build_lsjson_argv(binary=binary, target=target, config=config, options=options)
     source_environment = os.environ if environment is None else environment
-    clean_environment = {
-        key: value for key, value in source_environment.items() if not key.startswith("RCLONE_")
-    }
+    clean_environment = sanitize_subprocess_environment(
+        source_environment,
+        visible_paths=(Path("/usr"), Path("/bin"), Path("/sbin"), Path("/lib"), Path("/lib64")),
+        capability_environment=capability_environment,
+    )
     result = runner(argv, clean_environment, options.timeout_seconds)
     if result.returncode != 0:
         raise _error(

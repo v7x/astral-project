@@ -1,0 +1,22 @@
+Packet 30–32 installed writable FUSE acceptance
+
+release=Ubuntu 26.04 LTS
+python=Python 3.14.4
+pyfuse3=3.4.0 (Ubuntu package python3-pyfuse3)
+libfuse=/usr/lib/x86_64-linux-gnu/libfuse3.so.4
+user=aspr-test uid=1001
+wheel=astral_project-0.1.0-py3-none-any.whl
+wheel-sha256=f1d1f22b48e2c527a6c1ed251ba9b42b86a51f51e63729a40386a621653f0022
+install=python3 -m pip install --break-system-packages --no-deps --force-reinstall /tmp/astral_project-0.1.0-py3-none-any.whl
+command=python3 /tmp/writable_home_acceptance.py (repo: scripts/writable_home_acceptance.py)
+acceptance=installed wheel, no PYTHONPATH, unprivileged test user
+private-fuse-write-read=passed
+private-fuse-persistence=passed
+overlay-fuse-copyup-whiteout-lower-immutable=passed
+installed-writable-fuse-acceptance=passed
+
+The acceptance driver created only temporary lower, upper, private-storage, and mountpoint
+paths. It verified private write/read and persistence across remount, overlay
+lower read, copy-up writeback, creation, deletion/whiteout behavior, and that
+the lower file remained unchanged. No real HOME, credentials, or durable host
+configuration was read or modified.

@@ -13,6 +13,20 @@ aspr version --json
 
 Both names execute same CLI entry point. `version --json` emits stable machine-readable version data.
 
+Profile lifecycle and learner commands are documented in
+[`docs/profile-learning.md`](docs/profile-learning.md). In brief:
+
+```bash
+aspr profile create agents-default
+aspr profile learn agents-default -- my-program
+aspr profile review agents-default
+aspr profile seal agents-default
+```
+
+Learning requires explicit trusted approval for unknown or credential-sensitive
+home access. Use `--external` for a separately controlled approval socket, and
+`--grant` with repeated `--remote` only for already-created signed remote views.
+
 ## Development
 
 ```bash

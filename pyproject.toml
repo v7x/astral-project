@@ -24,6 +24,12 @@ dependencies = [
     "cryptography==49.0.0",
 ]
 
+[project.optional-dependencies]
+fuse = [
+    "pyfuse3==3.5.0",
+    "trio==0.31.0",
+]
+
 [project.scripts]
 astral-project = "astral_project.cli:main"
 aspr = "astral_project.cli:main"
