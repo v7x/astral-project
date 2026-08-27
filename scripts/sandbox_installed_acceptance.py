@@ -83,6 +83,12 @@ def main() -> int:
         raise SystemExit("Ubuntu acceptance requires sudo and dpkg")
     acceptance_user = os.environ.get("SUDO_USER", "testuser")
     acceptance_uid = pwd.getpwnam(acceptance_user).pw_uid
+    runtime_root = Path(f"/run/user/{acceptance_uid}")
+    if runtime_root.is_symlink():
+        raise SystemExit("normal runtime directory must not be a symlink")
+    runtime_root.mkdir(parents=True, exist_ok=True)
+    os.chown(runtime_root, acceptance_uid, pwd.getpwnam(acceptance_user).pw_gid)
+    runtime_root.chmod(0o700)
     package_override = os.environ.get("ASPR_PACKAGE")
     with tempfile.TemporaryDirectory(prefix="aspr-package-") as output:
         if package_override is None:
