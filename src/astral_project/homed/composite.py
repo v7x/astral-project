@@ -5,6 +5,7 @@ from __future__ import annotations
 import errno
 import os
 import stat
+from contextlib import suppress
 from dataclasses import dataclass
 from threading import RLock
 from typing import Literal
@@ -83,6 +84,8 @@ class CompositeProjectedHome:
         self._ensure_open()
         if path == ".":
             return self._backing(1)
+        if self._is_synthetic_ancestor(path):
+            return self._remember_virtual(path)
         backend = self._route(path, Operation.LOOKUP)
         try:
             return self._remember(backend, backend.lookup(path))
@@ -95,6 +98,8 @@ class CompositeProjectedHome:
         self._ensure_open()
         if path == ".":
             return self._backing(1)
+        if self._is_synthetic_ancestor(path):
+            return self._remember_virtual(path)
         backend = self._route(path, Operation.STAT)
         try:
             return self._remember(backend, backend.stat(path))
@@ -129,8 +134,8 @@ class CompositeProjectedHome:
 
     def listdir(self, path: str = ".") -> tuple[str, ...]:
         self._ensure_open()
-        if path == "." or any(rule.path.startswith(path + "/") for rule in self.profile.rules):
-            return self._rule_children(path)
+        if path == "." or self._is_synthetic_ancestor(path):
+            raise OSError(errno.EACCES, f"projected-home listing denied for {path}")
         backend = self._route(path, Operation.LIST)
         try:
             return backend.listdir(path)
@@ -256,11 +261,8 @@ class CompositeProjectedHome:
                 return self.private
             if mode is RuleMode.OVERLAY_RW and self.overlay is not None:
                 return self.overlay
-        if (
-            operation in {Operation.LOOKUP, Operation.STAT}
-            and decision.reason == "opaque ancestor traversal"
-        ):
-            return self.host_required
+        if operation in {Operation.LOOKUP, Operation.STAT} and self._is_synthetic_ancestor(path):
+            raise OSError(errno.EACCES, f"synthetic ancestor requires composite lookup: {path}")
         # Host backing owns learning mediation and sealed hide/deny semantics.
         if self.host is not None and operation in {
             Operation.LOOKUP,
@@ -342,6 +344,11 @@ class CompositeProjectedHome:
             except KeyError as error:
                 raise OSError(errno.EBADF, "unknown projected-home handle") from error
 
+    def _is_synthetic_ancestor(self, path: str) -> bool:
+        if path == ".":
+            return False
+        return self.profile.decision(path, Operation.LOOKUP).reason == "opaque ancestor traversal"
+
     def _is_writable_rule_root(self, path: str) -> bool:
         return any(
             rule.path == path
@@ -350,25 +357,22 @@ class CompositeProjectedHome:
             for rule in self.profile.rules
         )
 
-    def _rule_children(self, path: str) -> tuple[str, ...]:
-        prefix = "" if path == "." else path + "/"
-        children = {
-            rule.path[len(prefix) :].split("/", 1)[0]
-            for rule in self.profile.rules
-            if rule.path.startswith(prefix)
-        }
-        return tuple(sorted(children))
-
     def _ensure_parents(self, backend: _Backend, path: str) -> None:
         writable = self._writable(backend)
-        parts = path.split("/")[:-1]
-        for index in range(1, len(parts) + 1):
-            parent = "/".join(parts[:index])
-            try:
-                writable.mkdir(parent, 0o700)
-            except OSError as error:
-                if error.errno != errno.EEXIST:
-                    raise
+        current = os.dup(writable.root_fd)
+        try:
+            for component in path.split("/")[:-1]:
+                with suppress(FileExistsError):
+                    os.mkdir(component, 0o700, dir_fd=current)
+                child = os.open(
+                    component,
+                    os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                    dir_fd=current,
+                )
+                os.close(current)
+                current = child
+        finally:
+            os.close(current)
 
     def _ensure_open(self) -> None:
         with self._lock:
