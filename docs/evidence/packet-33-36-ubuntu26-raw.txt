@@ -2701,7 +2701,7 @@ isolated_pyfuse3=3.4.0
 isolated_trio=0.32.0
 sandbox-driver-sha256=ba288dd0007d6e1050fda080b0d3fa25c7182d7eecc4eaf6b17e036c71fb9a0b
 net-admin-probe-sha256=76fa1e66d24ccc31796d84e3b16a8149b761e42712ce16dc74d8b060edcb5298
-learner-driver-sha256=efd8b9ef0dc7aee523dd487cf6ef50e6eed8e6cb3d39bd8dd6547782e7b2e83f
+learner-driver-sha256=f4a9965cb09dc6ae30151d4d22079d9aed533c624653d75f548dc06a76a2352a
 remote-driver-sha256=a2962fc6f76dbda43b274781c0037a93621685dcc8d22dc0da9c1a5ef86169f6
 
 $ dpkg -i /tmp/packet36a-final6.deb
@@ -3174,6 +3174,9 @@ learner-rule-persistence=passed
 learner-second-project-reuse=passed
 learner-sealed-known-path=passed
 learner-unrelated-home-hidden=passed
+COMMAND=sudo -u testuser env -u PYTHONPATH PATH=/usr/bin:/bin /usr/bin/python3 /tmp/packet36a-source/scripts/learner_acceptance.py
+learner-user=testuser
+learner-PYTHONPATH=unset
 case-installed-fixed-aspr=passed
 case-isolated-import-environment=passed
 case-profile-create=passed
@@ -3201,6 +3204,7 @@ case-host-rx-manifest-lifecycle=passed
 case-network-none-projector=passed
 case-learner-end-to-end=passed
 learner-case-count=26
+current-learner-exit=0
 {"descendant_scope_isolated": "passed", "hidden_fuse_and_daemon_socket": "passed", "negative_source_authority": {"ancestor": "rejected", "sibling": "rejected", "traversal": "rejected"}, "network_none": "passed", "package": "installed", "remote_loss": "terminated", "sandbox_positive": "passed", "session_id": "48066f6f-bea9-4abe-ab10-90a431f0627d", "target": "unknown"}
 
 
