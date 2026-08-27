@@ -65,7 +65,7 @@ class _StrictDecoder:
         end = self.offset + width
         if end > len(self.data):
             raise _StrictDecodeError("truncated CBOR length")
-        value = int.from_bytes(self.data[self.offset:end], "big")
+        value = int.from_bytes(self.data[self.offset : end], "big")
         self.offset = end
         return value
 
@@ -84,7 +84,7 @@ class _StrictDecoder:
             end = self.offset + length
             if end > len(self.data):
                 raise _StrictDecodeError("truncated CBOR string")
-            raw = self.data[self.offset:end]
+            raw = self.data[self.offset : end]
             self.offset = end
             if major == 2:
                 return raw
