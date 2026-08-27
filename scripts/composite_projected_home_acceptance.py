@@ -84,9 +84,11 @@ def _denied_listing(path: Path) -> None:
     try:
         list(path.iterdir())
     except OSError as error:
-        if error.errno in {errno.EACCES, errno.EPERM}:
+        if error.errno == errno.EACCES:
             return
-        raise
+        raise AssertionError(
+            f"listing failed with unexpected errno {error.errno}: {path}"
+        ) from error
     raise AssertionError(f"listing unexpectedly succeeded: {path}")
 
 
@@ -118,6 +120,8 @@ def main() -> None:
             _wait_mount(mountpoint, process)
             assert (mountpoint / ".config/tool/config.toml").read_bytes() == b"host-config"
             print("mounted-nested-host-read=passed")
+            _denied_listing(mountpoint)
+            print("mounted-root-listing-denied=passed")
             _denied_listing(mountpoint / ".config")
             _denied_listing(mountpoint / ".config/tool")
             print("mounted-opaque-listing-denied=passed")
