@@ -1147,7 +1147,7 @@ installed-confinement-exit=0
 learner-26-case-exit=0
 
 
-## Packet 36A authoritative final closure artifact
+## Historical superseded Packet 36A closure artifact (not authoritative)
 source-commit=2a945179b7135523f112e4812982045b329b0717
 artifact-deb-sha256=2d8459d6b5a5777ac58a0a2957538df9e0059082f57e34cb75fe83397a44dbbf
 release=Ubuntu 26.04 LTS
