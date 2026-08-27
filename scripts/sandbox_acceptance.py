@@ -16,9 +16,7 @@ import uuid
 from pathlib import Path
 
 sys.path[:] = [
-    path
-    for path in sys.path
-    if not path.startswith("/usr/local/") and "site-packages" not in path
+    path for path in sys.path if not path.startswith("/usr/local/") and "site-packages" not in path
 ]
 sys.path.insert(0, "/usr/lib/astral-project/python")
 

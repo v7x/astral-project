@@ -13,9 +13,7 @@ from pathlib import Path
 
 _INSTALLED_RUNTIME = "/usr/lib/astral-project/python"
 sys.path[:] = [
-    path
-    for path in sys.path
-    if not path.startswith("/usr/local/") and "site-packages" not in path
+    path for path in sys.path if not path.startswith("/usr/local/") and "site-packages" not in path
 ]
 if _INSTALLED_RUNTIME not in sys.path:
     sys.path.insert(0, _INSTALLED_RUNTIME)
