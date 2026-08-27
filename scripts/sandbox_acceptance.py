@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Installed Packet 23-24 sandbox acceptance on one certified VM."""
 
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 import json
@@ -13,6 +15,11 @@ import time
 import uuid
 from pathlib import Path
 
+sys.path[:] = [
+    path
+    for path in sys.path
+    if not path.startswith("/usr/local/") and "site-packages" not in path
+]
 sys.path.insert(0, "/usr/lib/astral-project/python")
 
 from astral_project.core.ids import GrantId, HostId, IssuerKeyId

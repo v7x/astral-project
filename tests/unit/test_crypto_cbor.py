@@ -49,6 +49,23 @@ def test_canonical_cbor_wraps_encoder_failure(monkeypatch: pytest.MonkeyPatch) -
     assert error.value.code is ErrorCode.CRYPTO_SERIALIZATION
 
 
+def test_canonical_cbor_uses_strict_fallback_for_old_decoder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_loads = cbor2.loads
+
+    def legacy_loads(data: bytes, **kwargs: object) -> object:
+        if kwargs:
+            raise TypeError("invalid keyword argument")
+        return original_loads(data)
+
+    monkeypatch.setattr(cbor2, "loads", legacy_loads)
+    encoded = canonical_dumps({"value": [True, None]})
+    assert canonical_loads(encoded) == {"value": [True, None]}
+    with pytest.raises(AstralError):
+        canonical_loads(b"\xa2aa\x01aa\x01")
+
+
 def test_canonical_cbor_rejects_malformed_bytes() -> None:
     with pytest.raises(AstralError) as error:
         canonical_loads(b"\xa1")
