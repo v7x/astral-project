@@ -3205,3 +3205,7 @@ learner-case-count=26
 
 
 final-confinement-learner-remote-exit=0
+
+final-provenance: artifact built from executable source 2f3dec1bd9f0523a3b3fa3c3def915eb7a3b4bde; closure-head follow-ups are documentation-only
+strict-cbor-fallback=passed; signed-grant-verification=passed; focused-cbor-tests=30; full-suite=771 passed, 1 skipped, 100% coverage
+tracked-worktree-check=passed; untracked-harness-only=.pi-glla/,context.md
