@@ -35,9 +35,7 @@ def run_result(
 ) -> subprocess.CompletedProcess[str]:
     full = _full_command(command, sudo=sudo, user=user)
     print("$ " + " ".join(full), flush=True)
-    result = subprocess.run(
-        full, cwd=ROOT, check=False, text=True, capture_output=True, timeout=90
-    )
+    result = subprocess.run(full, cwd=ROOT, check=False, text=True, capture_output=True, timeout=90)
     if result.stdout:
         print(result.stdout, end="")
     if result.stderr:
@@ -74,8 +72,7 @@ def _audit_lines_after(baseline: int) -> list[str]:
     return [
         line
         for line in text.splitlines()
-        if (match := re.search(r"audit\([^:]+:(\d+)\)", line))
-        and int(match.group(1)) > baseline
+        if (match := re.search(r"audit\([^:]+:(\d+)\)", line)) and int(match.group(1)) > baseline
     ]
 
 
@@ -270,8 +267,7 @@ def main() -> int:
                 runtime_audit = [
                     line
                     for line in _audit_lines_after(runtime_baseline)
-                    if 'profile="aspr-bwrap-setup"' in line
-                    and 'apparmor="AUDIT"' in line
+                    if 'profile="aspr-bwrap-setup"' in line and 'apparmor="AUDIT"' in line
                 ]
                 runtime_capabilities = {
                     match.group(1)
