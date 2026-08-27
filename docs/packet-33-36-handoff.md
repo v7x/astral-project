@@ -30,8 +30,9 @@ Raw sockets are disabled by default and remain gated by explicit strong confirma
   without `--external`; and host-rx executes one exact profile-approved projected-home
   command while the projected HOME mount remains `noexec`.
 - The packaged closure declares `python3-pyfuse3` beside `python3-cbor2` and
-  `python3-cryptography`; Ubuntu 24.04 no longer relies on an ambient `/usr/local`
-  extension.
+  `python3-cryptography`; isolated trusted launch uses distro modules only. Fresh
+  certification records Ubuntu 24.04 `python3-pyfuse3 3.3.0-0.1`/Trio `0.24.0` and
+  Ubuntu 26.04 `python3-pyfuse3 3.4.0-3build5`/Trio `0.32.0`.
 
 ## Acceptance
 
@@ -44,18 +45,22 @@ The learner driver also proves reuse from a distinct second home/project with th
 same persisted profile, sealed known-path restart, and unrelated-home hiding; remote
 binding forwarding is covered by the learner and packaged CLI gates.
 Ubuntu 24.04 and Ubuntu 26.04 transcripts belong in corresponding raw evidence files.
+The final installed driver compiles `scripts/apparmor_net_admin_probe.c` only for
+acceptance, unloads/reloads production policy before one positive `SIOCSIFFLAGS`
+request, proves allowed `net_admin`, removes exactly that permission in a temporary
+profile and proves probe/runtime denial, then restores and proves production success.
 The final Packet 36A artifact SHA-256 is
-`b02da997a875c721c2bdb550ed6819ae29d083cc147e44c5cde54f2d4607d498`;
+`6b124dd161cc21c4edc5d4ef0cc4503bb7e9cb9fcbc76dec7a48dcd6d83b0bea`;
 its raw learner/host-rx and final Packet 23–24 confinement outputs are recorded in
 `docs/evidence/packet-33-36-ubuntu24-raw.txt` and
-`docs/evidence/packet-33-36-ubuntu26-raw.txt`. Both releases passed external
-approval, persistence/reuse, sealing, unrelated-home hiding, projected-HOME
-`noexec`, exact host-rx, unapproved-host-rx denial, and the installed native
-confinement harness.
+`docs/evidence/packet-33-36-ubuntu26-raw.txt`. Both releases passed all 26 explicit
+learner/projected-home cases unprivileged without `PYTHONPATH`, including external
+approval, persistence/reuse, sealing, unrelated-home hiding, projected-HOME `noexec`,
+exact host-rx, unapproved-host-rx denial, and the installed native confinement harness.
 
 ## Boundaries
 
 Packets 37+ remain out of scope. Observer output is diagnostic only. No full broker,
 abstract socket support, ambient environment inheritance, or real-home writable
 passthrough is introduced. No supplied Packet 36A security or correctness finding
-remains open.
+remains open; Integrated Learner Gate is asserted closed only after fresh auditor approval.
