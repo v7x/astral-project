@@ -50,7 +50,7 @@ acceptance, unloads/reloads production policy before one positive `SIOCSIFFLAGS`
 request, proves allowed `net_admin`, removes exactly that permission in a temporary
 profile and proves probe/runtime denial, then restores and proves production success.
 The final Packet 36A artifact SHA-256 is
-`b7178ff3cc01c53795734f0cd2e451ff9ffaf0c3c8a674c14f39590917f7acaf`;
+`553ba41be83ccdfe4ffe148bbfbc70376c019a0dda8795ea8270e0549e4eb8e7`;
 its raw learner/host-rx and final Packet 23–24 confinement outputs are recorded in
 `docs/evidence/packet-33-36-ubuntu24-raw.txt` and
 `docs/evidence/packet-33-36-ubuntu26-raw.txt`. Both releases passed all 26 explicit
@@ -62,5 +62,9 @@ exact host-rx, unapproved-host-rx denial, and the installed native confinement h
 
 Packets 37+ remain out of scope. Observer output is diagnostic only. No full broker,
 abstract socket support, ambient environment inheritance, or real-home writable
-passthrough is introduced. No supplied Packet 36A security or correctness finding
-remains open; Integrated Learner Gate is asserted closed only after fresh auditor approval.
+passthrough is introduced. The strict CBOR compatibility decoder preserves canonical,
+duplicate-key, indefinite-item, and trailing-byte rejection on Ubuntu 24.04's older
+distro runtime. Fresh remote signed-grant, descendant-isolation, source-authority,
+network-none, and remote-loss checks pass on both releases. No supplied Packet 36A
+security or correctness finding remains open; Integrated Learner Gate is asserted
+closed only after fresh auditor approval.
