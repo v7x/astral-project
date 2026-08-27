@@ -50,7 +50,7 @@ acceptance, unloads/reloads production policy before one positive `SIOCSIFFLAGS`
 request, proves allowed `net_admin`, removes exactly that permission in a temporary
 profile and proves probe/runtime denial, then restores and proves production success.
 The final Packet 36A artifact SHA-256 is
-`2d8459d6b5a5777ac58a0a2957538df9e0059082f57e34cb75fe83397a44dbbf`;
+`b7178ff3cc01c53795734f0cd2e451ff9ffaf0c3c8a674c14f39590917f7acaf`;
 its raw learner/host-rx and final Packet 23–24 confinement outputs are recorded in
 `docs/evidence/packet-33-36-ubuntu24-raw.txt` and
 `docs/evidence/packet-33-36-ubuntu26-raw.txt`. Both releases passed all 26 explicit
