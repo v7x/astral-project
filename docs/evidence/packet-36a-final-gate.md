@@ -1,7 +1,7 @@
 # Packet 36A final gate
 
-Final implementation commit: `b0c8316d52d4b42a0b11fa37ebab1e91f60273a2`.
-Final artifact SHA-256: `553ba41be83ccdfe4ffe148bbfbc70376c019a0dda8795ea8270e0549e4eb8e7`.
+Final implementation commit: `2f3dec1bd9f0523a3b3fa3c3def915eb7a3b4bde`.
+Final artifact SHA-256: `6693c1fbf1dbe3067f86ed349d42497c1e91f2283c9f7157bb1479f881c964d9`.
 
 Local gates passed:
 
