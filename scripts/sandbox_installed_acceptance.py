@@ -113,6 +113,7 @@ def main() -> int:
                 f"installed security entrypoint has file capabilities: {capabilities.strip()}"
             )
         _reload_profile(PROFILE)
+        time.sleep(10)
         status = run(["aa-status"], sudo=True)
         if "aspr-bwrap-setup" not in status or "aspr-sandbox-payload" not in status:
             raise SystemExit("installed AppArmor profiles are not loaded")
