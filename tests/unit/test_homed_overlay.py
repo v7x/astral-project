@@ -44,6 +44,26 @@ def _profile() -> Profile:
     )
 
 
+def test_overlay_inode_cache_forget_is_bounded(tmp_path: Path) -> None:
+    lower = tmp_path / "lower"
+    upper = tmp_path / "upper"
+    lower.mkdir()
+    (lower / "a").write_text("lower", encoding="utf-8")
+    with OverlayBackend(lower, upper) as backend:
+        node = backend.lookup("a")
+        assert backend.inode_count == 2
+        backend.lookup("a")
+        backend.forget(node.inode, 1)
+        assert backend.node_path(node.inode) == "a"
+        backend.forget(node.inode, 1)
+        assert backend.inode_count == 1
+        with pytest.raises(OverlayStateError):
+            backend.node_path(node.inode)
+        backend.forget(1, 1)
+        backend.forget(999, 1)
+        backend.forget(node.inode, -1)
+
+
 def test_overlay_reads_lower_and_copies_regular_file_without_lower_mutation(
     tmp_path: Path,
 ) -> None:

@@ -32,6 +32,24 @@ def _profile() -> Profile:
     )
 
 
+def test_private_inode_cache_forget_is_bounded(tmp_path: Path) -> None:
+    with PrivateWritableBackend(tmp_path / "state", _profile()) as backend:
+        backend.mkdir(".cache")
+        backend.create(".cache/a")
+        node = backend.lookup(".cache/a")
+        assert backend.inode_count == 3
+        backend.lookup(".cache/a")
+        backend.forget(node.inode, 1)
+        assert backend.node_path(node.inode) == ".cache/a"
+        backend.forget(node.inode, 2)
+        assert backend.inode_count == 2
+        with pytest.raises(PrivateStateError):
+            backend.node_path(node.inode)
+        backend.forget(1, 1)
+        backend.forget(999, 1)
+        backend.forget(node.inode, -1)
+
+
 def test_private_state_persists_per_profile_and_uses_safe_metadata(tmp_path: Path) -> None:
     with PrivateWritableBackend(tmp_path / "state", _profile()) as backend:
         backend.mkdir(".cache")

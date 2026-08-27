@@ -20,23 +20,34 @@ from astral_project.crypto.grants import AccessMode, SignedGrant
 from astral_project.crypto.keys import generate_private_key
 from astral_project.homed.fuse import FuseUnavailable
 from astral_project.homed.mediation import UnknownPathMediator
-from astral_project.profile import Profile, Sensitivity, SocketRule, WarningLevel
+from astral_project.profile import (
+    Profile,
+    Rule,
+    RuleMode,
+    RuleScope,
+    Sensitivity,
+    SocketRule,
+    WarningLevel,
+)
 from astral_project.sandbox.command import (
     _approval_endpoint,
     _cleanup_remote_mounts,
     _close_session,
     _ensure_session,
+    _host_rx_target,
     _list_maps,
     _load_grant,
     _mounts_healthy,
     _parse_remote,
     _projected_home_inputs,
+    _remove_host_rx_directory,
     _select_export,
     _session_description,
     _session_mounts,
     _session_run_ls,
     _session_show,
     _string,
+    _write_host_rx_manifest,
     parse_arguments,
     run_sandbox,
 )
@@ -101,22 +112,23 @@ def test_parse_sandbox_arguments_and_fixed_plan(
     )
     assert writable.private_root == Path("/tmp/private")
     assert writable.overlay_root is None
-    with pytest.raises(AstralError):
-        parse_arguments(
-            [
-                "sandbox",
-                "--network",
-                "inherit",
-                "--profile",
-                "/tmp/profile.toml",
-                "--home-root",
-                "/tmp/home",
-                "--private-root",
-                "/tmp/private",
-                "--overlay-root",
-                "/tmp/overlay",
-            ]
-        )
+    composite = parse_arguments(
+        [
+            "sandbox",
+            "--network",
+            "inherit",
+            "--profile",
+            "/tmp/profile.toml",
+            "--home-root",
+            "/tmp/home",
+            "--private-root",
+            "/tmp/private",
+            "--overlay-root",
+            "/tmp/overlay",
+        ]
+    )
+    assert composite.private_root == Path("/tmp/private")
+    assert composite.overlay_root == Path("/tmp/overlay")
     with pytest.raises(AstralError):
         parse_arguments(["sandbox", "--network", "inherit", "--private-root"])
     with pytest.raises(AstralError):
@@ -202,7 +214,7 @@ def test_parse_sandbox_arguments_and_fixed_plan(
         "--ro-bind"
         not in writable_projected.argv()[writable_projected.argv().index(str(tmp_path)) - 1]
     )
-    assert writable_projected.plan_bytes().endswith(b"\x01")
+    assert writable_projected.plan_bytes().endswith(b"\x01\x00")
     monkeypatch.setattr("astral_project.sandbox.plan.os.path.ismount", lambda _path: False)
     with pytest.raises(AstralError, match="projected home"):
         LocalSandboxPlan(("/bin/sh",), NetworkMode.INHERIT, projected_home=tmp_path)
@@ -222,6 +234,70 @@ def test_parse_sandbox_arguments_and_fixed_plan(
     object.__setattr__(too_long_projected, "projected_home", Path("/" + "p" * 4096))
     with pytest.raises(AstralError):
         too_long_projected.plan_bytes()
+
+
+def test_host_rx_requires_profile_authorization_and_private_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    profile = Profile(
+        version=1,
+        profile_id="host-rx",
+        name="host-rx",
+        rules=(Rule("tool", RuleScope.EXACT, RuleMode.HOST_RX),),
+    )
+    target = _host_rx_target(profile, ("/home/sandbox/tool", "--flag"))
+    assert target == "/home/sandbox/tool"
+    assert _write_host_rx_manifest(tmp_path, None) == (None, None)
+    with pytest.raises(AstralError, match="host-rx"):
+        _host_rx_target(profile, ("/home/sandbox/other",))
+    with pytest.raises(AstralError, match="explicit profile"):
+        _host_rx_target(None, ("/home/sandbox/tool",))
+
+    manifest, directory = _write_host_rx_manifest(tmp_path, target)
+    assert manifest is not None and directory is not None
+    try:
+        assert manifest.read_text(encoding="utf-8") == "/home/sandbox/tool\n"
+        assert manifest.stat().st_mode & 0o777 == 0o644
+        monkeypatch.setattr("astral_project.sandbox.plan.os.path.ismount", lambda _path: True)
+        plan = LocalSandboxPlan(
+            (target, "--flag"),
+            NetworkMode.INHERIT,
+            projected_home=tmp_path,
+            host_rx_manifest=manifest,
+        )
+        assert str(manifest).encode() in plan.plan_bytes()
+        assert ["--ro-bind", str(manifest), "/tmp/aspr-host-rx.allow"] == plan.argv()[
+            plan.argv().index(str(manifest)) - 1 : plan.argv().index(str(manifest)) + 2
+        ]
+        with pytest.raises(AstralError, match="manifest is unavailable"):
+            LocalSandboxPlan(
+                (target,),
+                NetworkMode.INHERIT,
+                projected_home=tmp_path,
+                host_rx_manifest=tmp_path / "missing.allow",
+            )
+        with pytest.raises(AstralError, match="manifest is unsafe"):
+            LocalSandboxPlan(
+                ("/bin/true",),
+                NetworkMode.INHERIT,
+                projected_home=tmp_path,
+                host_rx_manifest=manifest,
+            )
+        object.__setattr__(plan, "host_rx_manifest", Path("/" + "m" * 4096))
+        with pytest.raises(AstralError, match="manifest path is too long"):
+            plan.plan_bytes()
+    finally:
+        import shutil
+
+        shutil.rmtree(directory)
+    orphan = tmp_path / "orphan"
+    orphan.mkdir()
+    _remove_host_rx_directory(orphan)
+    assert not orphan.exists()
+    _remove_host_rx_directory(None)
+    monkeypatch.setattr("astral_project.sandbox.command.os.write", lambda *_args: 0)
+    with pytest.raises(AstralError, match="could not be written"):
+        _write_host_rx_manifest(tmp_path, target)
 
 
 def test_sandbox_argument_and_plan_rejections(tmp_path: Path) -> None:
@@ -527,6 +603,24 @@ def test_sandbox_remote_orchestration_closes_owned_resources(
         return {"state": "closed"}
 
     grant_bytes = SignedGrant.create(sample_grant(), generate_private_key()).to_cbor()
+
+    class Projected:
+        mountpoint = tmp_path / "projected"
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    projected = Projected()
+    projected.mountpoint.mkdir()
+    home_root = tmp_path / "home"
+    home_root.mkdir()
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text('version = 1\nid = "p"\nname = "p"\n', encoding="utf-8")
+    monkeypatch.setattr(
+        "astral_project.sandbox.command._start_projected_home",
+        lambda *_args, **_kwargs: projected,
+    )
     monkeypatch.setattr("astral_project.sandbox.command.run_plan", lambda *args, **kwargs: 0)
     assert (
         run_sandbox(
@@ -536,6 +630,10 @@ def test_sandbox_remote_orchestration_closes_owned_resources(
                 "inherit",
                 "--grant",
                 "g1",
+                "--profile",
+                str(profile_path),
+                "--home-root",
+                str(home_root),
                 "--approval-socket",
                 str(tmp_path / "approval.sock"),
                 "--remote",
@@ -548,6 +646,7 @@ def test_sandbox_remote_orchestration_closes_owned_resources(
     )
     assert [name for name, _ in calls].count("mount.close") == 1
     assert [name for name, _ in calls].count("session.close") == 1
+    assert projected.closed
 
     calls.clear()
     assert (
@@ -1081,6 +1180,65 @@ def test_command_helpers_and_session_reuse(tmp_path: Path) -> None:
         )
         is False
     )
+
+
+def test_run_sandbox_host_rx_creates_then_removes_exact_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    profile_path = tmp_path / "profile.toml"
+    profile_path.write_text(
+        Profile(
+            1,
+            "host-rx-run",
+            "host-rx-run",
+            rules=(Rule("tool", RuleScope.EXACT, RuleMode.HOST_RX),),
+        ).to_toml(),
+        encoding="utf-8",
+    )
+    mountpoint = tmp_path / "mountpoint"
+    mountpoint.mkdir()
+
+    class Projected:
+        def close(self) -> None:
+            return None
+
+    projected = Projected()
+    projected.mountpoint = mountpoint  # type: ignore[attr-defined]
+    monkeypatch.setattr("astral_project.sandbox.plan.os.path.ismount", lambda _path: True)
+    monkeypatch.setattr(
+        "astral_project.sandbox.command._start_projected_home",
+        lambda *_args, **_kwargs: projected,
+    )
+    observed: dict[str, Path | None] = {}
+
+    def capture_plan(plan: LocalSandboxPlan, **_kwargs: object) -> int:
+        observed["manifest"] = plan.host_rx_manifest
+        assert plan.host_rx_manifest is not None and plan.host_rx_manifest.is_file()
+        assert plan.host_rx_manifest.read_text(encoding="utf-8") == "/home/sandbox/tool\n"
+        return 0
+
+    monkeypatch.setattr("astral_project.sandbox.command.run_plan", capture_plan)
+    assert (
+        run_sandbox(
+            [
+                "sandbox",
+                "--network",
+                "none",
+                "--profile",
+                str(profile_path),
+                "--home-root",
+                str(home),
+                "--",
+                "/home/sandbox/tool",
+            ],
+            daemon_request=lambda *_args: {},
+            runtime=tmp_path,
+        )
+        == 0
+    )
+    assert observed["manifest"] is not None and not observed["manifest"].exists()
 
 
 def test_run_sandbox_excludes_credential_sensitive_socket_without_confirmation(

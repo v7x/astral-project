@@ -49,6 +49,7 @@ class LocalSandboxPlan:
     session_id: str | None = None
     projected_home: Path | None = None
     projected_home_writable: bool = False
+    host_rx_manifest: Path | None = None
     socket_paths: tuple[Path, ...] = ()
     bwrap_binary: Path = Path("/usr/bin/bwrap")
     launcher_binary: Path = Path("/usr/libexec/astral-project/aspr-bwrap-launch")
@@ -82,6 +83,21 @@ class LocalSandboxPlan:
             or not os.path.ismount(self.projected_home)
         ):
             raise _error("sandbox projected home is unavailable or not mounted")
+        if self.host_rx_manifest is not None:
+            try:
+                details = self.host_rx_manifest.lstat()
+            except OSError as error:
+                raise _error("sandbox host-rx manifest is unavailable") from error
+            if (
+                self.projected_home is None
+                or not self.command[0].startswith("/home/sandbox/")
+                or not self.host_rx_manifest.is_absolute()
+                or not self.host_rx_manifest.is_file()
+                or not details.st_mode & 0o100000
+                or details.st_uid != os.getuid()
+                or details.st_mode & 0o022
+            ):
+                raise _error("sandbox host-rx manifest is unsafe")
         if self.session_socket is not None and (
             not self.session_socket.is_absolute() or not self.session_socket.exists()
         ):
@@ -161,6 +177,15 @@ class LocalSandboxPlan:
             payload.extend(struct.pack("!I", len(encoded)))
             payload.extend(encoded)
             payload.extend(b"\x01" if self.projected_home_writable else b"\x00")
+        if self.host_rx_manifest is None:
+            payload.extend(b"\x00")
+        else:
+            encoded = str(self.host_rx_manifest).encode("utf-8")
+            if not 0 < len(encoded) <= 4096:
+                raise _error("sandbox host-rx manifest path is too long")
+            payload.extend(b"\x01")
+            payload.extend(struct.pack("!I", len(encoded)))
+            payload.extend(encoded)
         if len(payload) > 64 * 1024:
             raise _error("sandbox plan exceeds size limit")
         return bytes(payload)
@@ -238,6 +263,8 @@ class LocalSandboxPlan:
                     "/home/sandbox",
                 ]
             )
+        if self.host_rx_manifest is not None:
+            argv.extend(["--ro-bind", str(self.host_rx_manifest), "/tmp/aspr-host-rx.allow"])
         if self.session_socket is not None:
             argv.extend(
                 [

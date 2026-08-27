@@ -128,7 +128,7 @@ def test_native_launcher_rejects_malformed_and_alternate_authority(tmp_path: Pat
 
     bad_socket = _run(launcher, valid[:-3] + b"\x02\x00\x00")
     assert bad_socket.returncode == 70
-    assert b"socket flag" in bad_socket.stderr
+    assert b"flag is invalid" in bad_socket.stderr
 
     for raw_args in (
         ("--ro-bind", "/", "/"),
@@ -175,6 +175,7 @@ def test_native_sources_pin_all_authority_to_fixed_paths() -> None:
     assert 'BWRAP "/usr/bin/bwrap"' in launcher_source
     assert 'ENTRY "/usr/libexec/astral-project/aspr-sandbox-entry"' in launcher_source
     assert 'ENTRY "/usr/libexec/astral-project/aspr-sandbox-entry"' in entry_source
+    assert 'HOST_RX "/usr/libexec/astral-project/aspr-host-rx"' in launcher_source
     assert "cap-drop" in launcher_source
     assert "unshare-net" in launcher_source
     assert "environment_count" in launcher_source

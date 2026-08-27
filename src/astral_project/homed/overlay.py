@@ -80,6 +80,7 @@ class OverlayBackend:
         self._next_inode = 2
         self._paths: dict[str, int] = {".": 1}
         self._inodes: dict[int, str] = {1: "."}
+        self._lookups: dict[int, int] = {1: 1}
         self._handles: dict[int, bool] = {}
         lower = Path(lower_root)
         upper = Path(upper_root)
@@ -168,6 +169,11 @@ class OverlayBackend:
         return self._upper
 
     @property
+    def inode_count(self) -> int:
+        with self._lock:
+            return len(self._inodes)
+
+    @property
     def lower_root_fd(self) -> int:
         return self._lower
 
@@ -233,6 +239,21 @@ class OverlayBackend:
                 return self._inodes[inode]
             except KeyError as error:
                 raise OverlayStateError(errno.ENOENT, "unknown synthetic inode") from error
+
+    def forget(self, inode: int, count: int) -> None:
+        """Release synthetic inode state when the kernel drops lookup references."""
+        if count < 0 or inode == 1:
+            return
+        with self._lock:
+            if inode not in self._inodes:
+                return
+            remaining = max(0, self._lookups.get(inode, 0) - count)
+            if remaining:
+                self._lookups[inode] = remaining
+                return
+            path = self._inodes.pop(inode)
+            self._paths.pop(path, None)
+            self._lookups.pop(inode, None)
 
     def listdir(self, path: str = ".") -> tuple[str, ...]:
         normalized = self._path(path)
@@ -1071,6 +1092,7 @@ class OverlayBackend:
             inode = self._paths.get(path)
             if inode is None:
                 inode = self._new_inode(path)
+            self._lookups[inode] = self._lookups.get(inode, 0) + 1
         mode = details.st_mode & ~(stat.S_ISUID | stat.S_ISGID)
         if upper:
             mode = (
@@ -1083,6 +1105,7 @@ class OverlayBackend:
     def _new_inode(self, path: str) -> int:
         inode = self._next_inode
         self._next_inode += 1
+        self._paths[path] = inode
         self._inodes[inode] = path
         return inode
 

@@ -79,3 +79,28 @@ learner-trusted-interactive-approval=passed
 learner-trusted-rule-persistence=passed
 learner-interactive-end-to-end=passed
 EXIT 0
+
+## Packet 36A final installed learner and host-rx regression
+release=Ubuntu 26.04 LTS
+kernel=7.0.0-30-generic
+python=Python 3.14.4
+pyfuse3=3.4.0-3build5
+artifact-deb-command=sh packaging/debian/build-deb.sh /tmp/packet36a-release.DLyFIs
+artifact-deb-sha256=b02da997a875c721c2bdb550ed6819ae29d083cc147e44c5cde54f2d4607d498
+command=sudo -u testuser XDG_RUNTIME_DIR=/run/user/1001 PATH=/usr/bin:/bin /usr/bin/python3 /tmp/packet36a-learner-acceptance.py
+{"id":"agents-default","name":"agents-default","provenance":3,"revision":3,"rules":1,"sealed":true}
+observer-disabled=passed
+learner-external-approval=passed
+learner-rule-persistence=passed
+learner-second-project-reuse=passed
+learner-sealed-known-path=passed
+learner-unrelated-home-hidden=passed
+projected-home-noexec=passed
+host-rx-exact-execution=passed
+host-rx-unapproved-path-denied=passed
+learner-end-to-end=passed
+EXIT 0
+
+COMMAND sudo -u testuser XDG_RUNTIME_DIR=/run/user/1001 PATH=/usr/bin:/bin /usr/bin/python3 /tmp/packet36a-sandbox-enforce.py
+{"all_capability_sets_zero":"passed","all_network_socket_tables_empty":"passed","all_non_loopback_interfaces_absent":"passed","credentials_and_sockets_absent":"passed","dns_absent":"passed","entrypoint":"/usr/libexec/astral-project/aspr-sandbox-entry","launcher":"/usr/libexec/astral-project/aspr-bwrap-launch","native_negative_controls":"passed","network_inherit":"passed","network_none":"passed","runtime":"/run/user/1001"}
+EXIT 0

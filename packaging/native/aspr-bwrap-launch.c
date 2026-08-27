@@ -25,6 +25,7 @@
 #define MAX_STRING 4096U
 #define BWRAP "/usr/bin/bwrap"
 #define ENTRY "/usr/libexec/astral-project/aspr-sandbox-entry"
+#define HOST_RX "/usr/libexec/astral-project/aspr-host-rx"
 #define MAGIC "ASPRSB01"
 
 typedef struct { char *value; } String;
@@ -56,6 +57,8 @@ typedef struct {
     String projected_home;
     int has_projected_home;
     int projected_home_writable;
+    String host_rx_manifest;
+    int has_host_rx_manifest;
 } Plan;
 
 static void fail(const char *message) {
@@ -342,6 +345,20 @@ static void parse_plan(Plan *plan) {
             fail("sandbox projected home is not an owned FUSE mount");
         }
     }
+    plan->has_host_rx_manifest = read_u8();
+    if (plan->has_host_rx_manifest > 1) fail("sandbox host-rx manifest flag is invalid");
+    if (plan->has_host_rx_manifest) {
+        plan->host_rx_manifest = read_string();
+        absolute_normalized(plan->host_rx_manifest.value, 0);
+        struct stat details;
+        if (lstat(plan->host_rx_manifest.value, &details) != 0 || !S_ISREG(details.st_mode) ||
+            details.st_uid != getuid() || (details.st_mode & 022) != 0) {
+            fail("sandbox host-rx manifest is unsafe");
+        }
+        if (!plan->has_projected_home || strncmp(plan->command[0].value, "/home/sandbox/", 14) != 0) {
+            fail("sandbox host-rx command is invalid");
+        }
+    }
     if (transport_is_decoded) {
         if (decoded_plan_offset != decoded_plan_length) fail("sandbox plan has trailing bytes");
     } else {
@@ -478,7 +495,7 @@ static void add(char **argv, size_t *count, size_t capacity, const char *value) 
 
 static void execute_plan(const Plan *plan) {
     size_t environment_entries = environment_count();
-    size_t capacity = 128 + (size_t)plan->command_count +
+    size_t capacity = 136 + (size_t)plan->command_count +
                       (size_t)(plan->remote_count + plan->socket_count) * 3 +
                       environment_entries * 3;
     char **argv = calloc(capacity, sizeof(*argv));
@@ -524,8 +541,15 @@ static void execute_plan(const Plan *plan) {
         add(argv, &count, capacity, plan->projected_home.value);
         add(argv, &count, capacity, "/home/sandbox");
     }
+    if (plan->has_host_rx_manifest) {
+        add(argv, &count, capacity, "--ro-bind"); add(argv, &count, capacity, plan->host_rx_manifest.value);
+        add(argv, &count, capacity, "/tmp/aspr-host-rx.allow");
+    }
     if (plan->has_socket) {
-        add(argv, &count, capacity, "--dir"); add(argv, &count, capacity, "/run");
+        if (!plan->has_host_rx_manifest) {
+            add(argv, &count, capacity, "--dir"); add(argv, &count, capacity, "/run");
+            add(argv, &count, capacity, "--dir"); add(argv, &count, capacity, "/run/astral-project");
+        }
         add(argv, &count, capacity, "--dir"); add(argv, &count, capacity, "/run/astral-project");
         add(argv, &count, capacity, "--setenv"); add(argv, &count, capacity, "ASPR_SESSION_SOCKET");
         add(argv, &count, capacity, "/run/astral-project/session.sock");
@@ -536,6 +560,7 @@ static void execute_plan(const Plan *plan) {
     }
     add(argv, &count, capacity, "--");
     add(argv, &count, capacity, ENTRY);
+    if (plan->has_host_rx_manifest) add(argv, &count, capacity, HOST_RX);
     for (uint32_t index = 0; index < plan->command_count; ++index) add(argv, &count, capacity, plan->command[index].value);
     argv[count] = NULL;
     if (!plan->has_socket) {

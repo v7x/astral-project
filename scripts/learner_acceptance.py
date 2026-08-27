@@ -13,7 +13,14 @@ from pathlib import Path
 from astral_project.approval.protocol import ApprovalClient, ApprovalProtocolError, ApprovalRequest
 from astral_project.homed.mediation import MediationDecision
 from astral_project.learner import ProfileLearner
+from astral_project.profile import Profile, Rule, RuleMode, RuleScope
 from astral_project.profile_lifecycle import ProfileStore
+
+ASPR = "/usr/bin/aspr"
+_READ_UNKNOWN = (
+    "for n in $(seq 1 100); do if IFS= read -r value < /home/sandbox/unknown.txt; "
+    "then printf '%s\\n' \"$value\"; exit 0; fi; sleep 0.05; done; exit 1"
+)
 
 
 def main() -> None:
@@ -24,7 +31,7 @@ def main() -> None:
         expected = b"learner-approved\n"
         (home / "unknown.txt").write_bytes(expected)
         runtime = base / "runtime"
-        socket_path = runtime / "approval" / "approval.sock"
+        socket_path = runtime / "astral-project" / "approval" / "approval.sock"
         environment = os.environ.copy()
         environment.update(
             {
@@ -37,14 +44,14 @@ def main() -> None:
             }
         )
         subprocess.run(
-            ["aspr", "profile", "create", "agents-default"],
+            [ASPR, "profile", "create", "agents-default"],
             env=environment,
             check=True,
             capture_output=True,
         )
         process = subprocess.Popen(
             [
-                "aspr",
+                ASPR,
                 "profile",
                 "learn",
                 "agents-default",
@@ -52,7 +59,7 @@ def main() -> None:
                 "--",
                 "/bin/sh",
                 "-c",
-                "IFS= read -r value < /home/sandbox/unknown.txt; printf '%s\\n' \"$value\"",
+                _READ_UNKNOWN,
             ],
             env=environment,
             stdout=subprocess.PIPE,
@@ -73,7 +80,19 @@ def main() -> None:
                     approved_count += 1
                     next_request += 1
             time.sleep(0.05)
-        stdout, stderr = process.communicate(timeout=20)
+        try:
+            stdout, stderr = process.communicate(timeout=20)
+        except subprocess.TimeoutExpired as error:
+            process.terminate()
+            try:
+                stdout, stderr = process.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                stdout, stderr = process.communicate(timeout=5)
+            raise RuntimeError(
+                "learner did not finish after approval attempts: "
+                f"approved={approved_count} stdout={stdout!r} stderr={stderr!r}"
+            ) from error
         if process.returncode != 0 or b"learner-approved" not in stdout:
             raise RuntimeError(
                 f"learner failed: exit={process.returncode} stdout={stdout!r} stderr={stderr!r}"
@@ -91,7 +110,7 @@ def main() -> None:
         second_environment["HOME"] = str(second_home)
         reused = subprocess.run(
             [
-                "aspr",
+                ASPR,
                 "profile",
                 "learn",
                 "agents-default",
@@ -99,7 +118,7 @@ def main() -> None:
                 "--",
                 "/bin/sh",
                 "-c",
-                "IFS= read -r value < /home/sandbox/unknown.txt; printf '%s\\n' \"$value\"",
+                _READ_UNKNOWN,
             ],
             env=second_environment,
             capture_output=True,
@@ -122,10 +141,10 @@ def main() -> None:
         if observer_values != [None]:
             raise AssertionError("observer was enabled when disabled")
         print("observer-disabled=passed")
-        subprocess.run(["aspr", "profile", "seal", "agents-default"], env=environment, check=True)
+        subprocess.run([ASPR, "profile", "seal", "agents-default"], env=environment, check=True)
         sealed = subprocess.run(
             [
-                "aspr",
+                ASPR,
                 "sandbox",
                 "--network",
                 "none",
@@ -136,7 +155,7 @@ def main() -> None:
                 "--",
                 "/bin/sh",
                 "-c",
-                "IFS= read -r value < /home/sandbox/unknown.txt; printf '%s\\n' \"$value\"",
+                _READ_UNKNOWN,
             ],
             env=second_environment,
             capture_output=True,
@@ -147,7 +166,7 @@ def main() -> None:
         (second_home / "unrelated.txt").write_text("unrelated\\n")
         hidden = subprocess.run(
             [
-                "aspr",
+                ASPR,
                 "sandbox",
                 "--network",
                 "none",
@@ -175,6 +194,87 @@ def main() -> None:
         print("learner-second-project-reuse=passed")
         print("learner-sealed-known-path=passed")
         print("learner-unrelated-home-hidden=passed")
+
+        host_rx_home = base / "host-rx-home"
+        host_rx_home.mkdir()
+        host_rx_tool = host_rx_home / "echo"
+        host_rx_tool.write_text("#!/bin/sh\nprintf '%s\\n' \"$1\"\n", encoding="utf-8")
+        host_rx_tool.chmod(0o755)
+        host_rx_profile = Profile(
+            1,
+            "host-rx-fixture",
+            "host-rx-fixture",
+            rules=(Rule("echo", RuleScope.EXACT, RuleMode.HOST_RX),),
+        )
+        host_rx_profile_path = base / "host-rx.toml"
+        host_rx_profile_path.write_text(host_rx_profile.to_toml(), encoding="utf-8")
+        host_rx_environment = environment | {"HOME": str(host_rx_home)}
+        noexec = subprocess.run(
+            [
+                ASPR,
+                "sandbox",
+                "--network",
+                "none",
+                "--profile",
+                str(host_rx_profile_path),
+                "--home-root",
+                str(host_rx_home),
+                "--",
+                "/bin/sh",
+                "-c",
+                "findmnt -no OPTIONS /home/sandbox | tr ',' '\\n' | grep -qx noexec",
+            ],
+            env=host_rx_environment,
+            capture_output=True,
+            check=False,
+        )
+        if noexec.returncode != 0:
+            raise RuntimeError(f"projected HOME was executable: {noexec.stderr!r}")
+        host_rx = subprocess.run(
+            [
+                ASPR,
+                "sandbox",
+                "--network",
+                "none",
+                "--profile",
+                str(host_rx_profile_path),
+                "--home-root",
+                str(host_rx_home),
+                "--",
+                "/home/sandbox/echo",
+                "host-rx",
+            ],
+            env=host_rx_environment,
+            capture_output=True,
+            check=False,
+        )
+        if host_rx.returncode != 0 or host_rx.stdout.splitlines()[-1:] != [b"host-rx"]:
+            raise RuntimeError(
+                "host-rx execution failed: "
+                f"exit={host_rx.returncode} stdout={host_rx.stdout!r} stderr={host_rx.stderr!r}"
+            )
+        denied_host_rx = subprocess.run(
+            [
+                ASPR,
+                "sandbox",
+                "--network",
+                "none",
+                "--profile",
+                str(host_rx_profile_path),
+                "--home-root",
+                str(host_rx_home),
+                "--",
+                "/home/sandbox/unapproved",
+            ],
+            env=host_rx_environment,
+            capture_output=True,
+            check=False,
+        )
+        if denied_host_rx.returncode == 0:
+            raise AssertionError("unapproved host-rx command was accepted")
+        print("projected-home-noexec=passed")
+        print("host-rx-exact-execution=passed")
+        print("host-rx-unapproved-path-denied=passed")
         print("learner-end-to-end=passed")
 
 

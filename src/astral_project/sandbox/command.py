@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import os
 import shutil
 import tempfile
 import uuid
@@ -18,7 +19,7 @@ from astral_project.crypto.grants import AccessMode, GrantExport, SignedGrant
 from astral_project.homed.fuse import FuseUnavailable
 from astral_project.homed.lifecycle import ProjectedHomeProcess
 from astral_project.homed.mediation import PendingRequest, UnknownPathMediator
-from astral_project.profile import Profile, ProfileError
+from astral_project.profile import Operation, Profile, ProfileError
 from astral_project.sandbox.environment import EnvironmentPolicy
 from astral_project.sandbox.plan import LocalSandboxPlan, NetworkMode, RemoteBinding
 from astral_project.sandbox.resources import ResourcePolicy
@@ -139,8 +140,6 @@ def parse_arguments(arguments: Sequence[str]) -> SandboxArguments:
         raise _error("--grant is required when --remote omits grant prefix")
     if (profile_path is None) != (home_root is None):
         raise _error("--profile and --home-root must be provided together")
-    if private_root is not None and overlay_root is not None:
-        raise _error("--private-root and --overlay-root are mutually exclusive")
     if (private_root is not None or overlay_root is not None) and (
         profile_path is None or home_root is None
     ):
@@ -156,6 +155,44 @@ def parse_arguments(arguments: Sequence[str]) -> SandboxArguments:
         private_root,
         overlay_root,
     )
+
+
+def _host_rx_target(profile: Profile | None, command: tuple[str, ...]) -> str | None:
+    """Admit a projected-HOME executable only through an explicit host-rx rule."""
+    target = command[0]
+    prefix = "/home/sandbox/"
+    if not target.startswith(prefix):
+        return None
+    if profile is None:
+        raise _error("projected-HOME command requires an explicit profile", ErrorCode.DAEMON_AUTH)
+    relative = target.removeprefix(prefix)
+    if not relative or not profile.decision(relative, Operation.EXECUTE).allowed:
+        raise _error(
+            "projected-HOME command lacks an exact host-rx authorization", ErrorCode.DAEMON_AUTH
+        )
+    return target
+
+
+def _write_host_rx_manifest(runtime: Path, target: str | None) -> tuple[Path | None, Path | None]:
+    """Create one private, exact-command manifest for the native executor."""
+    if target is None:
+        return None, None
+    directory = Path(tempfile.mkdtemp(prefix="sandbox-host-rx-", dir=runtime))
+    manifest = directory / "host-rx.allow"
+    descriptor = os.open(manifest, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC, 0o644)
+    try:
+        encoded = (target + "\n").encode("utf-8")
+        if os.write(descriptor, encoded) != len(encoded):
+            raise _error("host-rx manifest could not be written", ErrorCode.DAEMON_UNAVAILABLE)
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    return manifest, directory
+
+
+def _remove_host_rx_directory(directory: Path | None) -> None:
+    if directory is not None:
+        shutil.rmtree(directory, ignore_errors=True)
 
 
 def _projected_home_inputs(parsed: SandboxArguments) -> tuple[Profile | None, Path | None]:
@@ -183,7 +220,7 @@ def _start_projected_home(
     *,
     root: Path | None,
     profile: Profile | None,
-    approval_socket: Path | None,
+    mediation_socket: Path | None,
     session_id: str,
     private_root: Path | None = None,
     overlay_root: Path | None = None,
@@ -193,7 +230,7 @@ def _start_projected_home(
             runtime,
             root=root,
             profile=profile,
-            approval_socket=approval_socket,
+            mediation_socket=mediation_socket,
             session_id=session_id,
             storage_root=private_root,
             overlay_root=overlay_root,
@@ -219,6 +256,7 @@ def run_sandbox(
 ) -> int:
     parsed = parse_arguments(arguments)
     profile, home_root = _projected_home_inputs(parsed)
+    host_rx_target = _host_rx_target(profile, parsed.command)
     projected_writable = parsed.private_root is not None or parsed.overlay_root is not None
     resource_policy = None if profile is None else ResourcePolicy(profile)
     if profile is not None and resource_policy is not None and profile.raw_socket:
@@ -237,40 +275,48 @@ def run_sandbox(
     if parsed.grant_id is None:
         projected = None
         session_id = session_id or uuid.uuid4().hex
-        approval_socket, approval_directory = _approval_endpoint(runtime, parsed.approval_socket)
+        mediation_socket, mediation_directory = _approval_endpoint(runtime, None)
         mediator = approval_mediator or UnknownPathMediator(observer=approval_observer)
         approval = ApprovalController(
             session_id=session_id,
             mediator=mediator,
-            approval_socket=approval_socket,
+            approval_socket=parsed.approval_socket,
+            mediation_socket=mediation_socket,
             input_fd=0 if approval_input_fd is None else approval_input_fd,
         )
+        host_rx_directory: Path | None = None
         try:
             projected = _start_projected_home(
                 runtime,
                 root=home_root,
                 profile=profile,
-                approval_socket=approval_socket,
+                mediation_socket=mediation_socket,
                 session_id=session_id,
                 private_root=parsed.private_root,
                 overlay_root=parsed.overlay_root,
             )
+            host_rx_manifest, host_rx_directory = _write_host_rx_manifest(runtime, host_rx_target)
             return run_plan(
                 LocalSandboxPlan(
                     parsed.command,
                     parsed.network,
                     projected_home=None if projected is None else projected.mountpoint,
                     projected_home_writable=projected_writable,
+                    host_rx_manifest=host_rx_manifest,
                     socket_paths=approved_sockets,
                 ),
+                health_check=None
+                if projected is None
+                else getattr(projected, "healthy", lambda: True),
                 approval=approval,
                 environment_policy=profile_environment,
             )
         finally:
             if projected is not None:
                 projected.close()
-            if approval_directory is not None:
-                shutil.rmtree(approval_directory, ignore_errors=True)
+            _remove_host_rx_directory(host_rx_directory)
+            if mediation_directory is not None:
+                shutil.rmtree(mediation_directory, ignore_errors=True)
     grant_id = parsed.grant_id
     grant = _load_grant(grant_id, daemon_request)
     if not parsed.remotes:
@@ -292,12 +338,14 @@ def run_sandbox(
     session_socket = Path(tempfile.mkdtemp(prefix="sandbox-session-", dir=runtime)) / "session.sock"
     api: SessionApiServer | None = None
     projected = None
-    approval_socket, approval_directory = _approval_endpoint(runtime, parsed.approval_socket)
+    host_rx_directory = None
+    mediation_socket, mediation_directory = _approval_endpoint(runtime, None)
     mediator = approval_mediator or UnknownPathMediator(observer=approval_observer)
     approval = ApprovalController(
         session_id=session_id,
         mediator=mediator,
-        approval_socket=approval_socket,
+        approval_socket=parsed.approval_socket,
+        mediation_socket=mediation_socket,
         input_fd=0 if approval_input_fd is None else approval_input_fd,
     )
     try:
@@ -305,11 +353,12 @@ def run_sandbox(
             runtime,
             root=home_root,
             profile=profile,
-            approval_socket=approval_socket,
+            mediation_socket=mediation_socket,
             session_id=session_id,
             private_root=parsed.private_root,
             overlay_root=parsed.overlay_root,
         )
+        host_rx_manifest, host_rx_directory = _write_host_rx_manifest(runtime, host_rx_target)
         for index, remote in enumerate(parsed.remotes):
             _export, virtual_target = _select_export(grant, remote.source)
             mount_path = Path(tempfile.mkdtemp(prefix=f"sandbox-mount-{index}-", dir=runtime))
@@ -355,9 +404,13 @@ def run_sandbox(
                 session_id,
                 projected_home=None if projected is None else projected.mountpoint,
                 projected_home_writable=projected_writable,
+                host_rx_manifest=host_rx_manifest,
                 socket_paths=approved_sockets,
             ),
-            health_check=lambda: _mounts_healthy(mount_ids, daemon_request),
+            health_check=lambda: (
+                _mounts_healthy(mount_ids, daemon_request)
+                and (projected is None or getattr(projected, "healthy", lambda: True)())
+            ),
             approval=approval,
             environment_policy=profile_environment,
         )
@@ -371,8 +424,9 @@ def run_sandbox(
             with suppress(AstralError):
                 daemon_request("session.close", {"session_id": session_id})
         shutil.rmtree(session_socket.parent, ignore_errors=True)
-        if approval_directory is not None:
-            shutil.rmtree(approval_directory, ignore_errors=True)
+        _remove_host_rx_directory(host_rx_directory)
+        assert mediation_directory is not None
+        shutil.rmtree(mediation_directory, ignore_errors=True)
         if cleanup_error is not None:
             raise cleanup_error
 

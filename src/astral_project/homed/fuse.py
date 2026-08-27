@@ -10,6 +10,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from astral_project.homed.composite import CompositeProjectedHome
 from astral_project.homed.core import (
     ROOT_INODE,
     EmptyProjectedHome,
@@ -91,16 +92,28 @@ if _pyfuse3 is not None:  # pragma: no cover - exercised by installed FUSE accep
             host_view: HostReadonlyView | None = None,
             private_view: PrivateWritableBackend | None = None,
             overlay_view: OverlayBackend | None = None,
+            profile: Profile | None = None,
         ) -> None:
             super().__init__()
-            if host_view is not None and (private_view is not None or overlay_view is not None):
-                raise ValueError("host and writable projected-home views are exclusive")
-            if private_view is not None and overlay_view is not None:
-                raise ValueError("private and overlay projected-home views are exclusive")
             self.state = state or EmptyProjectedHome()
-            self.host_view = host_view
-            self.overlay_view = overlay_view
-            self.private_view = private_view or overlay_view
+            self.host_view: HostReadonlyView | None
+            self.private_view: (
+                PrivateWritableBackend | OverlayBackend | CompositeProjectedHome | None
+            )
+            self.overlay_view: OverlayBackend | None
+            backings = sum(view is not None for view in (host_view, private_view, overlay_view))
+            if backings > 1:
+                if profile is None:
+                    raise ValueError("composite projected home requires a profile")
+                self.host_view = None
+                self.overlay_view = None
+                self.private_view = CompositeProjectedHome(
+                    profile, host=host_view, private=private_view, overlay=overlay_view
+                )
+            else:
+                self.host_view = host_view
+                self.overlay_view = overlay_view
+                self.private_view = private_view or overlay_view
             self._host_handles: dict[int, str] = {}
             self._next_host_handle = 1 << 32
 
@@ -208,6 +221,10 @@ if _pyfuse3 is not None:  # pragma: no cover - exercised by installed FUSE accep
             with RequestLease(self.state.budget, 1):
                 for inode, count in inode_list:
                     self.state.forget(inode, count)
+                    if self.host_view is not None:
+                        self.host_view.forget(inode, count)
+                    if self.private_view is not None:
+                        self.private_view.forget(inode, count)
 
         async def opendir(self, inode: int, ctx: Any) -> int:
             del ctx
@@ -498,8 +515,9 @@ else:
             host_view: HostReadonlyView | None = None,
             private_view: PrivateWritableBackend | None = None,
             overlay_view: OverlayBackend | None = None,
+            profile: Profile | None = None,
         ) -> None:
-            del state, host_view, private_view, overlay_view
+            del state, host_view, private_view, overlay_view, profile
             raise FuseUnavailable("pyfuse3 is not installed")
 
 
@@ -566,6 +584,37 @@ def mount_overlay(  # pragma: no cover - exercised by installed FUSE acceptance
         _mount_operations(mountpoint, ProjectedHomeOperations(overlay_view=view), debug=debug)
     finally:
         view.close()
+
+
+def mount_composite(  # pragma: no cover - exercised by installed FUSE acceptance
+    mountpoint: str | os.PathLike[str],
+    root: str | os.PathLike[str],
+    profile: Profile,
+    *,
+    storage_root: str | os.PathLike[str] | None = None,
+    overlay_root: str | os.PathLike[str] | None = None,
+    debug: bool = False,
+    mediator: UnknownPathMediator | RemoteUnknownPathMediator | None = None,
+    session_id: str = "default",
+) -> None:
+    """Mount one policy-routed namespace over all configured backing roots."""
+    host = HostReadonlyView(root, profile, mediator=mediator, session_id=session_id)
+    private = None if storage_root is None else PrivateWritableBackend(storage_root, profile)
+    overlay = None if overlay_root is None else OverlayBackend(root, overlay_root, profile)
+    try:
+        _mount_operations(
+            mountpoint,
+            ProjectedHomeOperations(
+                host_view=host, private_view=private, overlay_view=overlay, profile=profile
+            ),
+            debug=debug,
+        )
+    finally:
+        # Composite owns all non-null backends once construction succeeds; these
+        # closes retain cleanup for failures before Operations takes ownership.
+        for view in (host, private, overlay):
+            if view is not None:
+                view.close()
 
 
 def mount_host_readonly(  # pragma: no cover - exercised by installed FUSE acceptance

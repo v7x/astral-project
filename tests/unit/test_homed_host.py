@@ -34,6 +34,55 @@ def _profile() -> Profile:
     )
 
 
+def test_backend_inode_cache_releases_forgotten_paths(tmp_path: Path) -> None:
+    root = tmp_path / "home"
+    root.mkdir()
+    profile = Profile(
+        1,
+        "bounded",
+        "bounded",
+        rules=(Rule("cache", RuleScope.SUBTREE, RuleMode.HOST_RO, list_allowed=True),),
+    )
+    (root / "cache").mkdir()
+    for index in range(32):
+        (root / "cache" / f"file-{index}").write_text("x", encoding="utf-8")
+    with HostReadonlyView(root, profile) as view:
+        baseline = view.inode_count
+        nodes = [view.lookup(f"cache/file-{index}") for index in range(32)]
+        assert view.inode_count == baseline + len(nodes)
+        view.lookup("cache/file-0")
+        view.forget(nodes[0].inode, 1)
+        assert view.node_path(nodes[0].inode) == "cache/file-0"
+        view.forget(1, 1)
+        view.forget(999, 1)
+        view.forget(nodes[1].inode, -1)
+        for node in nodes:
+            view.forget(node.inode, 1)
+        assert view.inode_count == baseline
+        with pytest.raises(HostAccessError) as error:
+            view.node_path(nodes[0].inode)
+        assert error.value.errno == errno.ENOENT
+
+
+def test_sealed_opaque_ancestor_traverses_without_listing(tmp_path: Path) -> None:
+    root = tmp_path / "home"
+    (root / ".config" / "tool").mkdir(parents=True)
+    (root / ".config" / "tool" / "config.toml").write_text("ok", encoding="utf-8")
+    profile = Profile(
+        1,
+        "sealed",
+        "sealed",
+        sealed=True,
+        rules=(Rule(".config/tool/config.toml", RuleScope.EXACT, RuleMode.HOST_RO),),
+    )
+    with HostReadonlyView(root, profile) as view:
+        assert view.lookup(".config").is_directory
+        assert view.stat(".config/tool").is_directory
+        with pytest.raises(HostAccessError) as error:
+            view.listdir(".config")
+        assert error.value.errno == errno.EACCES
+
+
 def test_credential_host_rule_requires_mediated_strong_confirmation(tmp_path: Path) -> None:
     root = tmp_path / "home"
     root.mkdir()

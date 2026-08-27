@@ -127,6 +127,7 @@ class ApprovalController:
         session_id: str,
         mediator: UnknownPathMediator,
         approval_socket: Path | None = None,
+        mediation_socket: Path | None = None,
         input_fd: int = 0,
         output: BinaryIO | None = None,
     ) -> None:
@@ -135,6 +136,7 @@ class ApprovalController:
         self.session_id = session_id
         self.mediator = mediator
         self.approval_socket = approval_socket
+        self.mediation_socket = mediation_socket
         self.input_fd = input_fd
         self.output = output
         self._resize_pending = False
@@ -150,11 +152,18 @@ class ApprovalController:
     ) -> int:
         if not argv:
             raise TerminalControllerError("child argv is empty")
-        server = (
+        mediation_server = (
+            ApprovalServer(self.mediation_socket, self.mediator, allow_decisions=False)
+            if self.mediation_socket
+            else None
+        )
+        approval_server = (
             ApprovalServer(self.approval_socket, self.mediator) if self.approval_socket else None
         )
-        if server is not None:
-            server.start()
+        if mediation_server is not None:
+            mediation_server.start()
+        if approval_server is not None:
+            approval_server.start()
         old_winch = signal.getsignal(signal.SIGWINCH)
         old_cont = signal.getsignal(signal.SIGCONT)
         signal.signal(signal.SIGWINCH, self._on_winch)
@@ -171,8 +180,10 @@ class ApprovalController:
         finally:
             signal.signal(signal.SIGWINCH, old_winch)
             signal.signal(signal.SIGCONT, old_cont)
-            if server is not None:
-                server.close()
+            if approval_server is not None:
+                approval_server.close()
+            if mediation_server is not None:
+                mediation_server.close()
 
     def _relay(
         self,
@@ -262,9 +273,7 @@ class ApprovalController:
             attributes = None
         try:
             if attributes is not None:
-                quiet = list(attributes)
-                quiet[3] &= ~termios.ECHO
-                termios.tcsetattr(master, termios.TCSANOW, quiet)
+                tty.setraw(master, when=termios.TCSANOW)
             offset = 0
             while offset < len(preface):
                 count = os.write(master, preface[offset:])

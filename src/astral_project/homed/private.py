@@ -59,6 +59,7 @@ class PrivateWritableBackend:
         self._next_inode = 2
         self._paths: dict[str, int] = {".": 1}
         self._inodes: dict[int, str] = {1: "."}
+        self._lookups: dict[int, int] = {1: 1}
         self._handles: set[int] = set()
         root = Path(storage_root)
         try:
@@ -128,6 +129,11 @@ class PrivateWritableBackend:
         return self._root
 
     @property
+    def inode_count(self) -> int:
+        with self._lock:
+            return len(self._inodes)
+
+    @property
     def profile_root(self) -> str:
         """Return procfs diagnostic path, never used for filesystem resolution."""
         return f"/proc/self/fd/{self._root}"
@@ -187,6 +193,21 @@ class PrivateWritableBackend:
                 return self._inodes[inode]
             except KeyError as error:
                 raise PrivateStateError(errno.ENOENT, "unknown synthetic inode") from error
+
+    def forget(self, inode: int, count: int) -> None:
+        """Release kernel lookup references; root remains permanently pinned."""
+        if count < 0 or inode == 1:
+            return
+        with self._lock:
+            if inode not in self._inodes:
+                return
+            remaining = max(0, self._lookups.get(inode, 0) - count)
+            if remaining:
+                self._lookups[inode] = remaining
+                return
+            path = self._inodes.pop(inode)
+            self._paths.pop(path, None)
+            self._lookups.pop(inode, None)
 
     def listdir(self, path: str = ".") -> tuple[str, ...]:
         normalized = self._path(path)
@@ -596,6 +617,7 @@ class PrivateWritableBackend:
                 self._next_inode += 1
                 self._paths[path] = inode
                 self._inodes[inode] = path
+            self._lookups[inode] = self._lookups.get(inode, 0) + 1
         kind = stat.S_IFDIR if stat.S_ISDIR(details.st_mode) else stat.S_IFREG
         mode = kind | self._safe_mode(details.st_mode)
         return BackingNode(

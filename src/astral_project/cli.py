@@ -459,15 +459,62 @@ def _run_ls(arguments: Sequence[str], stdout: TextIO, stderr: TextIO) -> int:
 def _run_internal(mode: str, stderr: TextIO) -> int:
     """Run hidden trusted-process mode without exposing public command surface."""
     if mode == "homed":
-        from astral_project.homed.fuse import FuseUnavailable, mount_empty
+        from astral_project.homed.fuse import (
+            FuseUnavailable,
+            mount_composite,
+            mount_empty,
+            mount_host_readonly,
+            mount_private,
+        )
+        from astral_project.homed.mediation import RemoteUnknownPathMediator
+        from astral_project.profile import Profile
 
         mountpoint = os.environ.get("ASPR_HOMED_MOUNTPOINT")
         if not mountpoint:
             stderr.write("ASPR_HOMED_MOUNTPOINT is required for internal homed mode\n")
             return 70
         try:
-            mount_empty(mountpoint, debug=os.environ.get("ASPR_HOMED_DEBUG") == "1")
-        except (FuseUnavailable, OSError) as error:
+            root = os.environ.get("ASPR_HOMED_ROOT")
+            storage_root = os.environ.get("ASPR_HOMED_STORAGE_ROOT")
+            overlay_root = os.environ.get("ASPR_HOMED_OVERLAY_ROOT")
+            profile_text = os.environ.get("ASPR_HOMED_PROFILE")
+            mediation_socket = os.environ.get("ASPR_HOMED_MEDIATION_SOCKET")
+            debug = os.environ.get("ASPR_HOMED_DEBUG") == "1"
+            if profile_text is None:
+                mount_empty(mountpoint, debug=debug)
+            else:
+                profile = Profile.from_toml(profile_text)
+                if root is not None and (storage_root is not None or overlay_root is not None):
+                    mediator = (
+                        RemoteUnknownPathMediator(mediation_socket) if mediation_socket else None
+                    )
+                    mount_composite(
+                        mountpoint,
+                        root,
+                        profile,
+                        storage_root=storage_root,
+                        overlay_root=overlay_root,
+                        mediator=mediator,
+                        session_id=os.environ.get("ASPR_HOMED_SESSION_ID", "default"),
+                        debug=debug,
+                    )
+                elif storage_root is not None:
+                    mount_private(mountpoint, storage_root, profile, debug=debug)
+                elif root is not None:
+                    mediator = (
+                        RemoteUnknownPathMediator(mediation_socket) if mediation_socket else None
+                    )
+                    mount_host_readonly(
+                        mountpoint,
+                        root,
+                        profile,
+                        mediator=mediator,
+                        session_id=os.environ.get("ASPR_HOMED_SESSION_ID", "default"),
+                        debug=debug,
+                    )
+                else:
+                    raise ValueError("projected-home root configuration is incomplete")
+        except (FuseUnavailable, OSError, ValueError) as error:
             stderr.write(f"aspr-homed could not start: {error}\n")
             return 70
         return 0

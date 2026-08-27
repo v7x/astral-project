@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import signal
 import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -28,7 +27,7 @@ class ProjectedHomeProcess:  # pragma: no cover - exercised by installed FUSE ac
         timeout: float = 5.0,
         root: Path | None = None,
         profile: Profile | None = None,
-        approval_socket: Path | None = None,
+        mediation_socket: Path | None = None,
         session_id: str = "default",
         storage_root: Path | None = None,
         overlay_root: Path | None = None,
@@ -41,19 +40,10 @@ class ProjectedHomeProcess:  # pragma: no cover - exercised by installed FUSE ac
             raise ValueError("writable projected home requires a profile")
         if overlay_root is not None and root is None:
             raise ValueError("overlay projected home requires a lower root")
-        if storage_root is not None and overlay_root is not None:
-            raise ValueError("private and overlay projected homes are exclusive")
         if not session_id:
             raise ValueError("projected home session identity is required")
         mountpoint = Path(temp_dir(runtime, "projected-home-"))
-        environment = os.environ.copy()
-        for internal_name in (
-            "ASPR_HOMED_ROOT",
-            "ASPR_HOMED_PROFILE",
-            "ASPR_HOMED_STORAGE_ROOT",
-            "ASPR_HOMED_OVERLAY_ROOT",
-        ):
-            environment.pop(internal_name, None)
+        environment = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8"}
         environment["ASPR_HOMED_MOUNTPOINT"] = str(mountpoint)
         environment["ASPR_HOMED_SESSION_ID"] = session_id
         if root is not None:
@@ -64,10 +54,13 @@ class ProjectedHomeProcess:  # pragma: no cover - exercised by installed FUSE ac
             environment["ASPR_HOMED_STORAGE_ROOT"] = os.fspath(storage_root)
         if overlay_root is not None:
             environment["ASPR_HOMED_OVERLAY_ROOT"] = os.fspath(overlay_root)
-        if approval_socket is not None:
-            environment["ASPR_HOMED_APPROVAL_SOCKET"] = os.fspath(approval_socket)
+        if mediation_socket is not None:
+            environment["ASPR_HOMED_MEDIATION_SOCKET"] = os.fspath(mediation_socket)
+        program = Path("/usr/libexec/astral-project/aspr-homed")
+        if not program.is_file() or not os.access(program, os.X_OK):
+            raise FuseUnavailable("installed aspr-homed runtime is unavailable")
         process = subprocess.Popen(
-            [sys.executable, "-c", _HOMED_SCRIPT],
+            [os.fspath(program)],
             env=environment,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
@@ -92,6 +85,10 @@ class ProjectedHomeProcess:  # pragma: no cover - exercised by installed FUSE ac
         cleanup_stale_mount(mountpoint)
         mountpoint.rmdir()
         raise TimeoutError("aspr-homed did not mount within startup deadline")
+
+    def healthy(self) -> bool:
+        """Daemon death revokes projected-home authority immediately."""
+        return self.process.poll() is None and self.mountpoint.is_mount()
 
     def close(self) -> None:
         self._terminate(self.process)
@@ -121,38 +118,3 @@ def temp_dir(runtime: Path, prefix: str) -> str:  # pragma: no cover - lifecycle
     import tempfile
 
     return tempfile.mkdtemp(prefix=prefix, dir=runtime)
-
-
-_HOMED_SCRIPT = """
-import os
-from astral_project.homed.fuse import mount_empty, mount_host_readonly, mount_overlay, mount_private
-from astral_project.homed.mediation import RemoteUnknownPathMediator
-from astral_project.profile import Profile
-
-mountpoint = os.environ["ASPR_HOMED_MOUNTPOINT"]
-root = os.environ.get("ASPR_HOMED_ROOT")
-storage_root = os.environ.get("ASPR_HOMED_STORAGE_ROOT")
-overlay_root = os.environ.get("ASPR_HOMED_OVERLAY_ROOT")
-profile_text = os.environ.get("ASPR_HOMED_PROFILE")
-socket_path = os.environ.get("ASPR_HOMED_APPROVAL_SOCKET")
-session_id = os.environ["ASPR_HOMED_SESSION_ID"]
-if profile_text is None:
-    mount_empty(mountpoint)
-else:
-    profile = Profile.from_toml(profile_text)
-    if storage_root is not None:
-        mount_private(mountpoint, storage_root, profile)
-    elif overlay_root is not None and root is not None:
-        mount_overlay(mountpoint, root, overlay_root, profile)
-    elif root is not None:
-        mediator = RemoteUnknownPathMediator(socket_path) if socket_path else None
-        mount_host_readonly(
-            mountpoint,
-            root,
-            profile,
-            mediator=mediator,
-            session_id=session_id,
-        )
-    else:
-        raise ValueError("projected-home root configuration is incomplete")
-"""

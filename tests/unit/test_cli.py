@@ -160,6 +160,61 @@ def test_homed_internal_mode_reports_start_and_runtime_failure(
     assert "aspr-homed could not start: boom" in stderr.getvalue()
 
 
+def test_homed_internal_mode_selects_private_backing(monkeypatch: pytest.MonkeyPatch) -> None:
+    profile = 'version = 1\nid = "p"\nname = "p"\n'
+    calls: list[tuple[object, ...]] = []
+    monkeypatch.setenv("ASPR_HOMED_MOUNTPOINT", "/tmp/projected")
+    monkeypatch.setenv("ASPR_HOMED_PROFILE", profile)
+    monkeypatch.setenv("ASPR_HOMED_STORAGE_ROOT", "/tmp/state")
+    monkeypatch.setattr(
+        "astral_project.homed.fuse.mount_private",
+        lambda *args, **kwargs: calls.append((*args, kwargs["debug"])),
+    )
+    assert cli._run_internal("homed", StringIO()) == 0
+    assert len(calls) == 1
+    assert calls[0][:2] == ("/tmp/projected", "/tmp/state")
+    assert calls[0][-1] is False
+
+
+def test_homed_internal_mode_selects_overlay_and_host_backing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    profile = 'version = 1\nid = "p"\nname = "p"\n'
+    monkeypatch.setenv("ASPR_HOMED_MOUNTPOINT", "/tmp/projected")
+    monkeypatch.setenv("ASPR_HOMED_PROFILE", profile)
+    monkeypatch.setenv("ASPR_HOMED_ROOT", "/tmp/home")
+    composite_calls: list[tuple[object, ...]] = []
+    monkeypatch.setenv("ASPR_HOMED_OVERLAY_ROOT", "/tmp/upper")
+    monkeypatch.setattr(
+        "astral_project.homed.fuse.mount_composite",
+        lambda *args, **kwargs: composite_calls.append(
+            (*args, kwargs["overlay_root"], kwargs["debug"])
+        ),
+    )
+    assert cli._run_internal("homed", StringIO()) == 0
+    assert composite_calls[0][:2] == ("/tmp/projected", "/tmp/home")
+    assert composite_calls[0][3] == "/tmp/upper"
+    monkeypatch.delenv("ASPR_HOMED_OVERLAY_ROOT")
+    host_calls: list[tuple[object, ...]] = []
+    monkeypatch.setattr(
+        "astral_project.homed.fuse.mount_host_readonly",
+        lambda *args, **kwargs: host_calls.append((*args, kwargs["mediator"], kwargs["debug"])),
+    )
+    monkeypatch.setenv("ASPR_HOMED_MEDIATION_SOCKET", "/tmp/mediation.sock")
+    assert cli._run_internal("homed", StringIO()) == 0
+    assert host_calls[0][0:2] == ("/tmp/projected", "/tmp/home")
+
+
+def test_homed_internal_mode_rejects_profile_without_backing_root(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ASPR_HOMED_MOUNTPOINT", "/tmp/projected")
+    monkeypatch.setenv("ASPR_HOMED_PROFILE", 'version = 1\nid = "p"\nname = "p"\n')
+    stderr = StringIO()
+    assert cli._run_internal("homed", stderr) == 70
+    assert "root configuration is incomplete" in stderr.getvalue()
+
+
 def test_main_uses_process_streams(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

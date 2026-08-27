@@ -91,11 +91,14 @@ class ApprovalRequest:
 class ApprovalServer:
     """Serve exact-session approvals from a user-owned trusted runtime socket."""
 
-    def __init__(self, path: Path, mediator: UnknownPathMediator) -> None:
+    def __init__(
+        self, path: Path, mediator: UnknownPathMediator, *, allow_decisions: bool = True
+    ) -> None:
         if not path.is_absolute():
             raise ApprovalProtocolError("approval socket path must be absolute")
         self.path = path
         self.mediator = mediator
+        self.allow_decisions = allow_decisions
         self._stop = threading.Event()
         self._listener: socket.socket | None = None
         self._thread: threading.Thread | None = None
@@ -209,6 +212,10 @@ class ApprovalServer:
             if _is_mediation_frame(raw):
                 self._handle_mediation(connection, raw)
                 return
+            if not self.allow_decisions:
+                raise ApprovalProtocolError(
+                    "external decisions are disabled on mediation transport"
+                )
             request = ApprovalRequest.from_json(raw)
             accepted = self.mediator.decide(
                 session_id=request.session_id,

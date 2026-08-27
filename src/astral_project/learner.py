@@ -75,8 +75,6 @@ class ProfileLearner:
             for rule in profile.rules
             if rule.mode in {RuleMode.PRIVATE_RW, RuleMode.OVERLAY_RW}
         }
-        if len(writable) > 1:
-            raise LearnerError("one learner session cannot mix private and overlay roots")
         draft: list[tuple[Rule, ApprovalProvenance]] = []
         decision_observer = self._decision_observer(profile_id, draft)
         mediator = UnknownPathMediator(observer=observer, decision_observer=decision_observer)
@@ -101,7 +99,7 @@ class ProfileLearner:
             arguments.extend(
                 ["--private-root", str(self.state_root / "profiles" / profile_id / "private")]
             )
-        elif RuleMode.OVERLAY_RW in writable:
+        if RuleMode.OVERLAY_RW in writable:
             arguments.extend(
                 ["--overlay-root", str(self.state_root / "profiles" / profile_id / "overlay")]
             )

@@ -197,22 +197,25 @@ class ProfileStore:
         return profile
 
     def archive_profile(self, profile_id: str) -> Path:
-        profile = self.load(profile_id)
-        ensure_private_directory(self.archive)
-        destination = (
-            self.archive / f"{safe_component(profile_id)}-{profile.revision}-{time.time_ns()}.toml"
-        )
-        try:
-            os.replace(self.path(profile_id), destination)
-            descriptor = os.open(self.archive, os.O_RDONLY | os.O_DIRECTORY)
+        """Atomically remove current revision under same profile transaction lock."""
+        with self._profile_lock(profile_id):
+            profile = self.load(profile_id)
+            ensure_private_directory(self.archive)
+            destination = (
+                self.archive
+                / f"{safe_component(profile_id)}-{profile.revision}-{time.time_ns()}.toml"
+            )
             try:
-                os.fsync(descriptor)
-            finally:
-                os.close(descriptor)
-        except OSError as error:
-            raise ProfileLifecycleError("profile archive failed") from error
-        check_private_path(destination)
-        return destination
+                os.replace(self.path(profile_id), destination)
+                descriptor = os.open(self.archive, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    os.fsync(descriptor)
+                finally:
+                    os.close(descriptor)
+            except OSError as error:
+                raise ProfileLifecycleError("profile archive failed") from error
+            check_private_path(destination)
+            return destination
 
     @contextmanager
     def _profile_lock(self, profile_id: str) -> Iterator[None]:

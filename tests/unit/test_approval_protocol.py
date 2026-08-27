@@ -76,7 +76,7 @@ def test_external_approval_accepts_exact_request_and_rejects_stale(tmp_path: Pat
 def test_remote_mediation_round_trip(tmp_path: Path) -> None:
     parent = UnknownPathMediator(timeout=1)
     socket_path = tmp_path / "mediation.sock"
-    server = ApprovalServer(socket_path, parent)
+    server = ApprovalServer(socket_path, parent, allow_decisions=False)
     server.start()
     result: dict[str, object] = {}
 
@@ -97,8 +97,13 @@ def test_remote_mediation_round_trip(tmp_path: Path) -> None:
                 break
             time.sleep(0.001)
         request = parent.pending()[0]
-        assert ApprovalClient(socket_path).approve(
+        assert not ApprovalClient(socket_path).approve(
             ApprovalRequest("session", request.request_number, MediationDecision.ALLOW_ONCE)
+        )
+        assert parent.decide(
+            session_id="session",
+            request_number=request.request_number,
+            decision=MediationDecision.ALLOW_ONCE,
         )
         thread.join(1)
         assert cast(MediationResult, result["value"]).allowed is True

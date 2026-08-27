@@ -434,8 +434,9 @@ def test_profile_learner_rejects_bad_commands_and_selects_writable_backends(tmp_
     )
     assert "--overlay-root" in captured[-1]
     assert "--approval-socket" in captured[-1]
-    with pytest.raises(LearnerError, match="mix"):
-        learner.run("mixed", ("/bin/true",), runtime=tmp_path / "run")
+    learner.run("mixed", ("/bin/true",), runtime=tmp_path / "run")
+    assert "--private-root" in captured[-1]
+    assert "--overlay-root" in captured[-1]
     assert isinstance(learner_environment(), dict)
 
 

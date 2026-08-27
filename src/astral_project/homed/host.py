@@ -53,10 +53,16 @@ class HostReadonlyView:
         self._next_inode = 2
         self._paths: dict[str, int] = {".": _ROOT_INODE}
         self._inodes: dict[int, str] = {_ROOT_INODE: "."}
+        self._lookups: dict[int, int] = {_ROOT_INODE: 1}
 
     @property
     def root_fd(self) -> int:
         return self._root
+
+    @property
+    def inode_count(self) -> int:
+        with self._lock:
+            return len(self._inodes)
 
     def close(self) -> None:
         with self._lock:
@@ -139,6 +145,21 @@ class HostReadonlyView:
             except KeyError as error:
                 raise HostAccessError(errno.ENOENT, "unknown synthetic inode") from error
 
+    def forget(self, inode: int, count: int) -> None:
+        """Release path cache entries after FUSE drops its lookup references."""
+        if count < 0 or inode == _ROOT_INODE:
+            return
+        with self._lock:
+            if inode not in self._inodes:
+                return
+            remaining = max(0, self._lookups.get(inode, 0) - count)
+            if remaining:
+                self._lookups[inode] = remaining
+                return
+            path = self._inodes.pop(inode)
+            self._paths.pop(path, None)
+            self._lookups.pop(inode, None)
+
     def _authorize(self, path: str, operation: Operation) -> None:
         decision = self._profile.decision(path, operation)
         if decision.allowed:
@@ -159,6 +180,14 @@ class HostReadonlyView:
             decision.reason == "opaque ancestor traversal" or self._has_descendant_rule(path)
         )
         if (
+            self._profile.sealed
+            and opaque_ancestor
+            and operation in {Operation.LOOKUP, Operation.STAT}
+        ):
+            # Permit component traversal toward known descendant rules only.
+            # LIST remains denied; siblings and directory contents stay hidden.
+            return
+        if (
             decision.reason in {"no matching rule", "opaque ancestor traversal"}
             and self._mediator is not None
             and self._profile.unknown_learning == "prompt"
@@ -177,6 +206,11 @@ class HostReadonlyView:
                 return
             if result.hidden:
                 raise HostAccessError(errno.ENOENT, f"hidden {operation} {path}")
+        if opaque_ancestor and operation is Operation.LIST:
+            raise HostAccessError(errno.EACCES, f"opaque ancestor denies {operation} {path}")
+        if self._profile.sealed and decision.reason == "no matching rule":
+            error = errno.ENOENT if self._profile.unknown_sealed == "hide" else errno.EACCES
+            raise HostAccessError(error, f"sealed policy denied {operation} {path}")
         raise HostAccessError(errno.EACCES, f"policy denied {operation} {path}")
 
     def _confirm_credential(self, path: str, operation: Operation) -> None:
@@ -243,6 +277,7 @@ class HostReadonlyView:
                 self._next_inode += 1
                 self._paths[path] = inode
                 self._inodes[inode] = path
+            self._lookups[inode] = self._lookups.get(inode, 0) + 1
         mode = stat_module.S_IFMT(metadata.st_mode) | (
             metadata.st_mode & 0o777 & ~(stat_module.S_ISUID | stat_module.S_ISGID)
         )

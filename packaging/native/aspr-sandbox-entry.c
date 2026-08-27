@@ -12,6 +12,7 @@
 #define MAX_ARGUMENTS 64
 #define MAX_LINE (16U * 1024U)
 #define ENTRY "/usr/libexec/astral-project/aspr-sandbox-entry"
+#define HOST_RX "/usr/libexec/astral-project/aspr-host-rx"
 #define SESSION_SOCKET "/run/astral-project/session.sock"
 
 static void fail(const char *message) {
@@ -93,6 +94,9 @@ int main(int argc, char **argv) {
     }
     if (argc - 1 > MAX_ARGUMENTS || argv[1][0] != '/') {
         fail("payload command is not an absolute bounded executable");
+    }
+    if (strcmp(argv[1], HOST_RX) == 0 && (argc < 3 || strncmp(argv[2], "/home/sandbox/", 14) != 0)) {
+        fail("host-rx payload invocation is invalid");
     }
     const char *relay_text = getenv("ASPR_SESSION_RELAY_FD");
     if (relay_text != NULL) {

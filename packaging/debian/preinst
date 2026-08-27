@@ -1,0 +1,25 @@
+#!/bin/sh
+set -eu
+
+case "${1:-}" in
+  install|upgrade)
+    # Releases before Packet 36A copied host-ABI extensions into this private
+    # tree. Remove only those obsolete vendored dependency roots before dpkg
+    # unpacks the pure Astral wheel; Ubuntu owns their replacements.
+    rm -rf \
+      /usr/lib/astral-project/python/cbor2 \
+      /usr/lib/astral-project/python/cbor2-*.dist-info \
+      /usr/lib/astral-project/python/cryptography \
+      /usr/lib/astral-project/python/cryptography-*.dist-info \
+      /usr/lib/astral-project/python/cffi \
+      /usr/lib/astral-project/python/cffi-*.dist-info \
+      /usr/lib/astral-project/python/_cffi_backend*.so \
+      /usr/lib/astral-project/python/pycparser \
+      /usr/lib/astral-project/python/pycparser-*.dist-info
+    if [ -d /usr/lib/astral-project/python ]; then
+      find /usr/lib/astral-project/python -type d -name __pycache__ -prune -exec rm -rf {} +
+    fi
+    ;;
+esac
+
+exit 0

@@ -75,6 +75,17 @@ def test_terminal_guard_on_non_tty_and_controller_configuration(
         ApprovalController(session_id="s", mediator=UnknownPathMediator()).run(())
 
 
+def test_parent_pty_relay_starts_and_closes_mediation_server(tmp_path: Path) -> None:
+    controller = ApprovalController(
+        session_id="session",
+        mediator=UnknownPathMediator(),
+        mediation_socket=tmp_path / "mediation.sock",
+        input_fd=-1,
+    )
+    assert controller.run([sys.executable, "-c", "pass"]) == 0
+    assert not (tmp_path / "mediation.sock").exists()
+
+
 def test_parent_pty_relay_external_approval_and_buffered_output(tmp_path: Path) -> None:
     mediator = UnknownPathMediator(timeout=2)
     number = _request(mediator)

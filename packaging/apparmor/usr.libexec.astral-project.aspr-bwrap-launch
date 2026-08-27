@@ -60,6 +60,7 @@ profile aspr-bwrap-setup /usr/libexec/astral-project/aspr-bwrap-launch flags=(at
   owner /run/user/*/astral-project/** rw,
   /home/** rw,
   /tmp/** rw,
+  /tmp/aspr-host-rx.exec* mrix,
   /dev/** rw,
   /run/astral-project/session.sock rw,
 
@@ -81,6 +82,8 @@ profile aspr-sandbox-payload flags=(attach_disconnected) {
   /proc/self/attr/current r,
   /run/astral-project/ rw,
   /run/astral-project/session.sock rw,
+  /tmp/aspr-host-rx.allow r,
+  /tmp/aspr-host-rx.exec* mrix,
   unix (create, bind, listen, accept, connect, send, receive, getattr, getopt, setopt),
   /proc/net/route r,
   /proc/net/dev r,
