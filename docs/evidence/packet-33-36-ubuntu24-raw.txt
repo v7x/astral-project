@@ -114,7 +114,7 @@ COMMAND sudo -u testuser XDG_RUNTIME_DIR=/run/user/1002 PATH=/usr/bin:/bin /usr/
 EXIT 0
 
 
-## Packet 36A final-artifact installed acceptance
+## Historical superseded Packet 36A artifact acceptance (not authoritative)
 source-commit=c2f9c6988424ff1e4f4de41d7d08f7342e9bad64
 artifact-deb-sha256=6b124dd161cc21c4edc5d4ef0cc4503bb7e9cb9fcbc76dec7a48dcd6d83b0bea
 sandbox-driver-sha256=a444ca8e0d88ca9b988aca8449f3fbdc6b63e19893aa817fb2ddf6b70a1c528b
@@ -497,7 +497,7 @@ final-artifact-confinement-exit=Ubuntu 24.04:0
 final-artifact-learner-exit=Ubuntu 24.04:0
 
 
-## Packet 36A final closure artifact
+## Historical superseded Packet 36A closure artifact (not authoritative)
 source-commit=27fca7c3b185fe7e05ff4fa4bc33e78f2c731a16
 artifact-deb-sha256=99abed1147b7462becccb8dbd1246098aa6e277456bd1f8a4740bc72d5ac4566
 release=Ubuntu 24.04.4 LTS

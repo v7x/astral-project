@@ -336,6 +336,32 @@ def main() -> int:
             run(["apparmor_parser", "--remove", str(no_net_admin)], sudo=True)
             run(["apparmor_parser", "--replace", str(PROFILE)], sudo=True)
 
+        time.sleep(5)
+        restored_baseline = _audit_baseline()
+        restored_probe = run_result(probe_command, sudo=True)
+        restored_audit: list[str] = []
+        restored_probe_line: str | None = None
+        for _ in range(20):
+            time.sleep(0.5)
+            restored_audit = _audit_lines_after(restored_baseline)
+            restored_probe_line = next(
+                (
+                    line
+                    for line in restored_audit
+                    if 'apparmor="AUDIT"' in line
+                    and 'operation="capable"' in line
+                    and 'profile="aspr-bwrap-setup"' in line
+                    and 'capname="net_admin"' in line
+                ),
+                None,
+            )
+            if restored_probe_line is not None:
+                break
+        if restored_probe.returncode != 0 or restored_probe_line is None:
+            raise SystemExit("restored net_admin probe did not produce allowed audit evidence")
+        print("setup_profile_restored_net_admin=passed")
+        print(restored_probe_line)
+
         restored_runtime = run_result(
             [
                 "env",
