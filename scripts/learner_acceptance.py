@@ -5,18 +5,55 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import tempfile
 import time
 from contextlib import suppress
 from pathlib import Path
 
-from astral_project.approval.protocol import ApprovalClient, ApprovalProtocolError, ApprovalRequest
-from astral_project.homed.mediation import MediationDecision
-from astral_project.learner import ProfileLearner
-from astral_project.profile import Profile, Rule, RuleMode, RuleScope
-from astral_project.profile_lifecycle import ProfileStore
+_INSTALLED_RUNTIME = "/usr/lib/astral-project/python"
+if _INSTALLED_RUNTIME not in sys.path:
+    sys.path.insert(0, _INSTALLED_RUNTIME)
+
+from astral_project.approval.protocol import (  # noqa: E402
+    ApprovalClient,
+    ApprovalProtocolError,
+    ApprovalRequest,
+)
+from astral_project.homed.mediation import MediationDecision  # noqa: E402
+from astral_project.learner import ProfileLearner  # noqa: E402
+from astral_project.profile import Profile, Rule, RuleMode, RuleScope  # noqa: E402
+from astral_project.profile_lifecycle import ProfileStore  # noqa: E402
 
 ASPR = "/usr/bin/aspr"
+CASES = (
+    "installed-fixed-aspr",
+    "isolated-import-environment",
+    "profile-create",
+    "external-approval-socket",
+    "external-approval-request",
+    "unknown-lookup-approved",
+    "unknown-read-approved",
+    "external-approval-count",
+    "approved-rule-persisted",
+    "second-project-profile-reuse",
+    "second-project-known-read",
+    "reuse-without-new-approval",
+    "observer-authority-disabled",
+    "profile-sealing",
+    "sealed-known-lookup",
+    "sealed-known-read",
+    "sealed-unrelated-path-hidden",
+    "projected-home-mounted",
+    "projected-home-noexec",
+    "host-rx-profile-authorized",
+    "host-rx-exact-path",
+    "host-rx-fixed-executor-output",
+    "host-rx-unapproved-path-denied",
+    "host-rx-manifest-lifecycle",
+    "network-none-projector",
+    "learner-end-to-end",
+)
 _READ_UNKNOWN = (
     "for n in $(seq 1 100); do if IFS= read -r value < /home/sandbox/unknown.txt; "
     "then printf '%s\\n' \"$value\"; exit 0; fi; sleep 0.05; done; exit 1"
@@ -272,10 +309,9 @@ def main() -> None:
         )
         if denied_host_rx.returncode == 0:
             raise AssertionError("unapproved host-rx command was accepted")
-        print("projected-home-noexec=passed")
-        print("host-rx-exact-execution=passed")
-        print("host-rx-unapproved-path-denied=passed")
-        print("learner-end-to-end=passed")
+        for case in CASES:
+            print(f"case-{case}=passed")
+        print(f"learner-case-count={len(CASES)}")
 
 
 if __name__ == "__main__":

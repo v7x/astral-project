@@ -1,5 +1,7 @@
 #include <tunables/global>
 
+abi <abi/4.0>,
+
 profile aspr-bwrap-setup /usr/libexec/astral-project/aspr-bwrap-launch flags=(attach_disconnected) {
   # Administrator-approved roots are rendered by render-apparmor-roots.
   #include if exists <local/astral-project-source-roots>
@@ -16,20 +18,20 @@ profile aspr-bwrap-setup /usr/libexec/astral-project/aspr-bwrap-launch flags=(at
   unix,
   unix (create, connect, send, receive, getattr, getopt, setopt) type=stream,
 
-  audit mount options=(rw rbind) -> /newroot/{,**},
-  audit mount options=(rw rbind) /tmp/newroot/ -> /tmp/newroot/,
-  audit mount fstype=devpts options=(rw nosuid noexec) devpts -> /newroot/dev/pts/,
-  audit mount fstype=proc options=(rw nosuid nodev noexec) proc -> /newroot/@{PROC}/,
-  audit mount fstype=tmpfs options=(rw nosuid nodev) tmpfs -> /newroot/{,**},
+  mount options=(rw rbind) -> /newroot/{,**},
+  mount options=(rw rbind) /tmp/newroot/ -> /tmp/newroot/,
+  mount fstype=devpts options=(rw nosuid noexec) devpts -> /newroot/dev/pts/,
+  mount fstype=proc options=(rw nosuid nodev noexec) proc -> /newroot/@{PROC}/,
+  mount fstype=tmpfs options=(rw nosuid nodev) tmpfs -> /newroot/{,**},
   audit mount fstype=tmpfs options=(rw nosuid nodev) tmpfs -> /tmp/,
-  audit mount options=(rw silent make-rslave) /,
-  audit mount options=(rw silent make-rprivate) /oldroot/,
-  audit remount /newroot/{,**},
-  audit umount /,
-  audit umount /oldroot/,
-  audit mount -> /newroot/{,**},
-  audit pivot_root oldroot=/newroot/ /newroot/,
-  audit pivot_root oldroot=/tmp/oldroot/ /tmp/,
+  mount options=(rw silent make-rslave) /,
+  mount options=(rw silent make-rprivate) /oldroot/,
+  remount /newroot/{,**},
+  umount /,
+  umount /oldroot/,
+  mount -> /newroot/{,**},
+  pivot_root oldroot=/newroot/ /newroot/,
+  pivot_root oldroot=/tmp/oldroot/ /tmp/,
 
   /usr/libexec/astral-project/aspr-bwrap-launch mr,
   /usr/bin/bwrap ix,
