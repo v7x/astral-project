@@ -30,7 +30,7 @@ _PATH_KEY = re.compile(
 )
 _SECRET_VALUE = re.compile(
     r"(?:-----BEGIN[ -]+(?:OPENSSH[ -]+)?PRIVATE[ -]+KEY-----|"
-    r"(?:password|passphrase|secret|private[_ -]?key|token|credential)\\s*[:=])",
+    r"(?:password|passphrase|secret|private[_ -]?key|token|credential)\s*[:=])",
     re.IGNORECASE,
 )
 _SAFE_REASON_VALUES = frozenset(
@@ -423,52 +423,50 @@ class AuditLog:
 
     def _reset_oldest_predecessor(self) -> None:
         """Atomically make the first retained valid row a new chain root."""
-        oldest = next((path for path in self._read_paths() if path.exists()), None)
-        if oldest is None:
-            return
-        try:
-            lines = _read_private_text(oldest).splitlines(keepends=True)
-        except OSError:
-            return
-        for index, line in enumerate(lines):
+        for oldest in self._read_paths():
             try:
-                raw = json.loads(line)
-                if not isinstance(raw, dict):
-                    continue
-                event = AuditEvent.from_dict(cast(Mapping[str, object], raw))
-            except (AuditEventError, json.JSONDecodeError, TypeError, ValueError):
+                lines = _read_private_text(oldest).splitlines(keepends=True)
+            except OSError:
                 continue
-            if event.previous_event_id is None:
-                return
-            replacement_value = event.to_dict()
-            replacement_value["previous_event_id"] = None
-            replacement = (
-                json.dumps(replacement_value, separators=(",", ":"), sort_keys=True) + "\n"
-            )
-            lines[index] = replacement
-            descriptor, temporary_name = tempfile.mkstemp(
-                prefix=f".{safe_component(oldest.name)}.", dir=oldest.parent
-            )
-            temporary = Path(temporary_name)
-            try:
-                os.fchmod(descriptor, 0o600)
-                data = "".join(lines).encode()
-                view = memoryview(data)
-                while view:
-                    written = os.write(descriptor, view)
-                    if written <= 0:
-                        raise OSError("audit rotation write made no progress")
-                    view = view[written:]
-                os.fsync(descriptor)
-                os.close(descriptor)
-                descriptor = -1
-                os.replace(temporary, oldest)
-                os.chmod(oldest, 0o600)
-            finally:
-                if descriptor >= 0:
+            for index, line in enumerate(lines):
+                try:
+                    raw = json.loads(line)
+                    if not isinstance(raw, dict):
+                        continue
+                    event = AuditEvent.from_dict(cast(Mapping[str, object], raw))
+                except (AuditEventError, json.JSONDecodeError, TypeError, ValueError):
+                    continue
+                if event.previous_event_id is None:
+                    return
+                replacement_value = event.to_dict()
+                replacement_value["previous_event_id"] = None
+                replacement = (
+                    json.dumps(replacement_value, separators=(",", ":"), sort_keys=True) + "\n"
+                )
+                lines[index] = replacement
+                descriptor, temporary_name = tempfile.mkstemp(
+                    prefix=f".{safe_component(oldest.name)}.", dir=oldest.parent
+                )
+                temporary = Path(temporary_name)
+                try:
+                    os.fchmod(descriptor, 0o600)
+                    data = "".join(lines).encode()
+                    view = memoryview(data)
+                    while view:
+                        written = os.write(descriptor, view)
+                        if written <= 0:
+                            raise OSError("audit rotation write made no progress")
+                        view = view[written:]
+                    os.fsync(descriptor)
                     os.close(descriptor)
-                temporary.unlink(missing_ok=True)
-            return
+                    descriptor = -1
+                    os.replace(temporary, oldest)
+                    os.chmod(oldest, 0o600)
+                finally:
+                    if descriptor >= 0:
+                        os.close(descriptor)
+                    temporary.unlink(missing_ok=True)
+                return
 
     def _rotate_if_needed(self) -> None:
         if self.path.exists() and self.path.stat().st_size >= self.max_bytes:

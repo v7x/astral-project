@@ -149,6 +149,26 @@ def test_audit_log_reset_handles_empty_and_malformed_storage(
     log._reset_oldest_predecessor()
 
 
+def test_audit_log_skips_malformed_oldest_generation(tmp_path: Path) -> None:
+    log = AuditLog(tmp_path / "generations.log", retain=2)
+    oldest = log.path.with_name("generations.log.2")
+    next_generation = log.path.with_name("generations.log.1")
+    oldest.write_text("not-json\n", encoding="utf-8")
+    next_generation.write_text(
+        json.dumps(
+            AuditEvent(
+                "event", 1, "kind", "subject", "id", {}, previous_event_id="deleted"
+            ).to_dict()
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    oldest.chmod(0o600)
+    next_generation.chmod(0o600)
+    log._reset_oldest_predecessor()
+    assert AuditEvent.from_dict(json.loads(next_generation.read_text())).previous_event_id is None
+
+
 def test_audit_rotation_write_failure_closes_private_temp(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -229,6 +249,9 @@ def test_payload_lists_and_invalid_keys_are_rejected() -> None:
         AuditEvent.create("kind", "subject", "id", {"output": "file contents"})
     with pytest.raises(AuditEventError, match="reason"):
         AuditEvent.create("kind", "subject", "id", {"reason": "untrusted file contents"})
+    for value in ("token: abc", "password = abc"):
+        with pytest.raises(AuditEventError, match="secret-bearing audit value"):
+            AuditEvent.create("kind", "subject", "id", {"message": value})
 
 
 def test_chain_detects_duplicate_and_forward_reference() -> None:
