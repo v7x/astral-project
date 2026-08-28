@@ -11,7 +11,7 @@ sha256: bfe34dfe26a655450984666d80a54e87d3432cdfdfc741da5b8c7ae21089232a
 
 The artifact was rebuilt from the closure source tree after the final Landlock,
 process-entrypoint, audit-protocol, and profile-audit-sink changes. The final
-source closure commit is `f04740e`.
+source closure commit is `3a85bfcdef3f8c274e97dcec45a933f3e3b009ea`.
 
 ## Local verification
 
