@@ -5,8 +5,8 @@
 Packet 37 gate: HOLD pending final auditor approval.
 Packet 38 gate: HOLD pending final auditor approval.
 
-Executable source closure is `4d97d38b153156304baaae566ac778bdfa5a9a09`; final package is
-`c985e3cc0cfcd7e67dfdf3d2b9f943c5b2c32cc4a98e34b378bde6a1696b4fd6`. Do not begin
+Executable source closure is `631c2ee3483b36b0b28a2f87c2a8e6add02a6463`; final package is
+`18cf3cdc9bdd7b08d017fd5e02a2c565b3092af6c8ed9fd16148417d7f6ffb1e`. Do not begin
 Packet 39. Final acceptance names one committed source tree and one rebuilt
 `.deb`; evidence-only commits prove source-tree equivalence.
 
@@ -26,8 +26,10 @@ transport; raw export and arbitrary remote paths are not supported.
 
 Landlock minimum ABI is 3. Python and native code handle every filesystem right
 through `TRUNCATE`, while fixed root roles control grants: read-only,
-regular-writable, socket-runtime, and device-runtime. Ordinary writable trees do
-not receive device/socket/FIFO/block creation. Affected startup fails closed on
+regular-writable, socket-runtime, and device-runtime. Socket-runtime roots grant
+only traversal/read and socket creation, not regular-file, removal, symlink, REFER,
+or truncation rights. Ordinary writable trees do not receive device/socket/FIFO/block
+creation. Affected startup fails closed on
 unavailable/insufficient ABI, probe, ruleset, rule, restrict-self, or process
 control failure and records bounded failure evidence where storage remains
 available.
@@ -43,5 +45,5 @@ available.
   acceptance on both releases;
 - remote audit lock/mode, redaction/hash, retention/boundary, concurrency, and
   local/remote provenance evidence;
-- exact source, package, driver, and raw transcript hashes: source `4d97d38b153156304baaae566ac778bdfa5a9a09`; package `c985e3cc0cfcd7e67dfdf3d2b9f943c5b2c32cc4a98e34b378bde6a1696b4fd6`; Ubuntu 24 raw `831327bb255ba277be20108aa93746db83f92249ef17f5bdc62ab7bb667ed938`; Ubuntu 26 raw `6d253511c831198a09d4c6ab429a1b6024308158aea5d617f88c0789ad298244`;
+- exact source, package, driver, and raw transcript hashes: source `631c2ee3483b36b0b28a2f87c2a8e6add02a6463`; package `18cf3cdc9bdd7b08d017fd5e02a2c565b3092af6c8ed9fd16148417d7f6ffb1e`; Ubuntu 24 raw `743d6bed56442ed231956699fdbd24c42aa084915e478626e4b4c94b3adcb615`; Ubuntu 26 raw `c37d65c49f5e838549fbbf4c1b5b7017e5f8d27ca96590d7e5ecc0f935865c37`;
 - `git diff --check` and pushed refs equal.

@@ -733,3 +733,14 @@ relay-ok
 session_relay=passed
 
 PASS 4d97 installed session relay Ubuntu24 package=c985e3cc0cfcd7e67dfdf3d2b9f943c5b2c32cc4a98e34b378bde6a1696b4fd6 rc=0
+
+--- final blocker closure: installed audit path fields ---
+$ sha256sum /tmp/astral-project-37-38-final.deb
+18cf3cdc9bdd7b08d017fd5e02a2c565b3092af6c8ed9fd16148417d7f6ffb1e  /tmp/astral-project-37-38-final.deb
+$ PYTHONPATH=/usr/lib/astral-project/python python3 installed-path-fields-probe.py
+redacted={"destination":"<redacted>","device":"<redacted>","path_component":"<redacted>","remote_home":"<redacted>"}
+hashed={"destination":"sha256:c0e702cc18c73ec080d263e34a9aa307b3b7ecd29050a4fc1379690298ceef2c","device":"sha256:5022f5bbbdcdd229517b1cd2fda018ebb59ba3f574fc37b966e84225aa1794bd","path_component":"sha256:b2be01796cdbe555fb1edeafc770b43022585092c28fc52493e8b159be837ad4","remote_home":"sha256:1ca180d525ce762c59a4a1a4edcff97b8b90eff4d106a3ead7e5ce62801e163c"}
+PASS installed audit path-field redaction/hash ubuntu24
+$ sudo env ASPR_PACKAGE=/tmp/astral-project-37-38-final.deb SUDO_USER=testuser python3 /tmp/aspr-accept-37-38/scripts/sandbox_installed_acceptance.py
+installed acceptance rc=0
+PASS installed Ubuntu 24.04 final blocker closure

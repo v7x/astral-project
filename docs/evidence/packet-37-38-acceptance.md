@@ -6,22 +6,22 @@ Final installed candidate artifact:
 
 ```text
 artifact: astral-project_0.1.0_amd64.deb
-sha256: c985e3cc0cfcd7e67dfdf3d2b9f943c5b2c32cc4a98e34b378bde6a1696b4fd6
+sha256: 18cf3cdc9bdd7b08d017fd5e02a2c565b3092af6c8ed9fd16148417d7f6ffb1e
 ```
 
 The artifact was rebuilt from the closure source tree after the final Landlock,
 process-entrypoint, audit-protocol, and profile-audit-sink changes. The final
-source closure commit is `4d97d38b153156304baaae566ac778bdfa5a9a09`. Later
+source closure commit is `631c2ee3483b36b0b28a2f87c2a8e6add02a6463`. Later
 commits are evidence-only; `packet-37-38-local-validation.txt` records the
 source-tree equivalence check from that closure through the final evidence HEAD.
 
 ## Local verification
 
 ```text
-./scripts/test                         847 passed, 1 skipped; coverage 100%
+./scripts/test                         852 passed, 1 skipped; coverage 100%
 uv run mypy src tests                   passed
 uv run pytest tests/unit/test_audit.py tests/unit/test_hardening.py
-                                        45 passed
+                                        60 passed
 uv run pytest tests/unit/test_server_protocol.py::test_local_and_remote_audit_events_share_session_correlation
                                         1 passed
 cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-bwrap-launch.c
@@ -36,7 +36,7 @@ python scripts/parser_fuzz.py           passed
 Immutable local validation transcript:
 
 ```text
-packet-37-38-local-validation.txt  f13041a2a52e26216c5d677133c272ea794575fab78d70a38a5cd5d95457f757
+packet-37-38-local-validation.txt  dfe0eab0a6c95f94118d4e5bc0bd2d84555f36182816f46199a0c74ff844b55a
 ```
 
 The full suite includes audit schema, path redaction and hashing, malformed-old-
@@ -59,8 +59,8 @@ end with an explicit PASS marker:
 Raw transcript SHA-256 values:
 
 ```text
-packet-37-38-ubuntu24-raw.txt  831327bb255ba277be20108aa93746db83f92249ef17f5bdc62ab7bb667ed938
-packet-37-38-ubuntu26-raw.txt  6d253511c831198a09d4c6ab429a1b6024308158aea5d617f88c0789ad298244
+packet-37-38-ubuntu24-raw.txt  743d6bed56442ed231956699fdbd24c42aa084915e478626e4b4c94b3adcb615
+packet-37-38-ubuntu26-raw.txt  c37d65c49f5e838549fbbf4c1b5b7017e5f8d27ca96590d7e5ecc0f935865c37
 ```
 
 Both installed runs passed the existing mount-namespace/AppArmor capability
@@ -85,7 +85,10 @@ refer/link operations were denied with unchanged outside content and directory
 entries. The installed failure harness proved `ASPR_HARDENING_UNAVAILABLE`, no
 workload marker, and `hardening.failure` audit evidence. Remote retention probes
 reported two retained events, a valid chain, private `0600` adjacent lock, and
-explicit boundary metadata. Authorized remote audit export is exposed through
+explicit boundary metadata. The executable `scripts/audit_retention_acceptance.py`
+probe independently reproduced the combined byte-and-count result with two retained
+subjects, four boundary segments, and private mode 0600. Authorized
+remote audit export is exposed through
 the local daemon `audit.remote.export` operation and fixed SSH marker; raw mode
 is rejected, while server-side redaction/hash is covered by focused protocol
 acceptance.

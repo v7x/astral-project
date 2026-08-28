@@ -16,7 +16,7 @@ Authorized remote audit export uses a narrow local-daemon operation and fixed SS
 
 ## Consequences
 
-The daemon and remote server must expose enough lifecycle hooks to emit the shared event schema, while event payload validation remains independent of callers. A kernel without Landlock cannot silently receive a weaker session. Operator tooling must distinguish unavailable hardening from successful enforcement and must not reveal redacted values.
+The daemon and remote server must expose enough lifecycle hooks to emit the shared event schema, while event payload validation remains independent of callers. A kernel without Landlock cannot silently receive a weaker session. Operator tooling must distinguish unavailable hardening from successful enforcement and must not reveal redacted values. Socket-runtime roots grant only traversal/read access plus socket creation; they do not grant regular-file, removal, symlink, REFER, or truncation rights. Remote export capture is bounded while reading, before response validation.
 
 ## Verification
 
