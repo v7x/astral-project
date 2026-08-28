@@ -1,7 +1,12 @@
 $ git rev-parse HEAD
-4e458d74a83b814e83345cdc4bf3461e930c23c4
+11b231cb61496bcd74e92d96ddcd4398e76453a6
 $ git rev-parse origin/master
-4e458d74a83b814e83345cdc4bf3461e930c23c4
+11b231cb61496bcd74e92d96ddcd4398e76453a6
+$ git status --short -- src packaging scripts tests .github docs/evidence
+$ git diff --quiet HEAD -- src packaging scripts tests .github docs/evidence
+PASS scoped-working-tree-clean
+$ git diff --cached --quiet HEAD -- src packaging scripts tests .github docs/evidence
+PASS scoped-index-clean
 $ git diff --quiet 4e458d74a83b814e83345cdc4bf3461e930c23c4..HEAD -- src packaging scripts tests .github
 PASS source-tree-equivalence source-closure=4e458d74a83b814e83345cdc4bf3461e930c23c4
 $ uv run ruff check src tests scripts
@@ -9,8 +14,8 @@ All checks passed!
 $ uv run mypy src tests
 Success: no issues found in 183 source files
 $ ./scripts/test
-Resolved 25 packages in 0.71ms
-Checked 17 packages in 0.23ms
+Resolved 25 packages in 0.67ms
+Checked 17 packages in 0.22ms
 209 files already formatted
 All checks passed!
 Success: no issues found in 183 source files
@@ -117,23 +122,23 @@ tests/unit/test_approval_terminal.py::test_parent_pty_relay_external_approval_an
 tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
 tests/unit/test_approval_terminal.py::test_terminal_controller_forwards_sigcont_after_child_suspend
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=977498) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=979221) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
     pid, fd = os.forkpty()
 
 tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
-  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=977498) is multi-threaded, use of fork() may lead to deadlocks in the child.
+  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=979221) is multi-threaded, use of fork() may lead to deadlocks in the child.
     pid = os.fork()
 
 tests/unit/test_approval_terminal.py::test_controller_does_not_publish_socket_to_child
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=977574) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=979297) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
     pid, fd = os.forkpty()
 
 tests/unit/test_broker_main.py::test_module_entrypoint_calls_main
   <frozen runpy>:128: RuntimeWarning: 'astral_project.broker.main' found in sys.modules after import of package 'astral_project.broker', but prior to execution of 'astral_project.broker.main'; this may result in unpredictable behaviour
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 852 passed, 1 skipped, 9 warnings in 16.51s ==================
+================= 852 passed, 1 skipped, 9 warnings in 16.35s ==================
 ..                    [  4%]
 tests/unit/test_audit.py ..............................                  [  8%]
 tests/unit/test_broker_authority.py .....                                [  8%]
@@ -224,19 +229,19 @@ tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transi
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
 tests/unit/test_approval_terminal.py::test_terminal_controller_forwards_sigcont_after_child_suspend
 tests/unit/test_approval_terminal.py::test_controller_does_not_publish_socket_to_child
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=977498) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=979221) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
     pid, fd = os.forkpty()
 
 tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
-  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=977498) is multi-threaded, use of fork() may lead to deadlocks in the child.
+  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=979221) is multi-threaded, use of fork() may lead to deadlocks in the child.
     pid = os.fork()
 
 tests/unit/test_broker_main.py::test_module_entrypoint_calls_main
   <frozen runpy>:128: RuntimeWarning: 'astral_project.broker.main' found in sys.modules after import of package 'astral_project.broker', but prior to execution of 'astral_project.broker.main'; this may result in unpredictable behaviour
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 852 passed, 1 skipped, 9 warnings in 28.68s ==================
+================= 852 passed, 1 skipped, 9 warnings in 28.78s ==================
 Name    Stmts   Miss Branch BrPart  Cover   Missing
 ---------------------------------------------------
 TOTAL   11531      0   3426      0   100%
@@ -245,13 +250,13 @@ TOTAL   11531      0   3426      0   100%
 $ uv run pytest tests/unit/test_audit.py tests/unit/test_hardening.py tests/unit/test_daemon_server.py tests/unit/test_mount_lifecycle.py tests/unit/test_rclone_listing.py -q
 ........................................................................ [ 87%]
 ..........                                                               [100%]
-82 passed in 2.79s
+82 passed in 2.74s
 $ uv run python scripts/audit_retention_acceptance.py
 {'retained': 2, 'subjects': ['4', '5'], 'chain_errors': [], 'lock_mode': 384, 'boundary_mode': 384, 'boundary_records': 4}
 PASS audit retention byte-and-count probe
 $ uv run python scripts/parser_fuzz.py
 PASS parser fuzz cases=5
-$ apparmor_parser -Q -K packaging/native/aspr-bwrap-launch.c
+$ apparmor_parser -Q -K packaging/apparmor/usr.libexec.astral-project.aspr-bwrap-launch
 $ native strict builds
 PASS native strict builds
 $ sha256sum /tmp/packet37-38-build-socket-isolation-1787958684/astral-project_0.1.0_amd64.deb
