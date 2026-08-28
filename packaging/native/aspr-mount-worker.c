@@ -192,7 +192,7 @@ int main(int argc,char **argv) {
  discard_setup_authority();
  enter_apparmor_profile(apparmor_control);
  set_no_new_privs();
- aspr_harden_minimal("/.astral-project-runtime", "/dev");
+ aspr_harden_minimal("/.astral-project-runtime", "/dev/null");
  run_fixed_sftp();
  return 111;
 }

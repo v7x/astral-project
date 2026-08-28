@@ -651,7 +651,12 @@ def mount_host_readonly(  # pragma: no cover - exercised by installed FUSE accep
 ) -> None:
     """Run projected home backed by explicit rules and bounded unknown mediation."""
     view = HostReadonlyView(root, profile, mediator=mediator, session_id=session_id)
-    _mount_operations(mountpoint, ProjectedHomeOperations(host_view=view), debug=debug)
+    _mount_operations(
+        mountpoint,
+        ProjectedHomeOperations(host_view=view),
+        debug=debug,
+        hardening_roots=((Path(root), False),),
+    )
 
 
 def cleanup_stale_mount(  # pragma: no cover - exercised by installed FUSE acceptance
