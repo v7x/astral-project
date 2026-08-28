@@ -253,22 +253,40 @@ def test_daemon_remote_audit_export_rejects_bad_transport_responses(
         server.close()
 
 
-def test_daemon_client_accepts_remote_audit_export_wire_operation(
+def test_daemon_client_accepts_authorized_remote_audit_export_wire_operation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     paths = _paths(tmp_path)
     server = DaemonServer(paths)
     server.start()
     try:
-        monkeypatch.setattr(
-            server,
-            "_remote_audit_export",
-            lambda payload: {
-                "host_id": payload["host_id"],
-                "path_mode": "redact",
-                "export": "{}\n",
-            },
-        )
+        assert server._database is not None
+
+        def host_transport(host_id: str) -> tuple[str, dict[str, object]]:
+            if host_id != "host-1":
+                raise AstralError(
+                    code=ErrorCode.STATE_CORRUPT,
+                    message="host is not enrolled",
+                    security_result="rejected",
+                    unsafe_reason="test host is not enrolled",
+                    next_action="enroll host",
+                )
+            return "testuser", {
+                "address": "remote.example",
+                "identity_file": "/home/testuser/.ssh/key",
+                "known_hosts": "/home/testuser/.ssh/known_hosts",
+                "port": 22,
+            }
+
+        monkeypatch.setattr(server._database, "host_transport", host_transport)
+        observed: dict[str, object] = {}
+
+        def bounded(argv: list[str], **kwargs: object) -> tuple[int, bytes]:
+            observed["argv"] = argv
+            observed["input"] = kwargs["input_data"]
+            return 0, b'{"version":1,"ok":true,"export":"{}\\n"}'
+
+        monkeypatch.setattr(daemon_server, "_bounded_remote_audit_run", bounded)
         thread = _serve(server)
         result = DaemonClient(paths.socket).request(
             request_id="remote-audit-wire",
@@ -277,8 +295,20 @@ def test_daemon_client_accepts_remote_audit_export_wire_operation(
             payload={"host_id": "host-1"},
         )
         assert result == {"host_id": "host-1", "path_mode": "redact", "export": "{}\n"}
+        assert observed["argv"][-1] == "aspr-audit-export-v1"  # type: ignore[index]
         thread.join(timeout=1)
         assert not thread.is_alive()
+
+        unauthorized = _serve(server)
+        with pytest.raises(AstralError, match="rejected"):
+            DaemonClient(paths.socket).request(
+                request_id="remote-audit-unauthorized",
+                cancellation_id="cancel-remote-audit-unauthorized",
+                operation="audit.remote.export",
+                payload={"host_id": "not-enrolled"},
+            )
+        unauthorized.join(timeout=1)
+        assert not unauthorized.is_alive()
     finally:
         server.close()
 
