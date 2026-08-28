@@ -1105,8 +1105,8 @@ class StateDatabase:
                 )"""
             )
             return
-        definition = str(row[0] or "").upper()
-        if "CHECK (ID = 1)" not in definition:
+        definition = str(row[0] or "").upper().replace(" ", "")
+        if "CHECK(ID=1)" not in definition:
             return
         connection.execute(
             """CREATE TABLE audit_retention_boundary_segments (

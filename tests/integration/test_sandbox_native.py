@@ -178,6 +178,8 @@ def test_native_sources_pin_all_authority_to_fixed_paths() -> None:
     assert 'HOST_RX "/usr/libexec/astral-project/aspr-host-rx"' in launcher_source
     assert "cap-drop" in launcher_source
     assert "unshare-net" in launcher_source
+    assert "--aspr-socket-root" in launcher_source
+    assert "--aspr-socket-root" in entry_source
     assert "environment_count" in launcher_source
     assert "add_environment" in launcher_source
     assert 'getenv("PATH")' in launcher_source
