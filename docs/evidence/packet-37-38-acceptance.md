@@ -18,7 +18,7 @@ source-tree equivalence check from that closure through the final evidence HEAD.
 ## Local verification
 
 ```text
-./scripts/test                         826 passed, 1 skipped; coverage 100%
+./scripts/test                         828 passed, 1 skipped; coverage 100%
 uv run mypy src tests                   passed
 uv run pytest tests/unit/test_audit.py tests/unit/test_hardening.py
                                         passed
@@ -34,7 +34,7 @@ python scripts/parser_fuzz.py           passed
 Immutable local validation transcript:
 
 ```text
-packet-37-38-local-validation.txt  0d1304e15787ec033bb20b885c8c527f239761af43f02cd18bdd7e4975a6a140
+packet-37-38-local-validation.txt  a48b5b7863a9f8ad647088aeee9db765ff4a569a974e5fd15ee2cb66e8eed765
 ```
 
 The full suite includes audit schema, path redaction and hashing, malformed-old-
