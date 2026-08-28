@@ -6,12 +6,12 @@ Final installed candidate artifact:
 
 ```text
 artifact: astral-project_0.1.0_amd64.deb
-sha256: d74cb320d368bed08aedc4c2747655af5f4eaa53d7f4cb5eed2a4fb40546e138
+sha256: 49868be3e34bd1ff9eb9d5cb2271e5b4fc8c9bd3c16723fdcbd0b13e39d1242d
 ```
 
 The artifact was rebuilt from the closure source tree after the final Landlock,
 process-entrypoint, audit-protocol, and profile-audit-sink changes. The final
-source closure commit is `4e458d74a83b814e83345cdc4bf3461e930c23c4`. Later
+source closure commit is `8c47f2fbd3e67508975be9fdab186110a4745cb3`. Later
 commits are evidence-only; `packet-37-38-local-validation.txt` records the
 source-tree equivalence check from that closure through the final evidence HEAD.
 
@@ -21,7 +21,7 @@ source-tree equivalence check from that closure through the final evidence HEAD.
 ./scripts/test                         852 passed, 1 skipped; coverage 100%
 uv run mypy src tests                   passed
 uv run pytest tests/unit/test_audit.py tests/unit/test_hardening.py
-                                        82 passed
+                                        83 passed
 uv run pytest tests/unit/test_server_protocol.py::test_local_and_remote_audit_events_share_session_correlation
                                         1 passed
 cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-bwrap-launch.c
@@ -36,7 +36,7 @@ python scripts/parser_fuzz.py           passed
 Immutable local validation transcript:
 
 ```text
-packet-37-38-local-validation.txt  9f9addc373c8f87f0646bf66904e0eac77b17beaf95da5a7b55a4b6071199064
+packet-37-38-local-validation.txt  4522e096ab724dfe408cebcbd930d9797cef42f83789fe2cf5de7fd6a5836530
 ```
 
 The full suite includes audit schema, path redaction and hashing, malformed-old-
@@ -59,8 +59,8 @@ end with an explicit PASS marker:
 Raw transcript SHA-256 values:
 
 ```text
-packet-37-38-ubuntu24-raw.txt  e847506e2ad822827a878ded240bed8a90120be124481939620101d8733bb18c
-packet-37-38-ubuntu26-raw.txt  68732281468196a211193cc638372c05b85e690df7cfe89f503f2d57b5edf934
+packet-37-38-ubuntu24-raw.txt  e248b436484ba31c21b391fe5c6af5251d79ce6ef3ab7131cb9f83d2a5b5a561
+packet-37-38-ubuntu26-raw.txt  e9e496951db912c03cab9c57b1bfe9a0b73aa8652c18cbcdb52465eb95a68d86
 ```
 
 Both installed runs passed the existing mount-namespace/AppArmor capability

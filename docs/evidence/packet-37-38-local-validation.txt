@@ -1,21 +1,21 @@
 $ git rev-parse HEAD
-11b231cb61496bcd74e92d96ddcd4398e76453a6
+8c47f2fbd3e67508975be9fdab186110a4745cb3
 $ git rev-parse origin/master
-11b231cb61496bcd74e92d96ddcd4398e76453a6
+8c47f2fbd3e67508975be9fdab186110a4745cb3
 $ git status --short -- src packaging scripts tests .github docs/evidence
 $ git diff --quiet HEAD -- src packaging scripts tests .github docs/evidence
 PASS scoped-working-tree-clean
 $ git diff --cached --quiet HEAD -- src packaging scripts tests .github docs/evidence
 PASS scoped-index-clean
-$ git diff --quiet 4e458d74a83b814e83345cdc4bf3461e930c23c4..HEAD -- src packaging scripts tests .github
-PASS source-tree-equivalence source-closure=4e458d74a83b814e83345cdc4bf3461e930c23c4
+$ git diff --quiet 8c47f2fbd3e67508975be9fdab186110a4745cb3..HEAD -- src packaging scripts tests .github
+PASS source-tree-equivalence source-closure=8c47f2fbd3e67508975be9fdab186110a4745cb3
 $ uv run ruff check src tests scripts
 All checks passed!
 $ uv run mypy src tests
 Success: no issues found in 183 source files
 $ ./scripts/test
-Resolved 25 packages in 0.67ms
-Checked 17 packages in 0.22ms
+Resolved 25 packages in 0.70ms
+Checked 17 packages in 0.25ms
 209 files already formatted
 All checks passed!
 Success: no issues found in 183 source files
@@ -25,7 +25,7 @@ platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0
 rootdir: /home/andrew/code/astral-project
 configfile: pyproject.toml
 testpaths: tests
-collected 853 items
+collected 854 items
 
 tests/integration/test_pinned_mount_capability.py ......                 [  0%]
 tests/integration/test_sandbox_native.py ...                             [  1%]
@@ -61,12 +61,12 @@ tests/unit/test_core_ids.py .............                                [ 30%]
 tests/unit/test_core_paths.py .....................                      [ 32%]
 tests/unit/test_crypto_cbor.py ..............................            [ 36%]
 tests/unit/test_crypto_grants.py ..................                      [ 38%]
-tests/unit/test_crypto_keys.py ....                                      [ 39%]
+tests/unit/test_crypto_keys.py ....                                      [ 38%]
 tests/unit/test_daemon_extra.py ........                                 [ 39%]
 tests/unit/test_daemon_lifecycle.py .....                                [ 40%]
 tests/unit/test_daemon_listing.py ..                                     [ 40%]
 tests/unit/test_daemon_protocol.py .......                               [ 41%]
-tests/unit/test_daemon_server.py .............                           [ 43%]
+tests/unit/test_daemon_server.py ..............                          [ 43%]
 tests/unit/test_execution_plan.py ...........                            [ 44%]
 tests/unit/test_grant_lifecycle.py ..........                            [ 45%]
 tests/unit/test_hardening.py .................                           [ 47%]
@@ -86,7 +86,7 @@ tests/unit/test_namespace_planner.py ...............                     [ 66%]
 tests/unit/test_native_mount_worker.py ......                            [ 67%]
 tests/unit/test_native_namespace_worker.py ..........                    [ 68%]
 tests/unit/test_package.py .                                             [ 68%]
-tests/unit/test_packet15e_templates.py .........                         [ 69%]
+tests/unit/test_packet15e_templates.py .........                         [ 70%]
 tests/unit/test_profile.py ..............................                [ 73%]
 tests/unit/test_profile_lifecycle.py ....................                [ 75%]
 tests/unit/test_rclone_listing.py .........                              [ 76%]
@@ -122,23 +122,23 @@ tests/unit/test_approval_terminal.py::test_parent_pty_relay_external_approval_an
 tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
 tests/unit/test_approval_terminal.py::test_terminal_controller_forwards_sigcont_after_child_suspend
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=979221) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=981848) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
     pid, fd = os.forkpty()
 
 tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
-  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=979221) is multi-threaded, use of fork() may lead to deadlocks in the child.
+  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=981848) is multi-threaded, use of fork() may lead to deadlocks in the child.
     pid = os.fork()
 
 tests/unit/test_approval_terminal.py::test_controller_does_not_publish_socket_to_child
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=979297) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=981925) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
     pid, fd = os.forkpty()
 
 tests/unit/test_broker_main.py::test_module_entrypoint_calls_main
   <frozen runpy>:128: RuntimeWarning: 'astral_project.broker.main' found in sys.modules after import of package 'astral_project.broker', but prior to execution of 'astral_project.broker.main'; this may result in unpredictable behaviour
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 852 passed, 1 skipped, 9 warnings in 16.35s ==================
+================= 853 passed, 1 skipped, 9 warnings in 16.36s ==================
 ..                    [  4%]
 tests/unit/test_audit.py ..............................                  [  8%]
 tests/unit/test_broker_authority.py .....                                [  8%]
@@ -167,12 +167,12 @@ tests/unit/test_core_ids.py .............                                [ 30%]
 tests/unit/test_core_paths.py .....................                      [ 32%]
 tests/unit/test_crypto_cbor.py ..............................            [ 36%]
 tests/unit/test_crypto_grants.py ..................                      [ 38%]
-tests/unit/test_crypto_keys.py ....                                      [ 39%]
+tests/unit/test_crypto_keys.py ....                                      [ 38%]
 tests/unit/test_daemon_extra.py ........                                 [ 39%]
 tests/unit/test_daemon_lifecycle.py .....                                [ 40%]
 tests/unit/test_daemon_listing.py ..                                     [ 40%]
 tests/unit/test_daemon_protocol.py .......                               [ 41%]
-tests/unit/test_daemon_server.py .............                           [ 43%]
+tests/unit/test_daemon_server.py ..............                          [ 43%]
 tests/unit/test_execution_plan.py ...........                            [ 44%]
 tests/unit/test_grant_lifecycle.py ..........                            [ 45%]
 tests/unit/test_hardening.py .................                           [ 47%]
@@ -192,7 +192,7 @@ tests/unit/test_namespace_planner.py ...............                     [ 66%]
 tests/unit/test_native_mount_worker.py ......                            [ 67%]
 tests/unit/test_native_namespace_worker.py ..........                    [ 68%]
 tests/unit/test_package.py .                                             [ 68%]
-tests/unit/test_packet15e_templates.py .........                         [ 69%]
+tests/unit/test_packet15e_templates.py .........                         [ 70%]
 tests/unit/test_profile.py ..............................                [ 73%]
 tests/unit/test_profile_lifecycle.py ....................                [ 75%]
 tests/unit/test_rclone_listing.py .........                              [ 76%]
@@ -229,28 +229,28 @@ tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transi
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
 tests/unit/test_approval_terminal.py::test_terminal_controller_forwards_sigcont_after_child_suspend
 tests/unit/test_approval_terminal.py::test_controller_does_not_publish_socket_to_child
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=979221) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=981848) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
     pid, fd = os.forkpty()
 
 tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
-  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=979221) is multi-threaded, use of fork() may lead to deadlocks in the child.
+  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=981848) is multi-threaded, use of fork() may lead to deadlocks in the child.
     pid = os.fork()
 
 tests/unit/test_broker_main.py::test_module_entrypoint_calls_main
   <frozen runpy>:128: RuntimeWarning: 'astral_project.broker.main' found in sys.modules after import of package 'astral_project.broker', but prior to execution of 'astral_project.broker.main'; this may result in unpredictable behaviour
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 852 passed, 1 skipped, 9 warnings in 28.78s ==================
+================= 853 passed, 1 skipped, 9 warnings in 28.60s ==================
 Name    Stmts   Miss Branch BrPart  Cover   Missing
 ---------------------------------------------------
 TOTAL   11531      0   3426      0   100%
 
 94 files skipped due to complete coverage.
 $ uv run pytest tests/unit/test_audit.py tests/unit/test_hardening.py tests/unit/test_daemon_server.py tests/unit/test_mount_lifecycle.py tests/unit/test_rclone_listing.py -q
-........................................................................ [ 87%]
-..........                                                               [100%]
-82 passed in 2.74s
+........................................................................ [ 86%]
+...........                                                              [100%]
+83 passed in 2.75s
 $ uv run python scripts/audit_retention_acceptance.py
 {'retained': 2, 'subjects': ['4', '5'], 'chain_errors': [], 'lock_mode': 384, 'boundary_mode': 384, 'boundary_records': 4}
 PASS audit retention byte-and-count probe
@@ -259,6 +259,6 @@ PASS parser fuzz cases=5
 $ apparmor_parser -Q -K packaging/apparmor/usr.libexec.astral-project.aspr-bwrap-launch
 $ native strict builds
 PASS native strict builds
-$ sha256sum /tmp/packet37-38-build-socket-isolation-1787958684/astral-project_0.1.0_amd64.deb
-d74cb320d368bed08aedc4c2747655af5f4eaa53d7f4cb5eed2a4fb40546e138  /tmp/packet37-38-build-socket-isolation-1787958684/astral-project_0.1.0_amd64.deb
+$ sha256sum /tmp/packet37-38-build-protocol-1787959623/astral-project_0.1.0_amd64.deb
+49868be3e34bd1ff9eb9d5cb2271e5b4fc8c9bd3c16723fdcbd0b13e39d1242d  /tmp/packet37-38-build-protocol-1787959623/astral-project_0.1.0_amd64.deb
 $ git diff --check

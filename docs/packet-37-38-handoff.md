@@ -5,8 +5,8 @@
 Packet 37 gate: HOLD pending final auditor approval.
 Packet 38 gate: HOLD pending final auditor approval.
 
-Executable source closure is `4e458d74a83b814e83345cdc4bf3461e930c23c4`; final package is
-`d74cb320d368bed08aedc4c2747655af5f4eaa53d7f4cb5eed2a4fb40546e138`. Do not begin
+Executable source closure is `8c47f2fbd3e67508975be9fdab186110a4745cb3`; final package is
+`49868be3e34bd1ff9eb9d5cb2271e5b4fc8c9bd3c16723fdcbd0b13e39d1242d`. Do not begin
 Packet 39. Final acceptance names one committed source tree and one rebuilt
 `.deb`; evidence-only commits prove source-tree equivalence.
 
@@ -45,5 +45,5 @@ available.
   acceptance on both releases;
 - remote audit lock/mode, redaction/hash, retention/boundary, concurrency, and
   local/remote provenance evidence;
-- exact source, package, driver, and raw transcript hashes: source `4e458d74a83b814e83345cdc4bf3461e930c23c4`; package `d74cb320d368bed08aedc4c2747655af5f4eaa53d7f4cb5eed2a4fb40546e138`; Ubuntu 24 raw `e847506e2ad822827a878ded240bed8a90120be124481939620101d8733bb18c`; Ubuntu 26 raw `68732281468196a211193cc638372c05b85e690df7cfe89f503f2d57b5edf934`;
+- exact source, package, driver, and raw transcript hashes: source `8c47f2fbd3e67508975be9fdab186110a4745cb3`; package `49868be3e34bd1ff9eb9d5cb2271e5b4fc8c9bd3c16723fdcbd0b13e39d1242d`; Ubuntu 24 raw `e248b436484ba31c21b391fe5c6af5251d79ce6ef3ab7131cb9f83d2a5b5a561`; Ubuntu 26 raw `e9e496951db912c03cab9c57b1bfe9a0b73aa8652c18cbcdb52465eb95a68d86`;
 - `git diff --check` and pushed refs equal.
