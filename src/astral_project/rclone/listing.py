@@ -139,6 +139,7 @@ def render_sftp_config(remote: SftpRemoteConfig) -> str:
             f"port = {remote.port}",
             f"key_file = {remote.identity_file}",
             f"ssh = {remote.transport_program}",
+            "shell_type = unix",
             "disable_hashcheck = true",
             "",
         )

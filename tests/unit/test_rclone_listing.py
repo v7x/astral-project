@@ -124,8 +124,8 @@ def test_ephemeral_sftp_config_has_fixed_transport_and_no_token(tmp_path: Path) 
     content = render_sftp_config(remote)
     assert "ssh = /usr/bin/aspr" in content
     assert "ssh = /usr/bin/aspr transport" not in content
+    assert "shell_type = unix" in content
     assert "disable_hashcheck = true" in content
-    assert "shell_type" not in content
     assert "token" not in content
     path = write_sftp_config(tmp_path / "rclone.conf", remote)
     assert path.read_text() == content
