@@ -49,8 +49,8 @@ end with an explicit PASS marker:
 Raw transcript SHA-256 values:
 
 ```text
-packet-37-38-ubuntu24-raw.txt  83915d03c0554364abd44cd654a4b6360baf70a89ac0cb250fda0fd63d6e38db
-packet-37-38-ubuntu26-raw.txt  c0671c01e6ebce5af6136c7f7c19af53028ce63c05bb2e50e9311e7799d8abd1
+packet-37-38-ubuntu24-raw.txt  d0bf93c20ad08109efeec73e11809589c1039873866722f1704b8cc0c7829ccb
+packet-37-38-ubuntu26-raw.txt  61b23291bd549588cfa47e9ae037d7ca11fbe9bc2788eae14373a59ce0c2cf35
 ```
 
 Both installed runs passed the existing mount-namespace/AppArmor capability

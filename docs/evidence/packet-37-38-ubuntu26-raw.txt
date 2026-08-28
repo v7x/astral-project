@@ -486,3 +486,7 @@ remote_redacted={"event_id":"19b0b500-1efb-4dec-8c35-6029794616be","kind":"serve
 remote_hashed={"event_id":"19b0b500-1efb-4dec-8c35-6029794616be","kind":"server.session","occurred_at":1787923732,"payload":{"path":"sha256:4ad31b31998673d416d98575bcb234477372b14db707ef2f587514bc5af0ac19","result":"accepted"},"previous_event_id":"fc6a0dc3-ead5-49dd-8085-67df74ed1005","schema_version":1,"subject_id":"vm26-final15","subject_type":"session"}
 
 PASS packet-37-38 ubuntu26 audit-doctor-redaction
+
+$ packaged direct namespace-plan digest probe
+effective_export_hash=89d164e985991a680e276b1444171a01c6796c3ffb2491b462c628147ec1e58f
+PASS effective-export-hash ubuntu26

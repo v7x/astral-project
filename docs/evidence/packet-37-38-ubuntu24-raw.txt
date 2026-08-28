@@ -356,3 +356,7 @@ remote_redacted={"event_id":"b55b7daa-b321-4a08-927b-0a8c9e58f1fd","kind":"serve
 remote_hashed={"event_id":"b55b7daa-b321-4a08-927b-0a8c9e58f1fd","kind":"server.session","occurred_at":1787923732,"payload":{"path":"sha256:4ad31b31998673d416d98575bcb234477372b14db707ef2f587514bc5af0ac19","result":"accepted"},"previous_event_id":"affb147f-260d-4557-89fc-6a93093cb940","schema_version":1,"subject_id":"vm24-final15","subject_type":"session"}
 
 PASS packet-37-38 ubuntu24 audit-doctor-redaction
+
+$ packaged direct namespace-plan digest probe
+effective_export_hash=105061088c86e466f671af47af0be3f050d032f1bb4494d89bc38219150b7e3f
+PASS effective-export-hash ubuntu24
