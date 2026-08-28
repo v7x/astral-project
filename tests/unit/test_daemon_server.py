@@ -253,6 +253,36 @@ def test_daemon_remote_audit_export_rejects_bad_transport_responses(
         server.close()
 
 
+def test_daemon_client_accepts_remote_audit_export_wire_operation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths = _paths(tmp_path)
+    server = DaemonServer(paths)
+    server.start()
+    try:
+        monkeypatch.setattr(
+            server,
+            "_remote_audit_export",
+            lambda payload: {
+                "host_id": payload["host_id"],
+                "path_mode": "redact",
+                "export": "{}\n",
+            },
+        )
+        thread = _serve(server)
+        result = DaemonClient(paths.socket).request(
+            request_id="remote-audit-wire",
+            cancellation_id="cancel-remote-audit-wire",
+            operation="audit.remote.export",
+            payload={"host_id": "host-1"},
+        )
+        assert result == {"host_id": "host-1", "path_mode": "redact", "export": "{}\n"}
+        thread.join(timeout=1)
+        assert not thread.is_alive()
+    finally:
+        server.close()
+
+
 def test_daemon_records_audit_record_operation(tmp_path: Path) -> None:
     server = DaemonServer(_paths(tmp_path))
     server.start()

@@ -36,6 +36,7 @@ Operation = Literal[
     "audit.show",
     "audit.export",
     "audit.record",
+    "audit.remote.export",
 ]
 
 
@@ -145,6 +146,7 @@ def parse_request(payload: Mapping[str, object]) -> Request:
         "audit.show",
         "audit.export",
         "audit.record",
+        "audit.remote.export",
     }
     if operation not in allowed_operations:
         raise _error("request operation is not permitted")
