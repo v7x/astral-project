@@ -92,8 +92,10 @@ int main(int argc, char **argv) {
     }
     const char *read_roots[64];
     const char *write_roots[64];
+    const char *socket_roots[16];
     size_t read_count = 0;
     size_t write_count = 0;
+    size_t socket_count = 0;
     int payload_index = 0;
     for (int index = 2; index < argc; index += 2) {
         if (strcmp(argv[index], "--") == 0) {
@@ -109,6 +111,9 @@ int main(int argc, char **argv) {
         } else if (strcmp(argv[index], "--aspr-write-root") == 0) {
             if (write_count >= 64) fail("sandbox hardening roots exceed limit");
             write_roots[write_count++] = argv[index + 1];
+        } else if (strcmp(argv[index], "--aspr-socket-root") == 0) {
+            if (socket_count >= 16) fail("sandbox socket roots exceed limit");
+            socket_roots[socket_count++] = argv[index + 1];
         } else {
             fail("sandbox hardening root marker is invalid");
         }
@@ -130,7 +135,8 @@ int main(int argc, char **argv) {
         (payload_index + 1 >= argc || strncmp(argv[payload_index + 1], "/home/sandbox/", 14) != 0)) {
         fail("host-rx payload invocation is invalid");
     }
-    aspr_harden_payload(read_roots, read_count, write_roots, write_count);
+    aspr_harden_payload(read_roots, read_count, write_roots, write_count,
+                        socket_roots, socket_count);
     const char *relay_text = getenv("ASPR_SESSION_RELAY_FD");
     if (relay_text != NULL) {
         if (strcmp(relay_text, "3") != 0) fail("sandbox session relay descriptor is invalid");

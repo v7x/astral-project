@@ -68,7 +68,7 @@ static void aspr_hardening_add_rule(int ruleset, const char *path, int role) {
         ASPR_LANDLOCK_ACCESS_FS_MAKE_DIR | ASPR_LANDLOCK_ACCESS_FS_MAKE_REG |
         ASPR_LANDLOCK_ACCESS_FS_MAKE_SYM | ASPR_LANDLOCK_ACCESS_FS_REFER |
         ASPR_LANDLOCK_ACCESS_FS_TRUNCATE;
-    const uint64_t socket_access = regular_access | ASPR_LANDLOCK_ACCESS_FS_MAKE_SOCK;
+    const uint64_t socket_access = read_access | ASPR_LANDLOCK_ACCESS_FS_MAKE_SOCK;
     struct aspr_landlock_path_beneath_attr rule = {
         .allowed_access = role == 3 ? socket_access :
             (role == 2 ? device_access : (role ? regular_access : read_access)),
@@ -143,7 +143,8 @@ static void __attribute__((unused)) aspr_harden_roots(
 
 static void __attribute__((unused)) aspr_harden_payload(
     const char *const *read_roots, size_t read_count,
-                                const char *const *write_roots, size_t write_count) {
+    const char *const *write_roots, size_t write_count,
+    const char *const *socket_roots, size_t socket_count) {
     aspr_hardening_require_abi();
     const uint64_t handled = ASPR_LANDLOCK_ACCESS_FS_EXECUTE |
         ASPR_LANDLOCK_ACCESS_FS_WRITE_FILE | ASPR_LANDLOCK_ACCESS_FS_READ_FILE |
@@ -160,7 +161,10 @@ static void __attribute__((unused)) aspr_harden_payload(
     aspr_hardening_add_rule(ruleset, "/usr", 0);
     aspr_hardening_add_rule(ruleset, "/dev", 0);
     aspr_hardening_add_rule(ruleset, "/proc", 0);
-    if (access("/run", F_OK) == 0) aspr_hardening_add_rule(ruleset, "/run", 1);
+    if (access("/run", F_OK) == 0) aspr_hardening_add_rule(ruleset, "/run", 3);
+    for (size_t index = 0; index < socket_count; ++index) {
+        aspr_hardening_add_rule(ruleset, socket_roots[index], 3);
+    }
     aspr_hardening_add_rule(ruleset, "/tmp", 1);
     for (size_t index = 0; index < read_count; ++index) {
         aspr_hardening_add_rule(ruleset, read_roots[index], 0);

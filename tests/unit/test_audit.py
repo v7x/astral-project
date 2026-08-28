@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import multiprocessing
+import sqlite3
 import stat
 from pathlib import Path
 from typing import Protocol
@@ -199,6 +200,30 @@ def test_audit_log_auto_rotation_and_existing_generations(tmp_path: Path) -> Non
     automatic.append("one", "subject", "1", {})
     automatic.append("two", "subject", "2", {})
     assert (tmp_path / "automatic.log.1").exists()
+    assert automatic.chain_errors() == ()
+    assert not (tmp_path / "automatic.log.boundary").exists()
+    for index in range(3):
+        automatic.append("more", "subject", str(index), {})
+    assert automatic.chain_errors() == ()
+    assert len((tmp_path / "automatic.log.boundary").read_text(encoding="utf-8").splitlines()) == 3
+    boundary_log = AuditLog(tmp_path / "boundary.log")
+    boundary_log._record_pruning_boundary_unlocked((), ())
+    boundary = AuditRetentionBoundary.create("pruned", "first")
+    boundary_log._append_boundary_unlocked(boundary)
+    boundary_log._append_boundary_unlocked(boundary)
+    with pytest.raises(AuditEventError, match="not linear"):
+        boundary_log._append_boundary_unlocked(AuditRetentionBoundary.create("wrong", "next"))
+    boundary_log.boundary_path.write_text("", encoding="utf-8")
+    with pytest.raises(AuditEventError, match="invalid"):
+        boundary_log._read_boundaries_unlocked()
+    boundary_log.boundary_path.unlink()
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr("astral_project.audit.events.os.write", lambda *_args: 0)
+    try:
+        with pytest.raises(OSError, match="no progress"):
+            boundary_log._append_boundary_unlocked(boundary)
+    finally:
+        monkeypatch.undo()
 
     log = AuditLog(tmp_path / "generations.log", max_bytes=1, retain=2)
     log.append("current", "subject", "0", {})
@@ -243,6 +268,8 @@ def test_retention_boundary_validation_is_strict() -> None:
         AuditRetentionBoundary.from_dict({**boundary.to_dict(), "digest": 1})
     event = AuditEvent("other", 1, "kind", "subject", "id", {})
     assert validate_chain((event,), boundary=boundary) == ("retention-boundary",)
+    other = AuditRetentionBoundary.create("different", "next")
+    assert validate_chain((event,), boundaries=(boundary, other)) == ("retention-boundary",)
 
 
 def test_audit_log_atomic_retention_failures_and_malformed_rows(
@@ -430,6 +457,37 @@ def test_state_database_automatic_retention_is_immutable(tmp_path: Path) -> None
     assert database.audit_chain_errors() == (second.event_id,)
 
 
+def test_state_database_migrates_single_boundary_to_segments(tmp_path: Path) -> None:
+    path = tmp_path / "legacy-boundary.sqlite3"
+    StateDatabase.open(path)
+    boundary = AuditRetentionBoundary.create("pruned", "first")
+    with sqlite3.connect(path) as connection:
+        connection.execute("DROP TABLE audit_retention_boundary")
+        connection.execute(
+            """CREATE TABLE audit_retention_boundary (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                schema_version INTEGER NOT NULL,
+                pruned_through_event_id TEXT NOT NULL,
+                first_retained_event_id TEXT NOT NULL,
+                digest TEXT NOT NULL
+            )"""
+        )
+        connection.execute(
+            "INSERT INTO audit_retention_boundary VALUES (1, ?, ?, ?, ?)",
+            (
+                boundary.schema_version,
+                boundary.pruned_through_event_id,
+                boundary.first_retained_event_id,
+                boundary.digest,
+            ),
+        )
+    migrated = StateDatabase.open(path)
+    with migrated.transaction() as connection:
+        assert (
+            connection.execute("SELECT COUNT(*) FROM audit_retention_boundary").fetchone()[0] == 1
+        )
+
+
 def test_state_database_audit_rotation_retains_chain(tmp_path: Path) -> None:
     database = StateDatabase.open(tmp_path / "state.sqlite3")
     database.record_audit("one", "subject", "1", {}, occurred_at=1)
@@ -441,6 +499,10 @@ def test_state_database_audit_rotation_retains_chain(tmp_path: Path) -> None:
     assert [event.kind for event in events] == ["two", "three"]
     assert events[0].previous_event_id is not None
     assert database.audit_chain_errors() == ()
+    with database.transaction() as connection:
+        assert (
+            connection.execute("SELECT COUNT(*) FROM audit_retention_boundary").fetchone()[0] == 1
+        )
     with database.transaction(write=True) as connection:
         connection.execute("UPDATE audit_retention_boundary SET digest = 'tampered' WHERE id = 1")
     assert database.audit_chain_errors() == ("retention-boundary",)

@@ -76,10 +76,8 @@ def test_root_role_merge_preserves_strongest_fixed_authority(
         hardening._stronger_role(RootRole.READ_ONLY, RootRole.REGULAR_WRITABLE)
         is RootRole.REGULAR_WRITABLE
     )
-    assert (
+    with pytest.raises(ValueError, match="conflicting"):
         hardening._stronger_role(RootRole.DEVICE_RUNTIME, RootRole.SOCKET_RUNTIME)
-        is RootRole.SOCKET_RUNTIME
-    )
     monkeypatch.setattr(
         hardening,
         "_access_for_role",
@@ -169,7 +167,7 @@ def test_python_native_landlock_rights_parity() -> None:
 def test_landlock_contract_and_root_roles() -> None:
     fixed = dict(HardeningPolicy.for_plan((), writable_tmp=True).allowed_roots)
     assert fixed[Path("/dev")] is RootRole.READ_ONLY
-    assert fixed[Path("/run")] is RootRole.REGULAR_WRITABLE
+    assert fixed[Path("/run")] is RootRole.SOCKET_RUNTIME
     assert LANDLOCK_MINIMUM_ABI == 3
     assert LANDLOCK_HANDLED_ACCESS_FS == (1 << 15) - 1
     assert hardening._access_for_role(RootRole.READ_ONLY) & ~hardening._READ_ACCESS == 0
@@ -178,9 +176,9 @@ def test_landlock_contract_and_root_roles() -> None:
         & hardening.LANDLOCK_ACCESS_FS_MAKE_SOCK
         == 0
     )
-    assert (
-        hardening._access_for_role(RootRole.SOCKET_RUNTIME) & hardening.LANDLOCK_ACCESS_FS_MAKE_SOCK
-    )
+    socket_access = hardening._access_for_role(RootRole.SOCKET_RUNTIME)
+    assert socket_access & hardening.LANDLOCK_ACCESS_FS_MAKE_SOCK
+    assert not socket_access & hardening.LANDLOCK_ACCESS_FS_MAKE_DIR
     assert (
         hardening._access_for_role(RootRole.DEVICE_RUNTIME)
         & hardening.LANDLOCK_ACCESS_FS_WRITE_FILE

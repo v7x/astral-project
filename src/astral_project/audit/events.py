@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import fcntl
 import hashlib
+import itertools
 import json
 import os
 import re
@@ -507,10 +508,10 @@ class AuditLog:
         """Validate linear provenance against private retention metadata."""
         with self._lock(exclusive=False):
             try:
-                boundary = self._read_boundary_unlocked()
+                boundaries = self._read_boundaries_unlocked()
             except (AuditEventError, OSError, json.JSONDecodeError, TypeError, ValueError):
                 return ("retention-boundary",)
-            return validate_chain(self._read_unlocked(), boundary=boundary)
+            return validate_chain(self._read_unlocked(), boundaries=boundaries)
 
     def rotate(self) -> None:
         """Rotate current log and retain only configured private generations."""
@@ -521,6 +522,7 @@ class AuditLog:
         if self.max_bytes is None:
             self._apply_retention_unlocked()
             return
+        before = self._read_unlocked()
         if self.path.exists():
             _check_private_file(self.path)
         for index in range(self.retain, 0, -1):
@@ -534,6 +536,7 @@ class AuditLog:
         if self.path.exists():
             os.replace(self.path, self._generation(1))
             os.chmod(self._generation(1), 0o600)
+        self._record_pruning_boundary_unlocked(before, self._read_unlocked())
 
     def _apply_retention_unlocked(self) -> None:
         rows: list[tuple[AuditEvent, str]] = []
@@ -559,22 +562,65 @@ class AuditLog:
         self._atomic_replace(self.path, "".join(line for _, line in retained).encode())
         for index in range(1, self.retain + 1):
             self._generation(index).unlink(missing_ok=True)
-        self._atomic_replace(
-            self.boundary_path,
-            (json.dumps(boundary.to_dict(), separators=(",", ":"), sort_keys=True) + "\n").encode(),
-        )
+        self._append_boundary_unlocked(boundary)
 
-    def _read_boundary_unlocked(self) -> AuditRetentionBoundary | None:
+    def _read_boundaries_unlocked(self) -> tuple[AuditRetentionBoundary, ...]:
         if not os.path.lexists(self.boundary_path):
-            return None
+            return ()
         _check_private_file(self.boundary_path)
-        lines = _read_private_text(self.boundary_path).splitlines()
-        if len(lines) != 1:
+        result: list[AuditRetentionBoundary] = []
+        for line in _read_private_text(self.boundary_path).splitlines():
+            raw = json.loads(line)
+            if not isinstance(raw, dict):
+                raise AuditEventError("audit retention boundary is invalid")
+            result.append(AuditRetentionBoundary.from_dict(cast(Mapping[str, object], raw)))
+        if not result:
             raise AuditEventError("audit retention boundary is invalid")
-        raw = json.loads(lines[0])
-        if not isinstance(raw, dict):
-            raise AuditEventError("audit retention boundary is invalid")
-        return AuditRetentionBoundary.from_dict(cast(Mapping[str, object], raw))
+        return tuple(result)
+
+    def _append_boundary_unlocked(self, boundary: AuditRetentionBoundary) -> None:
+        existing = self._read_boundaries_unlocked()
+        if existing and existing[-1] == boundary:
+            return
+        if existing and existing[-1].first_retained_event_id != boundary.pruned_through_event_id:
+            raise AuditEventError("audit retention boundary history is not linear")
+        descriptor = os.open(
+            self.boundary_path,
+            os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW,
+            0o600,
+        )
+        try:
+            os.fchmod(descriptor, 0o600)
+            data = (
+                json.dumps(boundary.to_dict(), separators=(",", ":"), sort_keys=True) + "\n"
+            ).encode()
+            view = memoryview(data)
+            while view:
+                written = os.write(descriptor, view)
+                if written <= 0:
+                    raise OSError("audit boundary write made no progress")
+                view = view[written:]
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        _check_private_file(self.boundary_path)
+
+    def _record_pruning_boundary_unlocked(
+        self, before: tuple[AuditEvent, ...], after: tuple[AuditEvent, ...]
+    ) -> None:
+        if not before or not after:
+            return
+        after_ids = {event.event_id for event in after}
+        first_after = next(
+            (index for index, event in enumerate(before) if event.event_id in after_ids), None
+        )
+        if first_after is None or first_after == 0:
+            return
+        self._append_boundary_unlocked(
+            AuditRetentionBoundary.create(
+                before[first_after - 1].event_id, before[first_after].event_id
+            )
+        )
 
     def _atomic_replace(self, path: Path, data: bytes) -> None:
         descriptor, temporary_name = tempfile.mkstemp(
@@ -665,26 +711,35 @@ def _read_private_text(path: Path) -> str:
 
 
 def validate_chain(
-    events: tuple[AuditEvent, ...], *, boundary: AuditRetentionBoundary | None = None
+    events: tuple[AuditEvent, ...],
+    *,
+    boundary: AuditRetentionBoundary | None = None,
+    boundaries: tuple[AuditRetentionBoundary, ...] = (),
 ) -> tuple[str, ...]:
     """Return event IDs that do not form one linear valid-event chain."""
+    if boundary is not None:
+        boundaries = (*boundaries, boundary)
     known: set[str] = set()
     errors: list[str] = []
+    for previous_boundary, current_boundary in itertools.pairwise(boundaries):
+        if current_boundary.pruned_through_event_id != previous_boundary.first_retained_event_id:
+            errors.append("retention-boundary")
     previous: AuditEvent | None = None
+    latest_boundary = boundaries[-1] if boundaries else None
     for index, event in enumerate(events):
         duplicate = event.event_id in known
         expected = None if previous is None else previous.event_id
-        if index == 0 and boundary is not None:
-            if event.event_id != boundary.first_retained_event_id:
+        if index == 0 and latest_boundary is not None:
+            if event.event_id != latest_boundary.first_retained_event_id:
                 errors.append("retention-boundary")
-            expected = (
-                boundary.pruned_through_event_id if event.previous_event_id is not None else None
-            )
+                expected = None
+            else:
+                expected = latest_boundary.pruned_through_event_id
         if duplicate or event.previous_event_id != expected:
             errors.append(event.event_id)
         known.add(event.event_id)
         previous = event
-    return tuple(errors)
+    return tuple(dict.fromkeys(errors))
 
 
 def _check_private_file(path: Path) -> None:

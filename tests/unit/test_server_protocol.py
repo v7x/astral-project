@@ -38,6 +38,7 @@ from astral_project.server.protocol import (
     write_outer_request,
 )
 from astral_project.session.contracts import RemoteSessionRequestV1
+from astral_project.state.sqlite import StateDatabase
 
 
 def signed_request() -> tuple[RemoteSessionRequestV1, ServerTrust]:
@@ -237,6 +238,38 @@ def test_remote_audit_export_response_limits(
         )
         == 70
     )
+
+
+def test_local_and_remote_audit_events_share_session_correlation(tmp_path: Path) -> None:
+    request, trust = signed_request()
+    local = StateDatabase.open(tmp_path / "local.sqlite3")
+    local.activate_session(
+        session_id=request.session_id,
+        signed_grant=request.signed_grant,
+        host_id=trust.host_id,
+        host_key_fingerprint=trust.ssh_host_key_fingerprint,
+        remote_user=trust.remote_user,
+        host_metadata={},
+        started_at=150,
+    )
+    remote = AuditLog(tmp_path / "remote.log")
+    assert (
+        run_ssh_entry(
+            "transport-1",
+            stdin=framed(request),
+            stdout=BytesIO(),
+            stderr=StringIO(),
+            environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_COMMAND},
+            trust=trust,
+            now=150,
+            audit_log=remote,
+        )
+        == 0
+    )
+    local_event = local.list_audit_events()[0]
+    remote_event = remote.read()[0]
+    assert local_event.subject_id == remote_event.subject_id == request.session_id.value
+    assert local_event.payload["grant_id"] == remote_event.payload["grant_id"]
 
 
 def test_remote_audit_log_records_verified_and_rejected_sessions(tmp_path: Path) -> None:

@@ -558,6 +558,10 @@ static void execute_plan(const Plan *plan) {
         add(argv, &count, capacity, "--setenv"); add(argv, &count, capacity, "ASPR_SESSION_RELAY_FD");
         add(argv, &count, capacity, "3");
     }
+    if (plan->has_socket) {
+        add(argv, &count, capacity, "--aspr-socket-root");
+        add(argv, &count, capacity, "/run/astral-project");
+    }
     add(argv, &count, capacity, "--");
     add(argv, &count, capacity, ENTRY);
     add(argv, &count, capacity, "--aspr-hardening");

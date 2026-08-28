@@ -55,7 +55,7 @@ _REGULAR_WRITE_ACCESS = (
     | LANDLOCK_ACCESS_FS_REFER
     | LANDLOCK_ACCESS_FS_TRUNCATE
 )
-_SOCKET_ACCESS = _REGULAR_WRITE_ACCESS | LANDLOCK_ACCESS_FS_MAKE_SOCK
+_SOCKET_ACCESS = _READ_ACCESS | LANDLOCK_ACCESS_FS_MAKE_SOCK
 _DEVICE_ACCESS = _READ_ACCESS | LANDLOCK_ACCESS_FS_WRITE_FILE
 
 
@@ -125,7 +125,7 @@ class HardeningPolicy:
             Path("/usr"): RootRole.READ_ONLY,
             Path("/dev"): RootRole.READ_ONLY,
             Path("/proc"): RootRole.READ_ONLY,
-            Path("/run"): RootRole.REGULAR_WRITABLE,
+            Path("/run"): RootRole.SOCKET_RUNTIME,
             Path("/tmp"): (RootRole.REGULAR_WRITABLE if writable_tmp else RootRole.READ_ONLY),
         }
         unique: dict[Path, RootRole] = {

@@ -734,24 +734,26 @@ class StateDatabase:
     def audit_chain_errors(self) -> tuple[str, ...]:
         """Return broken event references without exposing payload details."""
         with self.transaction() as connection:
-            row = connection.execute(
+            rows = connection.execute(
                 "SELECT schema_version, pruned_through_event_id, first_retained_event_id, digest "
-                "FROM audit_retention_boundary WHERE id = 1"
-            ).fetchone()
-        boundary: AuditRetentionBoundary | None = None
-        if row is not None:
+                "FROM audit_retention_boundary ORDER BY id"
+            ).fetchall()
+        boundaries: list[AuditRetentionBoundary] = []
+        for row in rows:
             try:
-                boundary = AuditRetentionBoundary.from_dict(
-                    {
-                        "schema_version": row[0],
-                        "pruned_through_event_id": row[1],
-                        "first_retained_event_id": row[2],
-                        "digest": row[3],
-                    }
+                boundaries.append(
+                    AuditRetentionBoundary.from_dict(
+                        {
+                            "schema_version": row[0],
+                            "pruned_through_event_id": row[1],
+                            "first_retained_event_id": row[2],
+                            "digest": row[3],
+                        }
+                    )
                 )
             except AuditEventError:
                 return ("retention-boundary",)
-        return validate_chain(self.list_audit_events(), boundary=boundary)
+        return validate_chain(self.list_audit_events(), boundaries=tuple(boundaries))
 
     def rotate_audit(self, *, retain: int = AUDIT_RETENTION_LIMIT) -> None:
         """Apply shared count retention without rewriting persisted event fields."""
@@ -806,7 +808,9 @@ class StateDatabase:
             "DELETE FROM audit_events WHERE rowid = ?", ((int(row[0]),) for row in removed)
         )
         connection.execute(
-            "INSERT OR REPLACE INTO audit_retention_boundary VALUES (1, ?, ?, ?, ?)",
+            "INSERT INTO audit_retention_boundary("
+            "schema_version, pruned_through_event_id, first_retained_event_id, digest) "
+            "VALUES (?, ?, ?, ?)",
             (
                 boundary.schema_version,
                 boundary.pruned_through_event_id,
@@ -1082,14 +1086,46 @@ class StateDatabase:
         connection.execute(
             "CREATE INDEX IF NOT EXISTS mount_runtime_grant_idx ON mount_runtime(grant_id)"
         )
+        self._ensure_audit_boundary_table(connection)
+
+    def _ensure_audit_boundary_table(self, connection: sqlite3.Connection) -> None:
+        """Maintain append-only retention-boundary segments across old states."""
+        row = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' "
+            "AND name = 'audit_retention_boundary'"
+        ).fetchone()
+        if row is None:
+            connection.execute(
+                """CREATE TABLE audit_retention_boundary (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    schema_version INTEGER NOT NULL,
+                    pruned_through_event_id TEXT NOT NULL,
+                    first_retained_event_id TEXT NOT NULL,
+                    digest TEXT NOT NULL
+                )"""
+            )
+            return
+        definition = str(row[0] or "").upper()
+        if "CHECK (ID = 1)" not in definition:
+            return
         connection.execute(
-            """CREATE TABLE IF NOT EXISTS audit_retention_boundary (
-                id INTEGER PRIMARY KEY CHECK (id = 1),
+            """CREATE TABLE audit_retention_boundary_segments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 schema_version INTEGER NOT NULL,
                 pruned_through_event_id TEXT NOT NULL,
                 first_retained_event_id TEXT NOT NULL,
                 digest TEXT NOT NULL
             )"""
+        )
+        connection.execute(
+            "INSERT INTO audit_retention_boundary_segments("
+            "id, schema_version, pruned_through_event_id, first_retained_event_id, digest) "
+            "SELECT id, schema_version, pruned_through_event_id, first_retained_event_id, digest "
+            "FROM audit_retention_boundary"
+        )
+        connection.execute("DROP TABLE audit_retention_boundary")
+        connection.execute(
+            "ALTER TABLE audit_retention_boundary_segments RENAME TO audit_retention_boundary"
         )
 
     def create_mount_runtime(self, record: Mapping[str, object]) -> None:

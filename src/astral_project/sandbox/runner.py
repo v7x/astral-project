@@ -11,7 +11,12 @@ from pathlib import Path
 
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.sandbox.environment import EnvironmentPolicy
-from astral_project.sandbox.hardening import HardeningPolicy, enforce, require_available
+from astral_project.sandbox.hardening import (
+    HardeningPolicy,
+    RootRole,
+    enforce,
+    require_available,
+)
 from astral_project.sandbox.plan import LocalSandboxPlan
 
 HealthCheck = Callable[[], bool]
@@ -107,14 +112,14 @@ def _sandbox_environment(
 
 def hardening_policy(plan: LocalSandboxPlan) -> HardeningPolicy:
     """Derive second-wall roots from fixed namespace and exact plan bindings."""
-    roots: list[tuple[Path, bool]] = [(path, False) for path in _visible_paths(plan)]
+    roots: list[tuple[Path, RootRole | bool]] = [(path, False) for path in _visible_paths(plan)]
     roots.extend((binding.host_path, binding.mode.value == "rw") for binding in plan.remotes)
     if plan.projected_home is not None:
         roots.append((plan.projected_home, plan.projected_home_writable))
     if plan.host_rx_manifest is not None:
         roots.append((plan.host_rx_manifest, False))
     if plan.session_socket is not None:
-        roots.append((plan.session_socket.parent, False))
+        roots.append((plan.session_socket.parent, RootRole.SOCKET_RUNTIME))
     return HardeningPolicy.for_plan(roots)
 
 
