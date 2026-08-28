@@ -1,5 +1,5 @@
 $ git rev-parse HEAD
-6f23b17c91427e17d0de0baa483e43830ebe1cfa
+4249fc768b2384a3f9d84d4c60a511a32a4b0a2a
 $ git status --short -- src packaging scripts tests .github docs/evidence
 (clean: no production, test, workflow, or evidence changes)
 $ git diff --quiet HEAD -- src packaging scripts tests .github docs/evidence
@@ -7,7 +7,7 @@ PASS working-tree-clean
 $ git diff --cached --quiet -- src packaging scripts tests .github docs/evidence
 PASS index-clean
 $ git diff --quiet b887bedf6f138920121cff0839315de6b82e47e7..HEAD -- src packaging scripts tests .github
-PASS source-tree-equivalence source-closure=b887bedf6f138920121cff0839315de6b82e47e7 validated-head=6f23b17c91427e17d0de0baa483e43830ebe1cfa
+PASS source-tree-equivalence source-closure=b887bedf6f138920121cff0839315de6b82e47e7 validated-head=4249fc768b2384a3f9d84d4c60a511a32a4b0a2a
 $ ./scripts/test
 828 passed, 1 skipped, 100% coverage
 $ uv run mypy src tests
