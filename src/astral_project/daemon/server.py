@@ -188,7 +188,7 @@ class DaemonServer:
         self._mounts: MountManager | None = None
         self._hardening: HardeningStatus | None = None
 
-    def start(self, *, apply_hardening: bool = False) -> None:
+    def start(self, *, apply_hardening: bool = True) -> None:
         ensure_private_directory(self.paths.runtime)
         self._lock.acquire()
         try:

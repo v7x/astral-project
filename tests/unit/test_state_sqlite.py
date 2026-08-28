@@ -7,6 +7,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -142,7 +143,8 @@ def test_activate_session_binds_signed_grant_and_host(tmp_path: Path) -> None:
             ),
         ),
     )
-    signed = SignedGrant.create(grant, Ed25519PrivateKey.generate())
+    issuer_key = Ed25519PrivateKey.generate()
+    signed = SignedGrant.create(grant, issuer_key)
     session_id = SessionId("00000000-0000-4000-8000-000000000004")
     database.activate_session(
         session_id=session_id,
@@ -152,6 +154,18 @@ def test_activate_session_binds_signed_grant_and_host(tmp_path: Path) -> None:
         remote_user="alice",
         host_metadata={"address": "127.0.0.1", "identity_file": "/tmp/id", "port": 22},
         started_at=1,
+    )
+    changed_grant = replace(
+        grant,
+        grant_id=GrantId("00000000-0000-4000-8000-000000000007"),
+        ssh_host_key_fingerprint="SHA256:new",
+    )
+    database.store_signed_grant(
+        SignedGrant.create(changed_grant, issuer_key),
+        host_key_fingerprint="SHA256:new",
+        remote_user="alice",
+        host_metadata={"address": "127.0.0.1", "identity_file": "/tmp/id", "port": 22},
+        stored_at=2,
     )
     active = database.active_listing_session()
     assert active is not None

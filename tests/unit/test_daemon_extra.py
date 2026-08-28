@@ -81,7 +81,7 @@ def test_daemon_start_fails_closed_without_landlock(
     )
     server = DaemonServer(DaemonPaths(tmp_path / "runtime", tmp_path / "state.sqlite3"))
     with pytest.raises(AstralError) as error:
-        server.start()
+        server.start(apply_hardening=False)
     assert error.value.code is ErrorCode.HARDENING_UNAVAILABLE
     assert not server.paths.socket.exists()
 
@@ -139,7 +139,7 @@ def test_default_daemon_binds_active_grant_to_listing(
         lambda payload, **_kwargs: {"target": payload["target"]},
     )
     server = DaemonServer(DaemonPaths(tmp_path / "runtime", tmp_path / "state.sqlite3"))
-    server.start()
+    server.start(apply_hardening=False)
     try:
         payload = {
             "filters": [],
@@ -306,7 +306,7 @@ def test_server_state_and_socket_failure_branches(
     paths.socket.write_text("not socket")
     paths.socket.chmod(0o600)
     with pytest.raises(AstralError):
-        server.start()
+        server.start(apply_hardening=False)
     server.close()
 
     clean = DaemonServer(DaemonPaths(tmp_path / "second", tmp_path / "second.sqlite3"))
@@ -353,7 +353,7 @@ def test_server_state_and_socket_failure_branches(
     )
     scoped_payload["target"] = "grant:/project"
     assert default_scoped._response("ls", scoped_payload) == {"target": "aspr-session:/project"}
-    default_scoped.start()
+    default_scoped.start(apply_hardening=False)
     default_scoped.close()
     with pytest.raises(AstralError):
         listed._response("ls")

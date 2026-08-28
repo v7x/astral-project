@@ -364,6 +364,15 @@ class StateDatabase:
                 {"host_key_fingerprint": host_key_fingerprint},
                 when,
             )
+            if host_event == "host.key.changed":
+                self._audit(
+                    connection,
+                    "key.rotation",
+                    "host",
+                    str(grant.host_id),
+                    {"key_kind": "ssh-host", "host_key_fingerprint": host_key_fingerprint},
+                    when,
+                )
             self._audit(
                 connection,
                 "grant.stored",
@@ -650,6 +659,35 @@ class StateDatabase:
     def audit_chain_errors(self) -> tuple[str, ...]:
         """Return broken event references without exposing payload details."""
         return validate_chain(self.list_audit_events())
+
+    def rotate_audit(self, *, retain: int = 10_000) -> None:
+        """Retain the newest local events and restart their provenance chain safely."""
+        if retain < 1:
+            raise ValueError("audit retention must be positive")
+        with self.transaction(write=True) as connection:
+            rows = connection.execute(
+                "SELECT rowid, event_id FROM audit_events ORDER BY rowid"
+            ).fetchall()
+            if len(rows) <= retain:
+                return
+            removed = [int(row[0]) for row in rows[:-retain]]
+            connection.executemany(
+                "DELETE FROM audit_events WHERE rowid = ?", ((row,) for row in removed)
+            )
+            first = connection.execute(
+                "SELECT event_id, payload_json FROM audit_events ORDER BY rowid LIMIT 1"
+            ).fetchone()
+            payload = json.loads(str(first[1]))
+            if isinstance(payload, dict) and set(payload) == {
+                "payload",
+                "previous_event_id",
+                "schema_version",
+            }:
+                payload["previous_event_id"] = None
+                connection.execute(
+                    "UPDATE audit_events SET payload_json = ? WHERE event_id = ?",
+                    (json.dumps(payload, separators=(",", ":"), sort_keys=True), first[0]),
+                )
 
     def retire_expired_sessions(self, *, now: int | None = None) -> int:
         when = int(time.time()) if now is None else now

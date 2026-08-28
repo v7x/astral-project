@@ -203,6 +203,30 @@ def test_state_database_audit_api_reads_legacy_and_new_rows(tmp_path: Path) -> N
     assert database.audit_chain_errors() == ()
 
 
+def test_state_database_audit_rotation_retains_chain(tmp_path: Path) -> None:
+    database = StateDatabase.open(tmp_path / "state.sqlite3")
+    database.record_audit("one", "subject", "1", {}, occurred_at=1)
+    database.record_audit("two", "subject", "2", {}, occurred_at=2)
+    database.rotate_audit(retain=2)
+    database.record_audit("three", "subject", "3", {}, occurred_at=3)
+    database.rotate_audit(retain=2)
+    events = database.list_audit_events()
+    assert [event.kind for event in events] == ["two", "three"]
+    assert events[0].previous_event_id is None
+    assert database.audit_chain_errors() == ()
+    with pytest.raises(ValueError):
+        database.rotate_audit(retain=0)
+    legacy = StateDatabase.open(tmp_path / "legacy.sqlite3")
+    with legacy.transaction(write=True) as connection:
+        for number in range(3):
+            connection.execute(
+                "INSERT INTO audit_events VALUES (?, ?, ?, ?, ?, ?)",
+                (f"legacy-{number}", number, "legacy", "subject", str(number), "{}"),
+            )
+    legacy.rotate_audit(retain=2)
+    assert legacy.audit_chain_errors() == ()
+
+
 def test_state_database_rejects_secret_audit_payload(tmp_path: Path) -> None:
     database = StateDatabase.open(tmp_path / "state.sqlite3")
     with pytest.raises(AuditEventError), database.transaction(write=True) as connection:
@@ -222,7 +246,7 @@ def test_daemon_audit_operations_require_started_database(tmp_path: Path) -> Non
 
 def test_daemon_audit_operations_use_redaction_and_hashing(tmp_path: Path) -> None:
     server = DaemonServer(DaemonPaths(tmp_path / "runtime", tmp_path / "state.sqlite3"))
-    server.start()
+    server.start(apply_hardening=False)
     try:
         assert server._database is not None
         with server._database.transaction(write=True) as connection:

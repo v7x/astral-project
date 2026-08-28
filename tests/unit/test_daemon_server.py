@@ -28,7 +28,7 @@ def _serve(server: DaemonServer) -> threading.Thread:
 def test_same_uid_ping_status_restart_and_database_persistence(tmp_path: Path) -> None:
     paths = _paths(tmp_path)
     server = DaemonServer(paths)
-    server.start()
+    server.start(apply_hardening=False)
     try:
         thread = _serve(server)
         assert DaemonClient(paths.socket).request(
@@ -40,7 +40,7 @@ def test_same_uid_ping_status_restart_and_database_persistence(tmp_path: Path) -
         server.close()
 
     restarted = DaemonServer(paths)
-    restarted.start()
+    restarted.start(apply_hardening=False)
     try:
         thread = _serve(restarted)
         result = DaemonClient(paths.socket).request(
@@ -91,7 +91,7 @@ def test_daemon_applies_hardening_at_trusted_startup(
 
 def test_daemon_records_audit_record_operation(tmp_path: Path) -> None:
     server = DaemonServer(_paths(tmp_path))
-    server.start()
+    server.start(apply_hardening=False)
     try:
         assert server._response(
             "audit.record",
@@ -143,12 +143,12 @@ def test_stale_socket_repaired_and_two_starts_do_not_race(tmp_path: Path) -> Non
     stale.close()
 
     server = DaemonServer(paths)
-    server.start()
+    server.start(apply_hardening=False)
     try:
         assert paths.socket.exists()
         contender = DaemonServer(paths)
         with pytest.raises(AstralError) as error:
-            contender.start()
+            contender.start(apply_hardening=False)
         assert error.value.code is ErrorCode.DAEMON_STARTUP
     finally:
         server.close()
@@ -211,7 +211,7 @@ def test_other_uid_and_bad_frames_do_not_crash_daemon(
 ) -> None:
     paths = _paths(tmp_path)
     server = DaemonServer(paths)
-    server.start()
+    server.start(apply_hardening=False)
     try:
         monkeypatch.setattr("astral_project.daemon.server.peer_uid", lambda connection: -1)
         thread = _serve(server)
