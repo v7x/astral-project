@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import fcntl
+import hashlib
 import os
 import socket
 import stat
@@ -214,11 +215,11 @@ class DaemonServer:
             )
             if apply_hardening:
                 try:
-                    self._hardening = enforce(
-                        HardeningPolicy.for_plan(
-                            ((self.paths.runtime, True), (self.paths.state.parent, True))
-                        )
-                    )
+                    ssh_state = Path.home() / ".ssh"
+                    roots = [(self.paths.runtime, True), (self.paths.state.parent, True)]
+                    if ssh_state.exists():  # pragma: no branch - optional SSH trust root
+                        roots.append((ssh_state, False))
+                    self._hardening = enforce(HardeningPolicy.for_plan(tuple(roots)))
                 except HardeningError as error:
                     self._database.record_audit(
                         "hardening.failure",
@@ -276,19 +277,54 @@ class DaemonServer:
             raise _error(ErrorCode.DAEMON_AUTH, "active grant host binding is invalid")
         if session.signed_grant.grant.remote_user != session.remote_user:
             raise _error(ErrorCode.DAEMON_AUTH, "active grant user binding is invalid")
-        return daemon_bound_listing_handler(
-            payload,
-            session_id=session.session_id,
-            signed_grant=session.signed_grant,
-            host=address,
-            remote_user=session.remote_user,
-            identity_file=Path(identity),
-            port=port,
-            binary=self._rclone_binary,
-            runtime=self.paths.runtime,
-            transport_program=self._transport_program,
-            ssh_binary=self._ssh_binary,
-        )
+        if self._database is not None:
+            self._database.record_audit(
+                "transport.started",
+                "session",
+                session.session_id,
+                {"grant_id": session.signed_grant.grant.grant_id.value},
+            )
+        try:
+            result = daemon_bound_listing_handler(
+                payload,
+                session_id=session.session_id,
+                signed_grant=session.signed_grant,
+                host=address,
+                remote_user=session.remote_user,
+                identity_file=Path(identity),
+                port=port,
+                binary=self._rclone_binary,
+                runtime=self.paths.runtime,
+                transport_program=self._transport_program,
+                ssh_binary=self._ssh_binary,
+            )
+        except Exception as error:
+            if self._database is not None:
+                self._database.record_audit(
+                    "transport.failed",
+                    "session",
+                    session.session_id,
+                    {"error_type": type(error).__name__},
+                )
+                self._database.record_audit(
+                    "degraded.mode",
+                    "session",
+                    session.session_id,
+                    {"reason": "transport failure"},
+                )
+            raise
+        if self._database is not None:
+            self._database.record_audit(
+                "transport.completed",
+                "session",
+                session.session_id,
+                {
+                    "effective_export_hash": hashlib.sha256(
+                        session.signed_grant.to_cbor()
+                    ).hexdigest()
+                },
+            )
+        return result
 
     def serve_forever(self) -> None:
         """Serve until process shutdown; trusted entry point owns lifecycle."""
@@ -424,6 +460,12 @@ class DaemonServer:
                 context=self._database.grant_verification_context(
                     grant.grant.grant_id.value, now=int(time.time())
                 ),
+            )
+            self._database.record_audit(
+                "grant.validated",
+                "grant",
+                grant.grant.grant_id.value,
+                {"expires_at": grant.grant.expires_at},
             )
             return {
                 "grant_id": grant.grant.grant_id.value,

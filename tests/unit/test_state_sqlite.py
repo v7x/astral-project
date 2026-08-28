@@ -172,6 +172,8 @@ def test_activate_session_binds_signed_grant_and_host(tmp_path: Path) -> None:
     assert active.session_id == str(session_id)
     assert active.signed_grant.grant.grant_id == grant.grant_id
     assert active.host_metadata["address"] == "127.0.0.1"
+    assert database.retire_expired_sessions(now=2) == 1
+    assert database.active_listing_session() is None
     with pytest.raises(AstralError):
         database.activate_session(
             session_id=SessionId("00000000-0000-4000-8000-000000000005"),

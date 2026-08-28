@@ -23,7 +23,7 @@ _LANDLOCK_RULE_TYPE_PATH_BENEATH = 1
 _PR_SET_NO_NEW_PRIVS = 38
 _PR_CAPBSET_DROP = 24
 _MAX_CAPABILITY = 63
-_READ_ACCESS = (1 << 2) | (1 << 3)
+_READ_ACCESS = (1 << 2) | (1 << 3) | (1 << 0)
 _WRITE_ACCESS = _READ_ACCESS | (1 << 1) | (1 << 7) | (1 << 8) | (1 << 5) | (1 << 4)
 
 

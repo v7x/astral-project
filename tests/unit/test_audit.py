@@ -201,6 +201,8 @@ def test_state_database_audit_api_reads_legacy_and_new_rows(tmp_path: Path) -> N
     assert events[0].event_id == "legacy"
     assert "<redacted>" in database.export_audit()
     assert database.audit_chain_errors() == ()
+    database.record_audit("after-malformed", "subject", "new", {}, occurred_at=5)
+    assert database.list_audit_events()[-1].previous_event_id == "legacy"
 
 
 def test_state_database_audit_rotation_retains_chain(tmp_path: Path) -> None:
@@ -218,12 +220,13 @@ def test_state_database_audit_rotation_retains_chain(tmp_path: Path) -> None:
         database.rotate_audit(retain=0)
     legacy = StateDatabase.open(tmp_path / "legacy.sqlite3")
     with legacy.transaction(write=True) as connection:
-        for number in range(3):
+        for number in range(4):
+            payload = "not-json" if number == 1 else "{}"
             connection.execute(
                 "INSERT INTO audit_events VALUES (?, ?, ?, ?, ?, ?)",
-                (f"legacy-{number}", number, "legacy", "subject", str(number), "{}"),
+                (f"legacy-{number}", number, "legacy", "subject", str(number), payload),
             )
-    legacy.rotate_audit(retain=2)
+    legacy.rotate_audit(retain=3)
     assert legacy.audit_chain_errors() == ()
 
 

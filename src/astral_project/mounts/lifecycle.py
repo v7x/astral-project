@@ -162,6 +162,9 @@ class MountManager:
         }
         try:
             self.database.create_mount_runtime(record)
+            self.database.record_audit(
+                "mount.requested", "mount", mount_id, {"grant_id": str(grant.grant_id)}
+            )
             capability = TransportCapability.create(self.runtime / "t")
             stream_lock = threading.Lock()
 
@@ -204,6 +207,9 @@ class MountManager:
                 close_fds=True,
             )
             self._processes[mount_id] = process
+            self.database.record_audit(
+                "rclone.started", "mount", mount_id, {"grant_id": str(grant.grant_id)}
+            )
             self.database.update_mount_runtime(
                 mount_id, pid=process.pid, updated_at=int(self.clock())
             )
@@ -212,9 +218,18 @@ class MountManager:
                 mount_id, state=MountState.READY.value, updated_at=int(self.clock())
             )
             _create_authority_marker(mount_path, mount_id)
+            self.database.record_audit(
+                "mount.ready", "mount", mount_id, {"grant_id": str(grant.grant_id)}
+            )
             return self._record(mount_id)
         except Exception as error:
             self._fail(mount_id, process if "process" in locals() else None, str(error))
+            self.database.record_audit(
+                "mount.failed", "mount", mount_id, {"error_type": type(error).__name__}
+            )
+            self.database.record_audit(
+                "degraded.mode", "mount", mount_id, {"reason": "mount failure"}
+            )
             raise
 
     def close(self, mount_id: str, *, flush_timeout: float = 10.0) -> RemoteMount:
@@ -227,6 +242,7 @@ class MountManager:
         self.database.update_mount_runtime(
             mount_id, state=MountState.DRAINING.value, updated_at=int(self.clock())
         )
+        self.database.record_audit("mount.unmount.requested", "mount", mount_id, {})
         rc_socket = self.runtime / f"rc-{mount_id}.sock"
         try:
             self._wait_for_vfs_uploads(rc_socket, flush_timeout)
@@ -239,6 +255,9 @@ class MountManager:
                 updated_at=int(self.clock()),
                 flush_warning=warning,
             )
+            self.database.record_audit(
+                "degraded.mode", "mount", mount_id, {"reason": "flush or unmount failure"}
+            )
             return self._record(mount_id)
         process = self._processes.pop(mount_id, None)
         if process is None and record.pid is not None:
@@ -248,6 +267,9 @@ class MountManager:
                 process.wait(timeout=flush_timeout)
             except subprocess.TimeoutExpired:
                 _terminate(process, flush_timeout)
+            self.database.record_audit(
+                "rclone.exited", "mount", mount_id, {"returncode": process.returncode}
+            )
         self._close_transport(mount_id)
         _remove_authority_marker(record.mount_path, mount_id)
         self.database.update_mount_runtime(
@@ -261,6 +283,7 @@ class MountManager:
         _unlink_private(record.config_path)
         _unlink_private(rc_socket)
         _remove_private_tree(record.cache_path)
+        self.database.record_audit("mount.closed", "mount", mount_id, {})
         return self._record(mount_id)
 
     def health(self, mount_id: str) -> RemoteMount:

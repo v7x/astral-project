@@ -112,6 +112,7 @@ class ProfileLearner:
                 approval_observer=observer,
                 approval_input_fd=-1 if external_only else None,
                 approval_mediator=mediator,
+                audit_sink=self.store.audit_sink,
                 session_id=session_id,
             )
             if result == 0 and draft:

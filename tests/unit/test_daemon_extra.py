@@ -155,8 +155,31 @@ def test_default_daemon_binds_active_grant_to_listing(
             "timeout_seconds": None,
         }
         assert server._response("ls", payload) == {"target": "aspr-session:/project"}
+        monkeypatch.setattr(
+            listing_module,
+            "daemon_bound_listing_handler",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("transport down")),
+        )
+        with pytest.raises(RuntimeError, match="transport down"):
+            server._default_listing_handler(payload)
     finally:
         server.close()
+    server._database = None
+    monkeypatch.setattr(
+        listing_module,
+        "daemon_bound_listing_handler",
+        lambda payload, **_kwargs: {"target": payload["target"]},
+    )
+    assert server._default_listing_handler(payload) == {
+        "target": "00000000-0000-4000-8000-000000000001:/project"
+    }
+    monkeypatch.setattr(
+        listing_module,
+        "daemon_bound_listing_handler",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("transport down")),
+    )
+    with pytest.raises(RuntimeError, match="transport down"):
+        server._default_listing_handler(payload)
     server._listing_session = None
     with pytest.raises(AstralError):
         server._default_listing_handler(payload)

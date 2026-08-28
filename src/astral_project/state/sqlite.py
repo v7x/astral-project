@@ -557,10 +557,40 @@ class StateDatabase:
         payload: Mapping[str, object],
         occurred_at: int,
     ) -> None:
-        previous_row = connection.execute(
-            "SELECT event_id FROM audit_events ORDER BY rowid DESC LIMIT 1"
-        ).fetchone()
-        previous = None if previous_row is None else str(previous_row[0])
+        previous = None
+        previous_rows = connection.execute(
+            "SELECT event_id, occurred_at, kind, subject_type, subject_id, payload_json "
+            "FROM audit_events ORDER BY rowid DESC"
+        ).fetchall()
+        for row in previous_rows:
+            try:
+                raw_payload = json.loads(str(row[5]))
+                if not isinstance(raw_payload, dict):
+                    continue
+                if set(raw_payload) == {"payload", "previous_event_id", "schema_version"}:
+                    payload_value = raw_payload["payload"]
+                    previous_value = raw_payload["previous_event_id"]
+                    version = raw_payload["schema_version"]
+                else:
+                    payload_value = raw_payload
+                    previous_value = None
+                    version = 1
+                if not isinstance(payload_value, dict):
+                    continue
+                AuditEvent(
+                    event_id=row[0],
+                    occurred_at=row[1],
+                    kind=row[2],
+                    subject_type=row[3],
+                    subject_id=row[4],
+                    payload=payload_value,
+                    previous_event_id=previous_value,
+                    schema_version=version,
+                )
+                previous = str(row[0])
+                break
+            except (AuditEventError, TypeError, ValueError, json.JSONDecodeError):
+                continue
         event = AuditEvent.create(
             kind,
             subject_type,
@@ -674,31 +704,58 @@ class StateDatabase:
             connection.executemany(
                 "DELETE FROM audit_events WHERE rowid = ?", ((row,) for row in removed)
             )
-            first = connection.execute(
-                "SELECT event_id, payload_json FROM audit_events ORDER BY rowid LIMIT 1"
-            ).fetchone()
-            payload = json.loads(str(first[1]))
-            if isinstance(payload, dict) and set(payload) == {
-                "payload",
-                "previous_event_id",
-                "schema_version",
-            }:
-                payload["previous_event_id"] = None
-                connection.execute(
-                    "UPDATE audit_events SET payload_json = ? WHERE event_id = ?",
-                    (json.dumps(payload, separators=(",", ":"), sort_keys=True), first[0]),
-                )
+            retained = connection.execute(
+                "SELECT event_id, payload_json FROM audit_events ORDER BY rowid"
+            ).fetchall()
+            for first in retained:
+                try:
+                    payload = json.loads(str(first[1]))
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    continue
+                if isinstance(payload, dict) and set(payload) == {
+                    "payload",
+                    "previous_event_id",
+                    "schema_version",
+                }:
+                    payload["previous_event_id"] = None
+                    connection.execute(
+                        "UPDATE audit_events SET payload_json = ? WHERE event_id = ?",
+                        (json.dumps(payload, separators=(",", ":"), sort_keys=True), first[0]),
+                    )
+                    break
 
     def retire_expired_sessions(self, *, now: int | None = None) -> int:
         when = int(time.time()) if now is None else now
         with self.transaction(write=True) as connection:
-            cursor = connection.execute(
+            expired = connection.execute(
+                "SELECT session_id, grant_id FROM sessions WHERE state = 'active' AND grant_id IN "
+                "(SELECT grant_id FROM grants WHERE expires_at <= ?)",
+                (when,),
+            ).fetchall()
+            connection.execute(
                 "UPDATE sessions SET state = 'expired', ended_at = ? "
                 "WHERE state = 'active' AND grant_id IN "
                 "(SELECT grant_id FROM grants WHERE expires_at <= ?)",
                 (when, when),
             )
-            return int(cursor.rowcount)
+            for session_id, grant_id in expired:
+                self._audit(
+                    connection,
+                    "grant.expired",
+                    "grant",
+                    str(grant_id),
+                    {"session_id": str(session_id)},
+                    when,
+                )
+                self._audit(
+                    connection,
+                    "session.expired",
+                    "session",
+                    str(session_id),
+                    {"grant_id": str(grant_id)},
+                    when,
+                )
+            return len(expired)
 
     def open_session(self, grant_id: str, *, started_at: int | None = None) -> str:
         """Open one durable session only after local revocation and expiry checks."""

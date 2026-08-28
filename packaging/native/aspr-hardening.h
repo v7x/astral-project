@@ -12,6 +12,7 @@
 #define ASPR_LANDLOCK_ADD_RULE 445
 #define ASPR_LANDLOCK_RESTRICT_SELF 446
 #define ASPR_LANDLOCK_RULE_TYPE_PATH_BENEATH 1
+#define ASPR_LANDLOCK_ACCESS_FS_EXECUTE (1ULL << 0)
 #define ASPR_LANDLOCK_ACCESS_FS_WRITE_FILE (1ULL << 1)
 #define ASPR_LANDLOCK_ACCESS_FS_READ_FILE (1ULL << 2)
 #define ASPR_LANDLOCK_ACCESS_FS_READ_DIR (1ULL << 3)
@@ -48,8 +49,8 @@ static void aspr_hardening_add_rule(int ruleset, const char *path, int writable)
         dprintf(STDERR_FILENO, "ASPR_SANDBOX_ENTRY: hardening root unavailable: %s\\n", path);
         aspr_hardening_fail("hardening root is unavailable");
     }
-    const uint64_t read_access = ASPR_LANDLOCK_ACCESS_FS_READ_FILE |
-        ASPR_LANDLOCK_ACCESS_FS_READ_DIR;
+    const uint64_t read_access = ASPR_LANDLOCK_ACCESS_FS_EXECUTE |
+        ASPR_LANDLOCK_ACCESS_FS_READ_FILE | ASPR_LANDLOCK_ACCESS_FS_READ_DIR;
     const uint64_t write_access = read_access | ASPR_LANDLOCK_ACCESS_FS_WRITE_FILE |
         ASPR_LANDLOCK_ACCESS_FS_REMOVE_DIR | ASPR_LANDLOCK_ACCESS_FS_REMOVE_FILE |
         ASPR_LANDLOCK_ACCESS_FS_MAKE_CHAR | ASPR_LANDLOCK_ACCESS_FS_MAKE_DIR |
@@ -71,8 +72,9 @@ static void aspr_hardening_add_rule(int ruleset, const char *path, int writable)
 
 static void aspr_harden_payload(const char *const *read_roots, size_t read_count,
                                 const char *const *write_roots, size_t write_count) {
-    const uint64_t handled = ASPR_LANDLOCK_ACCESS_FS_WRITE_FILE |
-        ASPR_LANDLOCK_ACCESS_FS_READ_FILE | ASPR_LANDLOCK_ACCESS_FS_READ_DIR |
+    const uint64_t handled = ASPR_LANDLOCK_ACCESS_FS_EXECUTE |
+        ASPR_LANDLOCK_ACCESS_FS_WRITE_FILE | ASPR_LANDLOCK_ACCESS_FS_READ_FILE |
+        ASPR_LANDLOCK_ACCESS_FS_READ_DIR |
         ASPR_LANDLOCK_ACCESS_FS_REMOVE_DIR | ASPR_LANDLOCK_ACCESS_FS_REMOVE_FILE |
         ASPR_LANDLOCK_ACCESS_FS_MAKE_CHAR | ASPR_LANDLOCK_ACCESS_FS_MAKE_DIR |
         ASPR_LANDLOCK_ACCESS_FS_MAKE_REG | ASPR_LANDLOCK_ACCESS_FS_MAKE_SOCK |
