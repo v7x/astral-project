@@ -6,19 +6,19 @@ Final installed candidate artifact:
 
 ```text
 artifact: astral-project_0.1.0_amd64.deb
-sha256: 41a838f2e9a83f7f75e43f888969e2395754efb61ae5ab2ed275a3ee1dc40664
+sha256: 3a671d5fa7063ea5a154e674a8a41e25782eee67a8bb1fb8a968074f81fd5e42
 ```
 
 The artifact was rebuilt from the closure source tree after the final Landlock,
 process-entrypoint, audit-protocol, and profile-audit-sink changes. The final
-source closure commit is `81b4d6af2faac90b61efb62ee50e61e1ae1ebfac`. Later
+source closure commit is `5af4a08ae43127b674e551db63eefce6d48ab9fe`. Later
 commits are evidence-only; `packet-37-38-local-validation.txt` records the
 source-tree equivalence check from that closure through the final evidence HEAD.
 
 ## Local verification
 
 ```text
-./scripts/test                         829 passed, 1 skipped; coverage 100%
+./scripts/test                         845 passed, 1 skipped; coverage 100%
 uv run mypy src tests                   passed
 uv run pytest tests/unit/test_audit.py tests/unit/test_hardening.py
                                         passed
@@ -49,16 +49,16 @@ The same package was installed with `dpkg -i` on both disposable targets. The
 raw transcripts are checked in, retain the native AppArmor audit records, and
 end with an explicit PASS marker:
 
-| target | identity | Landlock ABI | dependency report | raw transcript |
-|---|---|---:|---|---|
-| Ubuntu 24.04.4 | kernel 6.8.0-138-generic; AppArmor parser 4.0.1 | 4 | cbor2 5.6.2; cryptography 41.0.7 | `packet-37-38-ubuntu24-raw.txt` |
-| Ubuntu 26.04 LTS | kernel 7.0.0-30-generic; AppArmor parser 5.0.0~beta1 | 8 | cbor2 5.8.0; cryptography 46.0.5 | `packet-37-38-ubuntu26-raw.txt` |
+| target | identity | Landlock ABI | required ABI | dependency report | raw transcript |
+|---|---|---:|---:|---|---|
+| Ubuntu 24.04.4 | kernel 6.8.0-138-generic; AppArmor parser 4.0.1 | 4 | 3 | cbor2 5.6.2; cryptography 41.0.7 | `packet-37-38-ubuntu24-raw.txt` |
+| Ubuntu 26.04 LTS | kernel 7.0.0-30-generic; AppArmor parser 5.0.0~beta1 | 8 | 3 | cbor2 5.8.0; cryptography 46.0.5 | `packet-37-38-ubuntu26-raw.txt` |
 
 Raw transcript SHA-256 values:
 
 ```text
-packet-37-38-ubuntu24-raw.txt  84c9b35bb658163dedace72750f5882262456b8ef6c398ed8753abd81f0ab8e0
-packet-37-38-ubuntu26-raw.txt  e9ac5b7172287cdb621990965bcfc8b9c671f8511a8dfd09dcbab1ea0077a2be
+packet-37-38-ubuntu24-raw.txt  3d2d5fe28be79530784fc64b7da17780a408abae1c9e3bba6f9c0204123e2c9c
+packet-37-38-ubuntu26-raw.txt  f5af6a5c7579b73f7d8016eb06c50fa0b609701ee583f60fb9110708aa73f5e8
 ```
 
 Both installed runs passed the existing mount-namespace/AppArmor capability
@@ -76,6 +76,17 @@ secret-field insertion was rejected; default export replaced `/srv/secret` with
 Daemon audit listing reported an empty chain-error set and versioned
 `hardening.status` events. No private key, credential, file content, or secret
 environment value was included in the probes.
+
+Both targets additionally passed real-kernel Python Landlock isolation: allowed
+create/write/truncate succeeded; outside create, mkdir, symlink, truncate, and
+refer/link operations were denied with unchanged outside content and directory
+entries. The installed failure harness proved `ASPR_HARDENING_UNAVAILABLE`, no
+workload marker, and `hardening.failure` audit evidence. Remote retention probes
+reported two retained events, a valid chain, private `0600` adjacent lock, and
+explicit boundary metadata. Authorized remote audit export is exposed through
+the local daemon `audit.remote.export` operation and fixed SSH marker; raw mode
+is rejected, while server-side redaction/hash is covered by focused protocol
+acceptance.
 
 ## Boundary statement
 

@@ -154,6 +154,7 @@ def test_audit_log_rejects_zero_write(tmp_path: Path, monkeypatch: pytest.Monkey
 
 
 def test_audit_log_rotation_and_limits(tmp_path: Path) -> None:
+    AuditLog(tmp_path / "default-rotate.log").rotate()
     with pytest.raises(ValueError):
         AuditLog(tmp_path / "audit.log", max_bytes=0)
     with pytest.raises(ValueError):
@@ -199,7 +200,7 @@ def test_audit_log_auto_rotation_and_existing_generations(tmp_path: Path) -> Non
     automatic.append("two", "subject", "2", {})
     assert (tmp_path / "automatic.log.1").exists()
 
-    log = AuditLog(tmp_path / "generations.log", retain=2)
+    log = AuditLog(tmp_path / "generations.log", max_bytes=1, retain=2)
     log.append("current", "subject", "0", {})
     for index in (0, 1, 2):
         generation = tmp_path / f"generations.log.{index}"
