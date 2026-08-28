@@ -1,13 +1,15 @@
 $ git rev-parse HEAD
-7744d9fd8a3d051353409da55481b6df1be4a912
+0036d0e9fb062a5afd63167a323cd531b3fbe9a3
+$ git rev-parse origin/master
+0036d0e9fb062a5afd63167a323cd531b3fbe9a3
 $ git status --short -- src packaging scripts tests .github docs/evidence
-(clean: no production, test, workflow, or evidence changes)
+(clean: no entries)
 $ git diff --quiet HEAD -- src packaging scripts tests .github docs/evidence
-PASS working-tree-clean
+PASS scoped-working-tree-clean
 $ git diff --cached --quiet -- src packaging scripts tests .github docs/evidence
-PASS index-clean
-$ git diff --quiet 75610ebba3b833e918caf378d1a6d7779fb362a6..HEAD -- src packaging scripts tests .github
-PASS source-tree-equivalence source-closure=75610ebba3b833e918caf378d1a6d7779fb362a6 validated-head=7744d9fd8a3d051353409da55481b6df1be4a912
+PASS scoped-index-clean
+$ git diff --quiet 0036d0e9fb062a5afd63167a323cd531b3fbe9a3..HEAD -- src packaging scripts tests .github
+PASS source-tree-equivalence source-closure=0036d0e9fb062a5afd63167a323cd531b3fbe9a3
 $ uv lock --check
 PASS lockfile
 $ uv run ruff check src tests scripts
@@ -15,23 +17,28 @@ All checks passed!
 $ uv run mypy src tests
 Success: no issues found in 183 source files
 $ ./scripts/test
-845 passed, 1 skipped, 100% coverage
-$ uv run pytest tests/unit/test_audit.py tests/unit/test_hardening.py
-45 passed
+847 passed, 1 skipped, 100% coverage
+$ uv run pytest tests/unit/test_audit.py tests/unit/test_hardening.py tests/unit/test_server_protocol.py tests/integration/test_sandbox_native.py -q
+64 passed
+$ uv run pytest tests/unit/test_server_protocol.py::test_local_and_remote_audit_events_share_session_correlation -q
+1 passed
+PASS local/remote session correlation uses identical session_id and grant_id across StateDatabase and remote AuditLog
+$ uv run python - <<'PY'
+remote_rotation_events=2 chain_errors=() boundary_segments=3
+local_retention_events=2 chain_errors=() boundary_segments=3
+PY
+PASS JSONL byte rotation and SQLite count retention preserve linear chains with append-only boundary segments
 $ apparmor_parser -Q -K packaging/apparmor/usr.libexec.astral-project.aspr-bwrap-launch
-PASS apparmor parser
+PASS AppArmor parser
 $ uv run python scripts/parser_fuzz.py
 PASS parser fuzz cases=5
-$ cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-bwrap-launch.c -o /tmp/aspr-bwrap-launch-packet38
+$ cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-bwrap-launch.c -o /tmp/aspr-bwrap-launch-0036
 PASS native launcher compile
-$ cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-sandbox-entry.c -o /tmp/aspr-sandbox-entry-packet38
+$ cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-sandbox-entry.c -o /tmp/aspr-sandbox-entry-0036
 PASS native entry compile
-$ cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-mount-worker.c -o /tmp/aspr-mount-worker-packet38
+$ cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-mount-worker.c -o /tmp/aspr-mount-worker-0036
 PASS native mount compile
-$ sha256sum /tmp/packet37-38-build-final-756-1787941831/astral-project_0.1.0_amd64.deb
-706f1ad8e8219f8888ad4e17d3212c54bb59924ef079fa9343be6ac767d7ec18  /tmp/packet37-38-build-final-756-1787941831/astral-project_0.1.0_amd64.deb
-$ sha256sum docs/evidence/packet-37-38-ubuntu24-raw.txt docs/evidence/packet-37-38-ubuntu26-raw.txt
-249791f6cf8f64acc5a716850868ab050c705ed9a37057e630f5c8962c372948  docs/evidence/packet-37-38-ubuntu24-raw.txt
-f1875ca0f012f587eebbbad704a587c7d65b198367520bc0b010048d5b9bd6bf  docs/evidence/packet-37-38-ubuntu26-raw.txt
+$ sha256sum /tmp/packet37-38-build-0036-1787944121/astral-project_0.1.0_amd64.deb
+ df937e48e592bf0755389d229a686379a65b00a70026c5be8982385d8d0f7a62  /tmp/packet37-38-build-0036-1787944121/astral-project_0.1.0_amd64.deb
 $ git diff --check
 PASS current verification

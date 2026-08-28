@@ -17,7 +17,7 @@ recognizable secret values. Default export redacts all path-bearing scalar and
 collection fields; explicit hash mode uses deterministic SHA-256. Remote audit
 writes use a private adjacent inter-process lock. Chain validation is linear,
 and count retention is automatic on both stores. Retention preserves retained
-event bytes and records an immutable digest-boundary metadata record.
+event bytes and records append-only immutable digest-boundary segments whose full history is validated.
 
 Remote audit export uses local daemon operation `audit.remote.export` and an
 enrolled SSH forced-command marker. Server performs redaction or hashing before
@@ -42,5 +42,5 @@ available.
   acceptance on both releases;
 - remote audit lock/mode, redaction/hash, retention/boundary, concurrency, and
   local/remote provenance evidence;
-- exact source, package, driver, and raw transcript hashes;
+- exact source, package, driver, and raw transcript hashes: source `0036d0e9fb062a5afd63167a323cd531b3fbe9a3`; package `df937e48e592bf0755389d229a686379a65b00a70026c5be8982385d8d0f7a62`; Ubuntu 24 raw `d5701555305572e53c0118b557072911cf7e2d54fbd20bca9b4b0324e3fe3b16`; Ubuntu 26 raw `3f5de8e2eb2714f5f725566ea279e69219c424303be3c8954b685a725fa674a5`;
 - `git diff --check` and pushed refs equal.

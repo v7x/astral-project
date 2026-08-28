@@ -367,3 +367,363 @@ retention={'events': 2, 'chain': (), 'boundary': True}
 
 --- fc1-retention24 ---
 {'events': 2, 'chain': (), 'lock_mode': '0o600', 'boundary': True}
+
+--- 0036-sandbox24 ---
+$ dpkg -i /tmp/astral-project-0036.deb
+(Reading database ... 134156 files and directories currently installed.)
+Preparing to unpack /tmp/astral-project-0036.deb ...
+Unpacking astral-project (0.1.0) over (0.1.0) ...
+Setting up astral-project (0.1.0) ...
+$ stat -c %n %U:%G %a %A /usr/libexec/astral-project/aspr-bwrap-launch
+/usr/libexec/astral-project/aspr-bwrap-launch root:root 555 -r-xr-xr-x
+$ stat -c %n %U:%G %a %A /usr/libexec/astral-project/aspr-sandbox-entry
+/usr/libexec/astral-project/aspr-sandbox-entry root:root 555 -r-xr-xr-x
+$ getcap /usr/libexec/astral-project/aspr-bwrap-launch /usr/libexec/astral-project/aspr-sandbox-entry
+$ apparmor_parser --remove /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
+$ apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
+$ aa-status
+apparmor module is loaded.
+122 profiles are loaded.
+28 profiles are in enforce mode.
+   /usr/bin/man
+   /usr/lib/snapd/snap-confine
+   aspr-broker
+   aspr-bwrap-setup
+   aspr-namespace-setup
+   aspr-sandbox-payload
+   aspr-sftp-v1
+   lsb_release
+   man_filter
+   man_groff
+   nvidia_modprobe
+   nvidia_modprobe//kmod
+   plasmashell
+   plasmashell//QtWebEngineProcess
+   rsyslogd
+   tcpdump
+   ubuntu_pro_apt_news
+   ubuntu_pro_esm_cache
+   ubuntu_pro_esm_cache//apt_methods
+   ubuntu_pro_esm_cache//apt_methods_gpgv
+   ubuntu_pro_esm_cache//cloud_id
+   ubuntu_pro_esm_cache//dpkg
+   ubuntu_pro_esm_cache//ps
+   ubuntu_pro_esm_cache//ubuntu_distro_info
+   ubuntu_pro_esm_cache_systemctl
+   ubuntu_pro_esm_cache_systemd_detect_virt
+   unix-chkpwd
+   unprivileged_userns
+4 profiles are in complain mode.
+   transmission-cli
+   transmission-daemon
+   transmission-gtk
+   transmission-qt
+0 profiles are in prompt mode.
+0 profiles are in kill mode.
+90 profiles are in unconfined mode.
+   1password
+   Discord
+   MongoDB Compass
+   QtWebEngineProcess
+   balena-etcher
+   brave
+   buildah
+   bwrap
+   cam
+   ch-checkns
+   ch-run
+   chrome
+   crun
+   devhelp
+   element-desktop
+   epiphany
+   evolution
+   firefox
+   flatpak
+   foliate
+   geary
+   github-desktop
+   goldendict
+   ipa_verify
+   kchmviewer
+   keybase
+   lc-compliance
+   libcamerify
+   linux-sandbox
+   loupe
+   lxc-attach
+   lxc-create
+   lxc-destroy
+   lxc-execute
+   lxc-stop
+   lxc-unshare
+   lxc-usernsexec
+   mmdebstrap
+   msedge
+   notepadqq
+   obsidian
+   opam
+   opera
+   pageedit
+   podman
+   polypane
+   privacybrowser
+   qcam
+   qmapshack
+   qutebrowser
+   rootlesskit
+   rpm
+   rssguard
+   runc
+   sbuild
+   sbuild-abort
+   sbuild-adduser
+   sbuild-apt
+   sbuild-checkpackages
+   sbuild-clean
+   sbuild-createchroot
+   sbuild-destroychroot
+   sbuild-distupgrade
+   sbuild-hold
+   sbuild-shell
+   sbuild-unhold
+   sbuild-update
+   sbuild-upgrade
+   scide
+   signal-desktop
+   slack
+   slirp4netns
+   steam
+   stress-ng
+   surfshark
+   systemd-coredump
+   thunderbird
+   toybox
+   trinity
+   tup
+   tuxedo-control-center
+   userbindmount
+   uwsgi-core
+   vdens
+   virtiofsd
+   vivaldi-bin
+   vpnns
+   vscode
+   wike
+   wpcom
+2 processes have profiles defined.
+2 processes are in enforce mode.
+   /usr/bin/python3.12 (201611) aspr-broker
+   /usr/sbin/rsyslogd (717) rsyslogd
+0 processes are in complain mode.
+0 processes are in prompt mode.
+0 processes are in kill mode.
+0 processes are unconfined but have a profile defined.
+0 processes are in mixed mode.
+$ unshare -m --propagation private aa-exec -p aspr-bwrap-setup -- mount -t tmpfs -o nosuid,nodev tmpfs /tmp
+$ unshare -U -r aa-exec -p aspr-bwrap-setup -- unshare -U -r true
+$ sudo -u testuser env XDG_RUNTIME_DIR=/run/user/1002 python3 /tmp/aspr-accept-37-38/scripts/sandbox_enforce_acceptance.py
+{"all_capability_sets_zero": "passed", "all_network_socket_tables_empty": "passed", "all_non_loopback_interfaces_absent": "passed", "credentials_and_sockets_absent": "passed", "dns_absent": "passed", "entrypoint": "/usr/libexec/astral-project/aspr-sandbox-entry", "launcher": "/usr/libexec/astral-project/aspr-bwrap-launch", "native_negative_controls": "passed", "network_inherit": "passed", "network_none": "passed", "runtime": "/run/user/1002"}
+$ cc -std=c11 -O2 -Wall -Wextra -Werror /tmp/aspr-accept-37-38/scripts/apparmor_net_admin_probe.c -o /usr/libexec/astral-project/aspr-apparmor-net-admin-probe
+$ apparmor_parser --remove /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
+$ apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
+$ taskset -c 0 unshare -n aa-exec -p aspr-bwrap-setup -- /usr/libexec/astral-project/aspr-apparmor-net-admin-probe
+setup_net_admin_probe_audit=passed
+audit: type=1400 audit(1787944173.750:16128): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=201960 comm="aspr-apparmor-n" capability=12  capname="net_admin"
+$ apparmor_parser --remove /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
+$ apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
+$ sudo -u testuser env XDG_RUNTIME_DIR=/run/user/1002 /usr/bin/aspr sandbox --network none -- /bin/true
+setup_runtime_capabilities=passed
+audit: type=1400 audit(1787944179.774:16134): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=201975 comm="bwrap" capability=21  capname="sys_admin"
+audit: type=1400 audit(1787944179.775:16136): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=201976 comm="bwrap" capability=8  capname="setpcap"
+audit: type=1400 audit(1787944179.775:16137): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=201976 comm="bwrap" capability=12  capname="net_admin"
+audit: type=1400 audit(1787944179.775:16138): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=201976 comm="bwrap" capability=21  capname="sys_admin"
+$ apparmor_parser --remove /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
+$ apparmor_parser --replace /tmp/aspr-bwrap-no-net-admin
+$ taskset -c 0 unshare -n aa-exec -p aspr-bwrap-setup -- /usr/libexec/astral-project/aspr-apparmor-net-admin-probe
+setup_net_admin_negative_probe=passed
+audit: type=1400 audit(1787944200.638:16146): apparmor="DENIED" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=201985 comm="aspr-apparmor-n" capability=12  capname="net_admin"
+$ sudo -u testuser env XDG_RUNTIME_DIR=/run/user/1002 /usr/bin/aspr sandbox --network none -- /bin/true
+ASPRB64
+QVNQUlNCMDEBAAAAAQAAAAkvYmluL3RydWUAAAAAAAAAAAAAAQAAADUvcnVuL3VzZXIvMTAwMi9hc3RyYWwtcHJvamVjdC9wcm9qZWN0ZWQtaG9tZS1reXljNHVoOQAA
+bwrap: loopback: Failed RTM_NEWADDR: No child processes
+setup_net_admin_runtime_dependency=passed
+$ apparmor_parser --remove /tmp/aspr-bwrap-no-net-admin
+$ apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
+$ taskset -c 0 unshare -n aa-exec -p aspr-bwrap-setup -- /usr/libexec/astral-project/aspr-apparmor-net-admin-probe
+setup_profile_restored_net_admin=passed
+audit: type=1400 audit(1787944206.881:16156): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=202006 comm="aspr-apparmor-n" capability=12  capname="net_admin"
+$ sudo -u testuser env XDG_RUNTIME_DIR=/run/user/1002 /usr/bin/aspr sandbox --network none -- /bin/true
+ASPRB64
+QVNQUlNCMDEBAAAAAQAAAAkvYmluL3RydWUAAAAAAAAAAAAAAQAAADUvcnVuL3VzZXIvMTAwMi9hc3RyYWwtcHJvamVjdC9wcm9qZWN0ZWQtaG9tZS1feWNlcG53egAA
+$ aa-status
+apparmor module is loaded.
+122 profiles are loaded.
+28 profiles are in enforce mode.
+   /usr/bin/man
+   /usr/lib/snapd/snap-confine
+   aspr-broker
+   aspr-bwrap-setup
+   aspr-namespace-setup
+   aspr-sandbox-payload
+   aspr-sftp-v1
+   lsb_release
+   man_filter
+   man_groff
+   nvidia_modprobe
+   nvidia_modprobe//kmod
+   plasmashell
+   plasmashell//QtWebEngineProcess
+   rsyslogd
+   tcpdump
+   ubuntu_pro_apt_news
+   ubuntu_pro_esm_cache
+   ubuntu_pro_esm_cache//apt_methods
+   ubuntu_pro_esm_cache//apt_methods_gpgv
+   ubuntu_pro_esm_cache//cloud_id
+   ubuntu_pro_esm_cache//dpkg
+   ubuntu_pro_esm_cache//ps
+   ubuntu_pro_esm_cache//ubuntu_distro_info
+   ubuntu_pro_esm_cache_systemctl
+   ubuntu_pro_esm_cache_systemd_detect_virt
+   unix-chkpwd
+   unprivileged_userns
+4 profiles are in complain mode.
+   transmission-cli
+   transmission-daemon
+   transmission-gtk
+   transmission-qt
+0 profiles are in prompt mode.
+0 profiles are in kill mode.
+90 profiles are in unconfined mode.
+   1password
+   Discord
+   MongoDB Compass
+   QtWebEngineProcess
+   balena-etcher
+   brave
+   buildah
+   bwrap
+   cam
+   ch-checkns
+   ch-run
+   chrome
+   crun
+   devhelp
+   element-desktop
+   epiphany
+   evolution
+   firefox
+   flatpak
+   foliate
+   geary
+   github-desktop
+   goldendict
+   ipa_verify
+   kchmviewer
+   keybase
+   lc-compliance
+   libcamerify
+   linux-sandbox
+   loupe
+   lxc-attach
+   lxc-create
+   lxc-destroy
+   lxc-execute
+   lxc-stop
+   lxc-unshare
+   lxc-usernsexec
+   mmdebstrap
+   msedge
+   notepadqq
+   obsidian
+   opam
+   opera
+   pageedit
+   podman
+   polypane
+   privacybrowser
+   qcam
+   qmapshack
+   qutebrowser
+   rootlesskit
+   rpm
+   rssguard
+   runc
+   sbuild
+   sbuild-abort
+   sbuild-adduser
+   sbuild-apt
+   sbuild-checkpackages
+   sbuild-clean
+   sbuild-createchroot
+   sbuild-destroychroot
+   sbuild-distupgrade
+   sbuild-hold
+   sbuild-shell
+   sbuild-unhold
+   sbuild-update
+   sbuild-upgrade
+   scide
+   signal-desktop
+   slack
+   slirp4netns
+   steam
+   stress-ng
+   surfshark
+   systemd-coredump
+   thunderbird
+   toybox
+   trinity
+   tup
+   tuxedo-control-center
+   userbindmount
+   uwsgi-core
+   vdens
+   virtiofsd
+   vivaldi-bin
+   vpnns
+   vscode
+   wike
+   wpcom
+2 processes have profiles defined.
+2 processes are in enforce mode.
+   /usr/bin/python3.12 (201611) aspr-broker
+   /usr/sbin/rsyslogd (717) rsyslogd
+0 processes are in complain mode.
+0 processes are in prompt mode.
+0 processes are in kill mode.
+0 processes are unconfined but have a profile defined.
+0 processes are in mixed mode.
+setup_profile_restored=passed
+audit: type=1400 audit(1787944156.836:16105): apparmor="AUDIT" operation="mount" class="mount" profile="aspr-bwrap-setup" name="/tmp/" pid=201891 comm="mount" fstype="tmpfs" srcname="tmpfs" flags="rw, nosuid, nodev"
+audit: type=1400 audit(1787944156.836:16106): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=201891 comm="mount" capability=21  capname="sys_admin"
+audit: type=1400 audit(1787944157.261:16110): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=201903 comm="bwrap" capability=8  capname="setpcap"
+audit: type=1400 audit(1787944157.261:16111): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=201903 comm="bwrap" capability=21  capname="sys_admin"
+audit: type=1400 audit(1787944157.261:16112): apparmor="AUDIT" operation="mount" class="mount" profile="aspr-bwrap-setup" name="/tmp/" pid=201903 comm="bwrap" fstype="tmpfs" srcname="tmpfs" flags="rw, nosuid, nodev"
+{"audit_serial_baseline": 16104, "normal_audit_records": 8, "normal_setup_capabilities": ["setpcap", "sys_admin"], "normal_setup_operations": ["capable", "mount", "userns_create"], "setup_mount_probe": "passed", "setup_net_admin_negative_probe": "passed", "setup_net_admin_probe": "passed", "setup_net_admin_runtime_dependency": "passed", "setup_profile_restored": "passed", "setup_runtime_capabilities": ["net_admin", "setpcap", "sys_admin"], "setup_userns_probe": "passed"}
+
+PASS 0036 installed sandbox Ubuntu24 package=df937e48e592bf0755389d229a686379a65b00a70026c5be8982385d8d0f7a62 rc=0
+
+--- 0036-landlock24 ---
+{"allowed": {"action": "allowed_create_write_truncate", "result": "succeeded"}, "allowed_content": "two", "hardening": {"enforced": true, "landlock_abi": 4, "landlock_available": true, "landlock_required_abi": 3, "reason": "Landlock and process hardening enforced", "required": true}, "negative_controls": [{"action": "outside_create", "errno": 13, "result": "denied"}, {"action": "outside_mkdir", "errno": 13, "result": "denied"}, {"action": "outside_symlink", "errno": 13, "result": "denied"}, {"action": "outside_truncate", "errno": 13, "result": "denied"}, {"action": "outside_refer", "errno": 13, "result": "denied"}, {"action": "outside_link", "errno": 13, "result": "denied"}], "outside_content": "untouched", "outside_entries": ["existing"], "outside_size": 9}
+{"audit_events": ["hardening.failure", "hardening.failure", "hardening.failure", "hardening.failure", "hardening.failure", "hardening.failure", "hardening.failure", "hardening.failure"], "error_code": "ASPR_HARDENING_UNAVAILABLE", "marker_present": false}
+
+PASS 0036 Landlock/failure Ubuntu24 package=df937e48e592bf0755389d229a686379a65b00a70026c5be8982385d8d0f7a62 rc=0
+
+--- 0036-sftp24 ---
+{"extensions": ["copy-data", "expand-path@openssh.com", "fstatvfs@openssh.com", "fsync@openssh.com", "hardlink@openssh.com", "home-directory", "limits@openssh.com", "lsetstat@openssh.com", "posix-rename@openssh.com", "statvfs@openssh.com", "users-groups-by-id@openssh.com"], "operations": ["INIT", "VERSION", "REALPATH", "STAT", "LSTAT", "OPENDIR", "READDIR", "CLOSE"], "read_write": false, "root": "/project", "root_entries": 3, "version": 3}
+Warning: The unit file, source configuration file or drop-ins of astral-project-broker.service changed on disk. Run 'systemctl daemon-reload' to reload units.
+{"extensions": ["copy-data", "expand-path@openssh.com", "fstatvfs@openssh.com", "fsync@openssh.com", "hardlink@openssh.com", "home-directory", "limits@openssh.com", "lsetstat@openssh.com", "posix-rename@openssh.com", "statvfs@openssh.com", "users-groups-by-id@openssh.com"], "operations": ["INIT", "VERSION", "REALPATH", "STAT", "LSTAT", "OPENDIR", "READDIR", "CLOSE", "OPEN", "WRITE", "READ", "REMOVE"], "read_write": true, "root": "/project", "root_entries": 3, "version": 3}
+Warning: The unit file, source configuration file or drop-ins of astral-project-broker.service changed on disk. Run 'systemctl daemon-reload' to reload units.
+SFTP_RO_RC=0 SFTP_RW_RC=0
+
+PASS 0036 SFTP read-only/read-write Ubuntu24 package=df937e48e592bf0755389d229a686379a65b00a70026c5be8982385d8d0f7a62 rc=0
+$ uv run python - <<'PY'
+remote_rotation_events=2 chain_errors=() boundary_segments=3
+local_retention_events=2 chain_errors=() boundary_segments=3
+PY
+PASS 0036 remote JSONL rotation preserves linear chain; local SQLite and remote JSONL append immutable boundary segments
+.                                                                        [100%]
+1 passed in 0.08s
+PASS 0036 local/remote session correlation uses identical session_id and grant_id
