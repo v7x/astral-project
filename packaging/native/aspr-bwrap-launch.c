@@ -558,13 +558,13 @@ static void execute_plan(const Plan *plan) {
         add(argv, &count, capacity, "--setenv"); add(argv, &count, capacity, "ASPR_SESSION_RELAY_FD");
         add(argv, &count, capacity, "3");
     }
+    add(argv, &count, capacity, "--");
+    add(argv, &count, capacity, ENTRY);
+    add(argv, &count, capacity, "--aspr-hardening");
     if (plan->has_socket) {
         add(argv, &count, capacity, "--aspr-socket-root");
         add(argv, &count, capacity, "/run/astral-project");
     }
-    add(argv, &count, capacity, "--");
-    add(argv, &count, capacity, ENTRY);
-    add(argv, &count, capacity, "--aspr-hardening");
     for (uint32_t index = 0; index < plan->remote_count; ++index) {
         add(argv, &count, capacity, plan->remote[index].mode == 1 ? "--aspr-write-root" : "--aspr-read-root");
         add(argv, &count, capacity, plan->remote[index].target.value);
