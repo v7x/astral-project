@@ -480,8 +480,7 @@ class AuditLog:
             finally:
                 os.close(descriptor)
             _check_private_file(self.path)
-            if self.max_bytes is None:
-                self._apply_retention_unlocked()
+            self._apply_retention_unlocked()
             return event
 
     def read(self) -> tuple[AuditEvent, ...]:
@@ -537,6 +536,7 @@ class AuditLog:
             os.replace(self.path, self._generation(1))
             os.chmod(self._generation(1), 0o600)
         self._record_pruning_boundary_unlocked(before, self._read_unlocked())
+        self._apply_retention_unlocked()
 
     def _apply_retention_unlocked(self) -> None:
         rows: list[tuple[AuditEvent, str]] = []

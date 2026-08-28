@@ -195,6 +195,15 @@ def test_audit_log_automatic_count_retention_is_immutable(tmp_path: Path) -> Non
     assert log.chain_errors() == ("retention-boundary",)
 
 
+def test_audit_log_combines_byte_and_count_retention(tmp_path: Path) -> None:
+    log = AuditLog(tmp_path / "combined.log", max_bytes=1, retain=5, retention=2)
+    for number in range(6):
+        log.append("event", "subject", str(number), {}, occurred_at=number)
+    assert [event.subject_id for event in log.read()] == ["4", "5"]
+    assert log.chain_errors() == ()
+    assert log.boundary_path.exists()
+
+
 def test_audit_log_auto_rotation_and_existing_generations(tmp_path: Path) -> None:
     automatic = AuditLog(tmp_path / "automatic.log", max_bytes=1, retain=1)
     automatic.append("one", "subject", "1", {})

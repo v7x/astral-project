@@ -7,6 +7,7 @@ import fcntl
 import hashlib
 import json
 import os
+import selectors
 import socket
 import stat
 import struct
@@ -42,6 +43,59 @@ from astral_project.transport.local import fixed_ssh_audit_argv
 
 if TYPE_CHECKING:
     from astral_project.mounts import MountManager
+
+
+_REMOTE_AUDIT_RESPONSE_LIMIT = 1024 * 1024
+
+
+class _RemoteAuditOutputTooLarge(ValueError):
+    """Raised before remote audit output can exceed its bounded buffer."""
+
+
+def _bounded_remote_audit_run(
+    argv: list[str], *, input_data: bytes, env: Mapping[str, str], timeout: float
+) -> tuple[int, bytes]:
+    """Run the enrolled transport while bounding stdout before buffering it."""
+    process = subprocess.Popen(
+        argv,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        env=dict(env),
+    )
+    assert process.stdin is not None and process.stdout is not None
+    selector = selectors.DefaultSelector()
+    output = bytearray()
+    try:
+        process.stdin.write(input_data)
+        process.stdin.close()
+        selector.register(process.stdout, selectors.EVENT_READ)
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(argv, timeout)
+            if not selector.select(remaining):
+                raise subprocess.TimeoutExpired(argv, timeout)
+            chunk = os.read(
+                process.stdout.fileno(),
+                min(65536, _REMOTE_AUDIT_RESPONSE_LIMIT + 1 - len(output)),
+            )
+            if not chunk:
+                break
+            output.extend(chunk)
+            if len(output) > _REMOTE_AUDIT_RESPONSE_LIMIT:
+                raise _RemoteAuditOutputTooLarge("remote audit export response is too large")
+        returncode = process.wait(timeout=max(0.0, deadline - time.monotonic()))
+        return returncode, bytes(output)
+    except BaseException:
+        with suppress(OSError):
+            process.kill()
+        with suppress(OSError):
+            process.wait()
+        raise
+    finally:
+        selector.close()
 
 
 @dataclass(frozen=True, slots=True)
@@ -374,22 +428,24 @@ class DaemonServer:
             known_hosts=None if known_hosts is None else Path(known_hosts),
         )
         try:
-            result = subprocess.run(
+            returncode, stdout = _bounded_remote_audit_run(
                 argv,
-                input=json.dumps({"version": 1, "path_mode": path_mode}).encode(),
-                capture_output=True,
+                input_data=json.dumps({"version": 1, "path_mode": path_mode}).encode(),
                 timeout=15,
-                check=False,
                 env={"PATH": "/usr/bin:/bin", "HOME": str(Path.home())},
             )
+        except _RemoteAuditOutputTooLarge as error:
+            raise _error(
+                ErrorCode.DAEMON_PROTOCOL, "remote audit export response is invalid"
+            ) from error
         except (OSError, subprocess.TimeoutExpired) as error:
             raise _error(
                 ErrorCode.DAEMON_UNAVAILABLE, "remote audit export transport failed"
             ) from error
-        if result.returncode != 0:
+        if returncode != 0:
             raise _error(ErrorCode.DAEMON_UNAVAILABLE, "remote audit export was rejected")
         try:
-            response = json.loads(result.stdout)
+            response = json.loads(stdout)
         except (TypeError, ValueError, json.JSONDecodeError) as error:
             raise _error(
                 ErrorCode.DAEMON_PROTOCOL, "remote audit export response is invalid"

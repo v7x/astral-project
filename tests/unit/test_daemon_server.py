@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import json
 import socket
+import subprocess
+import sys
 import threading
 from pathlib import Path
 
 import pytest
 
+import astral_project.daemon.server as daemon_server
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.daemon.client import DaemonClient
 from astral_project.daemon.protocol import encode, receive
@@ -90,6 +93,50 @@ def test_daemon_applies_hardening_at_trusted_startup(
         server.close()
 
 
+def test_bounded_remote_audit_run_reads_successful_output() -> None:
+    returncode, output = daemon_server._bounded_remote_audit_run(
+        [
+            sys.executable,
+            "-c",
+            "import sys; sys.stdin.buffer.read(); sys.stdout.buffer.write(b'ok')",
+        ],
+        input_data=b"request",
+        env={"PATH": "/usr/bin:/bin"},
+        timeout=5,
+    )
+    assert (returncode, output) == (0, b"ok")
+
+
+def test_bounded_remote_audit_run_rejects_oversized_output() -> None:
+    with pytest.raises(ValueError, match="too large"):
+        daemon_server._bounded_remote_audit_run(
+            [sys.executable, "-c", "import sys; sys.stdout.write('x' * 1048577)"],
+            input_data=b"",
+            env={"PATH": "/usr/bin:/bin"},
+            timeout=5,
+        )
+
+
+def test_bounded_remote_audit_run_times_out_before_output() -> None:
+    with pytest.raises(subprocess.TimeoutExpired):
+        daemon_server._bounded_remote_audit_run(
+            [sys.executable, "-c", "import time; time.sleep(1)"],
+            input_data=b"",
+            env={"PATH": "/usr/bin:/bin"},
+            timeout=0,
+        )
+
+
+def test_bounded_remote_audit_run_times_out_while_waiting() -> None:
+    with pytest.raises(subprocess.TimeoutExpired):
+        daemon_server._bounded_remote_audit_run(
+            [sys.executable, "-c", "import time; time.sleep(1)"],
+            input_data=b"",
+            env={"PATH": "/usr/bin:/bin"},
+            timeout=0.01,
+        )
+
+
 def test_daemon_remote_audit_export_uses_fixed_authority(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -107,17 +154,12 @@ def test_daemon_remote_audit_export_uses_fixed_authority(
         )
         observed: dict[str, object] = {}
 
-        class Result:
-            returncode = 0
-            stdout = b'{"version":1,"ok":true,"export":"{\\"path\\":\\"<redacted>\\"}\\n"}'
-            stderr = b""
-
-        def run(argv: object, **kwargs: object) -> Result:
+        def run(argv: list[str], **kwargs: object) -> tuple[int, bytes]:
             observed["argv"] = argv
-            observed["input"] = kwargs["input"]
-            return Result()
+            observed["input"] = kwargs["input_data"]
+            return 0, b'{"version":1,"ok":true,"export":"{\\"path\\":\\"<redacted>\\"}\\n"}'
 
-        monkeypatch.setattr("astral_project.daemon.server.subprocess.run", run)
+        monkeypatch.setattr("astral_project.daemon.server._bounded_remote_audit_run", run)
         result = server._response("audit.remote.export", {"host_id": "host-1"})
         assert result["host_id"] == "host-1"
         assert result["path_mode"] == "redact"
@@ -161,38 +203,37 @@ def test_daemon_remote_audit_export_rejects_bad_transport_responses(
             lambda _id: ("user", {"address": "remote.example", "identity_file": "/home/user/key"}),
         )
         monkeypatch.setattr(
-            "astral_project.daemon.server.subprocess.run",
+            "astral_project.daemon.server._bounded_remote_audit_run",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                daemon_server._RemoteAuditOutputTooLarge("large")
+            ),
+        )
+        with pytest.raises(AstralError, match="response"):
+            server._remote_audit_export({"host_id": "h"})
+        monkeypatch.setattr(
+            "astral_project.daemon.server._bounded_remote_audit_run",
             lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("ssh")),
         )
         with pytest.raises(AstralError, match="transport"):
             server._remote_audit_export({"host_id": "h"})
 
-        class BadResult:
-            returncode = 1
-            stdout = b""
-
         monkeypatch.setattr(
-            "astral_project.daemon.server.subprocess.run", lambda *_args, **_kwargs: BadResult()
+            "astral_project.daemon.server._bounded_remote_audit_run",
+            lambda *_args, **_kwargs: (1, b""),
         )
         with pytest.raises(AstralError, match="rejected"):
             server._remote_audit_export({"host_id": "h"})
 
-        class InvalidResult:
-            returncode = 0
-            stdout = b"not-json"
-
         monkeypatch.setattr(
-            "astral_project.daemon.server.subprocess.run", lambda *_args, **_kwargs: InvalidResult()
+            "astral_project.daemon.server._bounded_remote_audit_run",
+            lambda *_args, **_kwargs: (0, b"not-json"),
         )
         with pytest.raises(AstralError, match="response"):
             server._remote_audit_export({"host_id": "h"})
 
-        class WrongResult:
-            returncode = 0
-            stdout = b'{"version":1,"ok":true,"export":1}'
-
         monkeypatch.setattr(
-            "astral_project.daemon.server.subprocess.run", lambda *_args, **_kwargs: WrongResult()
+            "astral_project.daemon.server._bounded_remote_audit_run",
+            lambda *_args, **_kwargs: (0, b'{"version":1,"ok":true,"export":1}'),
         )
         with pytest.raises(AstralError, match="response"):
             server._remote_audit_export({"host_id": "h"})
