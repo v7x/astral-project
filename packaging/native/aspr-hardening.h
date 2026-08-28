@@ -160,6 +160,7 @@ static void __attribute__((unused)) aspr_harden_payload(
     int ruleset = syscall(ASPR_LANDLOCK_CREATE_RULESET, &attr, sizeof(attr), 0);
     if (ruleset < 0) aspr_hardening_fail("Landlock ABI is unavailable");
     aspr_hardening_add_rule(ruleset, "/usr", 0);
+    aspr_hardening_add_rule(ruleset, "/etc", 0);
     aspr_hardening_add_rule(ruleset, "/dev", 2);
     aspr_hardening_add_rule(ruleset, "/proc", 0);
     if (access("/run", F_OK) == 0) aspr_hardening_add_rule(ruleset, "/run", 3);
