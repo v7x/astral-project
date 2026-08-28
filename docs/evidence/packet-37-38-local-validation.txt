@@ -1,27 +1,37 @@
 $ git rev-parse HEAD
-81b4d6af2faac90b61efb62ee50e61e1ae1ebfac
+fc1a6f5c9d5e91299a9365315a1afc7575f25c43
 $ git status --short -- src packaging scripts tests .github docs/evidence
 (clean: no production, test, workflow, or evidence changes)
 $ git diff --quiet HEAD -- src packaging scripts tests .github docs/evidence
 PASS working-tree-clean
 $ git diff --cached --quiet -- src packaging scripts tests .github docs/evidence
 PASS index-clean
-$ git diff --quiet 81b4d6af2faac90b61efb62ee50e61e1ae1ebfac..HEAD -- src packaging scripts tests .github
-PASS source-tree-equivalence source-closure=81b4d6af2faac90b61efb62ee50e61e1ae1ebfac validated-head=81b4d6af2faac90b61efb62ee50e61e1ae1ebfac
-$ ./scripts/test
-829 passed, 1 skipped, 100% coverage
+$ git diff --quiet fc1a6f5c9d5e91299a9365315a1afc7575f25c43..HEAD -- src packaging scripts tests .github
+PASS source-tree-equivalence source-closure=fc1a6f5c9d5e91299a9365315a1afc7575f25c43 validated-head=fc1a6f5c9d5e91299a9365315a1afc7575f25c43
+$ uv lock --check
+PASS lockfile
+$ uv run ruff check src tests scripts
+All checks passed!
 $ uv run mypy src tests
 Success: no issues found in 183 source files
+$ ./scripts/test
+845 passed, 1 skipped, 100% coverage
 $ uv run pytest tests/unit/test_audit.py tests/unit/test_hardening.py
-35 passed
+43 passed
 $ apparmor_parser -Q -K packaging/apparmor/usr.libexec.astral-project.aspr-bwrap-launch
 PASS apparmor parser
 $ uv run python scripts/parser_fuzz.py
 PASS parser fuzz cases=5
-$ sha256sum /tmp/packet37-38-build-current-final-1787930641/astral-project_0.1.0_amd64.deb
-41a838f2e9a83f7f75e43f888969e2395754efb61ae5ab2ed275a3ee1dc40664  /tmp/packet37-38-build-current-final-1787930641/astral-project_0.1.0_amd64.deb
+$ cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-bwrap-launch.c -o /tmp/aspr-bwrap-launch-packet38
+PASS native launcher compile
+$ cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-sandbox-entry.c -o /tmp/aspr-sandbox-entry-packet38
+PASS native entry compile
+$ cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-mount-worker.c -o /tmp/aspr-mount-worker-packet38
+PASS native mount compile
+$ sha256sum /tmp/packet37-38-build-goal2-final-1787939821/astral-project_0.1.0_amd64.deb
+3a671d5fa7063ea5a154e674a8a41e25782eee67a8bb1fb8a968074f81fd5e42  /tmp/packet37-38-build-goal2-final-1787939821/astral-project_0.1.0_amd64.deb
 $ sha256sum docs/evidence/packet-37-38-ubuntu24-raw.txt docs/evidence/packet-37-38-ubuntu26-raw.txt
-84c9b35bb658163dedace72750f5882262456b8ef6c398ed8753abd81f0ab8e0  docs/evidence/packet-37-38-ubuntu24-raw.txt
-e9ac5b7172287cdb621990965bcfc8b9c671f8511a8dfd09dcbab1ea0077a2be  docs/evidence/packet-37-38-ubuntu26-raw.txt
+04872fcbadec49d45febdfe7891c1171cb584f947c37b3aa1f04ebb1cedd7c84  docs/evidence/packet-37-38-ubuntu24-raw.txt
+4a006ef4e85a3a909ef914c76838e68a581d62277c22ce90050dcb392ca55caa  docs/evidence/packet-37-38-ubuntu26-raw.txt
 $ git diff --check
 PASS current verification

@@ -334,43 +334,34 @@ audit: type=1400 audit(1787939878.888:15701): apparmor="AUDIT" operation="mount"
 
 PASS goal2 installed sandbox Ubuntu24 package=3a671d5fa7063ea5a154e674a8a41e25782eee67a8bb1fb8a968074f81fd5e42 rc=0
 
---- landlock24 ---
+--- final-goal-landlock24 ---
 {"allowed": {"action": "allowed_create_write_truncate", "result": "succeeded"}, "allowed_content": "two", "hardening": {"enforced": true, "landlock_abi": 4, "landlock_available": true, "landlock_required_abi": 3, "reason": "Landlock and process hardening enforced", "required": true}, "negative_controls": [{"action": "outside_create", "errno": 13, "result": "denied"}, {"action": "outside_mkdir", "errno": 13, "result": "denied"}, {"action": "outside_symlink", "errno": 13, "result": "denied"}, {"action": "outside_truncate", "errno": 13, "result": "denied"}, {"action": "outside_refer", "errno": 13, "result": "denied"}, {"action": "outside_link", "errno": 13, "result": "denied"}], "outside_content": "untouched", "outside_entries": ["existing"], "outside_size": 9}
-{"audit_events": ["hardening.failure", "hardening.failure"], "error_code": "ASPR_HARDENING_UNAVAILABLE", "marker_present": false}
+{"audit_events": ["hardening.failure", "hardening.failure", "hardening.failure"], "error_code": "ASPR_HARDENING_UNAVAILABLE", "marker_present": false}
 
-PASS goal2 Landlock/failure Ubuntu24 package=3a671d5fa7063ea5a154e674a8a41e25782eee67a8bb1fb8a968074f81fd5e42 rc=0
+PASS Packet37-38 goal Landlock/failure Ubuntu24 artifact=ddda52060b6ee972b80bb2d67b26b5952437d9382ba40fcb0a54f86d9cbf839b rc=0
 
---- sftp-goal2-final-ro24 ---
-
---- sftp-goal2-final-rw24 ---
-
---- goal2-audit24 ---
-
---- goal2-privacy24 ---
-
---- goal2-final-ro24 ---
+--- goal2-sftp-ro24 ---
 {"extensions": ["copy-data", "expand-path@openssh.com", "fstatvfs@openssh.com", "fsync@openssh.com", "hardlink@openssh.com", "home-directory", "limits@openssh.com", "lsetstat@openssh.com", "posix-rename@openssh.com", "statvfs@openssh.com", "users-groups-by-id@openssh.com"], "operations": ["INIT", "VERSION", "REALPATH", "STAT", "LSTAT", "OPENDIR", "READDIR", "CLOSE"], "read_write": false, "root": "/project", "root_entries": 3, "version": 3}
 
-PASS SFTP finalgoal read-only ubuntu24 package=3a671d5fa7063ea5a154e674a8a41e25782eee67a8bb1fb8a968074f81fd5e42 rc=0
+PASS goal2 final SFTP read-only Ubuntu24 artifact=ddda52060b6ee972b80bb2d67b26b5952437d9382ba40fcb0a54f86d9cbf839b rc=0
 
---- goal2-final-rw24 ---
+--- goal2-sftp-rw24 ---
 {"extensions": ["copy-data", "expand-path@openssh.com", "fstatvfs@openssh.com", "fsync@openssh.com", "hardlink@openssh.com", "home-directory", "limits@openssh.com", "lsetstat@openssh.com", "posix-rename@openssh.com", "statvfs@openssh.com", "users-groups-by-id@openssh.com"], "operations": ["INIT", "VERSION", "REALPATH", "STAT", "LSTAT", "OPENDIR", "READDIR", "CLOSE", "OPEN", "WRITE", "READ", "REMOVE"], "read_write": true, "root": "/project", "root_entries": 3, "version": 3}
 Warning: The unit file, source configuration file or drop-ins of astral-project-broker.service changed on disk. Run 'systemctl daemon-reload' to reload units.
 
-PASS SFTP finalgoal read-write ubuntu24 package=3a671d5fa7063ea5a154e674a8a41e25782eee67a8bb1fb8a968074f81fd5e42 rc=0
+PASS goal2 final SFTP read-write Ubuntu24 artifact=ddda52060b6ee972b80bb2d67b26b5952437d9382ba40fcb0a54f86d9cbf839b rc=0
 
---- goal2-audit24 ---
-{'events': 2, 'chain': (), 'lock_mode': 384, 'boundary': True}
+--- goal-final-doctor24 ---
+{"alive":true,"dependencies":{"cbor2":"5.6.2","cryptography":"41.0.7"},"hardening":{"enforced":true,"landlock_abi":4,"landlock_available":true,"landlock_required_abi":3,"reason":"Landlock and process hardening enforced","required":true},"state_version":1}
 
---- goal2-privacy24 ---
+--- goal-final-privacy24 ---
 secret_schema_rejection=passed
 secret_schema_rejection=passed
 secret_schema_rejection=passed
 audit_mode=0o600
 lock_mode=0o600
-boundary=False
-redacted={"event_id":"fe39b208-78f2-4f29-8561-db0249ddb323","kind":"session.test","occurred_at":1787940147,"payload":{"paths":["<redacted>","<redacted>"]},"previous_event_id":null,"schema_version":1,"subject_id":"goal2-24","subject_type":"session"}
-hashed={"event_id":"fe39b208-78f2-4f29-8561-db0249ddb323","kind":"session.test","occurred_at":1787940147,"payload":{"paths":["sha256:4ad31b31998673d416d98575bcb234477372b14db707ef2f587514bc5af0ac19","sha256:e1fe210bc7d6cc94564e5d69ae636a9f200c89a620a2ca90e503fe4887e890b0"]},"previous_event_id":null,"schema_version":1,"subject_id":"goal2-24","subject_type":"session"}
+redacted={"event_id":"152818d2-3353-478d-b2c0-250959cce987","kind":"session.test","occurred_at":1787940652,"payload":{"paths":["<redacted>","<redacted>"]},"previous_event_id":null,"schema_version":1,"subject_id":"final24","subject_type":"session"}
+hashed={"event_id":"152818d2-3353-478d-b2c0-250959cce987","kind":"session.test","occurred_at":1787940652,"payload":{"paths":["sha256:4ad31b31998673d416d98575bcb234477372b14db707ef2f587514bc5af0ac19","sha256:e1fe210bc7d6cc94564e5d69ae636a9f200c89a620a2ca90e503fe4887e890b0"]},"previous_event_id":null,"schema_version":1,"subject_id":"final24","subject_type":"session"}
 
---- current doctor ---
-{"alive":true,"dependencies":{"cbor2":"5.6.2","cryptography":"41.0.7"},"hardening":{"enforced":true,"landlock_abi":4,"landlock_available":true,"reason":"Landlock and process hardening enforced","required":true},"state_version":1}
+--- goal2-audit24 ---
+{'events': 2, 'chain': (), 'lock_mode': 384, 'boundary': True}
