@@ -24,6 +24,9 @@ _SECRET_KEY = re.compile(
     re.IGNORECASE,
 )
 _PATH_KEY = re.compile(r"(?:^|_)(?:path|source|target|root|directory|dir|manifest)$", re.IGNORECASE)
+_ARGUMENT_KEY = re.compile(
+    r"^(?:arg(?:ument)?s?|argv|command(?:[_-](?:line|args?))?)$", re.IGNORECASE
+)
 
 
 class PathMode(Enum):
@@ -203,13 +206,11 @@ class AuditLog:
 
     def read(self) -> tuple[AuditEvent, ...]:
         """Read valid rows only; malformed historical rows never crash readers."""
-        if not self.path.exists():
-            return ()
-        return tuple(event for event, _ in self._rows() if event is not None)
+        return tuple(event for event, _ in self._all_rows() if event is not None)
 
     def diagnostics(self) -> tuple[str, ...]:
         """Return safe row diagnostics without exposing malformed contents."""
-        return tuple(message for _, message in self._rows() if message is not None)
+        return tuple(message for _, message in self._all_rows() if message is not None)
 
     def export(self, *, path_mode: PathMode = PathMode.REDACT) -> str:
         """Serialize valid rows with redaction or explicit deterministic hashing."""
@@ -242,9 +243,23 @@ class AuditLog:
     def _generation(self, index: int) -> Path:
         return self.path.with_name(f"{safe_component(self.path.name)}.{index}")
 
-    def _rows(self) -> Iterator[tuple[AuditEvent | None, str | None]]:
+    def _all_rows(self) -> Iterator[tuple[AuditEvent | None, str | None]]:
+        for path in self._read_paths():
+            yield from self._rows(path)
+
+    def _read_paths(self) -> Iterator[Path]:
+        for index in range(self.retain, 0, -1):
+            path = self._generation(index)
+            if path.exists():
+                _check_private_file(path)
+                yield path
+        if self.path.exists():
+            _check_private_file(self.path)
+            yield self.path
+
+    def _rows(self, path: Path) -> Iterator[tuple[AuditEvent | None, str | None]]:
         try:
-            with self.path.open(encoding="utf-8") as stream:
+            with path.open(encoding="utf-8") as stream:
                 for line in stream:
                     try:
                         raw = json.loads(line)
@@ -284,6 +299,8 @@ def _check_private_file(path: Path) -> None:
 def _validate_payload(value: object, *, key: str | None = None) -> None:
     if key is not None and _SECRET_KEY.search(key):
         raise AuditEventError("secret-bearing audit field is forbidden")
+    if key is not None and _ARGUMENT_KEY.fullmatch(key):
+        raise AuditEventError("command arguments are forbidden in audit fields")
     if isinstance(value, Mapping):
         for item_key, item_value in value.items():
             if not isinstance(item_key, str) or "\x00" in item_key:

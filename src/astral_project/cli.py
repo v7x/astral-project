@@ -540,7 +540,7 @@ def _run_internal(mode: str, stderr: TextIO) -> int:
     if mode == "daemon":
         daemon = DaemonServer(_daemon_paths())
         try:
-            daemon.start()
+            daemon.start(apply_hardening=True)
             daemon.serve_forever()
         except AstralError as error:
             stderr.write(f"{error.to_text()}\n")
@@ -653,8 +653,32 @@ def run(argv: Sequence[str], *, stdout: TextIO, stderr: TextIO) -> int:
             ) -> dict[str, object]:
                 return _daemon_request(operation, payload)
 
+            def sandbox_audit(
+                kind: str,
+                subject_type: str,
+                subject_id: str,
+                payload: dict[str, object],
+            ) -> None:
+                try:
+                    _daemon_request(
+                        "audit.record",
+                        {
+                            "kind": kind,
+                            "subject_type": subject_type,
+                            "subject_id": subject_id,
+                            "payload": payload,
+                        },
+                    )
+                except AstralError:
+                    StateDatabase.open(_daemon_paths().state).record_audit(
+                        kind, subject_type, subject_id, payload
+                    )
+
             return run_sandbox(
-                arguments, daemon_request=sandbox_request, runtime=_daemon_paths().runtime
+                arguments,
+                daemon_request=sandbox_request,
+                runtime=_daemon_paths().runtime,
+                audit_sink=sandbox_audit,
             )
         except AstralError as error:
             stderr.write(f"{error.to_text()}\n")

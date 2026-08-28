@@ -11,6 +11,8 @@ from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.daemon.client import DaemonClient
 from astral_project.daemon.protocol import encode, receive
 from astral_project.daemon.server import DaemonPaths, DaemonServer
+from astral_project.sandbox.hardening import HardeningError, HardeningStatus
+from astral_project.state.sqlite import StateDatabase
 
 
 def _paths(tmp_path: Path) -> DaemonPaths:
@@ -54,6 +56,82 @@ def test_same_uid_ping_status_restart_and_database_persistence(tmp_path: Path) -
         assert not thread.is_alive()
     finally:
         restarted.close()
+
+
+def test_daemon_applies_hardening_at_trusted_startup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths = _paths(tmp_path)
+    observed: list[object] = []
+
+    def apply(policy: object) -> HardeningStatus:
+        observed.append(policy)
+        return HardeningStatus(True, 4, True, True, "enforced")
+
+    monkeypatch.setattr("astral_project.daemon.server.enforce", apply)
+    server = DaemonServer(paths)
+    server.start(apply_hardening=True)
+    try:
+        assert len(observed) == 1
+        thread = _serve(server)
+        result = DaemonClient(paths.socket).request(
+            request_id="status-hardening", cancellation_id="cancel-hardening", operation="status"
+        )
+        assert result["hardening"] == {
+            "landlock_abi": 4,
+            "landlock_available": True,
+            "required": True,
+            "enforced": True,
+            "reason": "enforced",
+        }
+        thread.join(timeout=1)
+    finally:
+        server.close()
+
+
+def test_daemon_records_audit_record_operation(tmp_path: Path) -> None:
+    server = DaemonServer(_paths(tmp_path))
+    server.start()
+    try:
+        assert server._response(
+            "audit.record",
+            {
+                "kind": "sandbox.launch",
+                "subject_type": "sandbox",
+                "subject_id": "s1",
+                "payload": {"path": "/tmp/work"},
+            },
+        ) == {"recorded": True}
+        assert server._database is not None
+        assert server._database.list_audit_events()[-1].kind == "sandbox.launch"
+        with pytest.raises(AstralError):
+            server._response("audit.record")
+        with pytest.raises(AstralError):
+            server._response("audit.record", {"kind": "bad"})
+    finally:
+        server.close()
+
+
+def test_daemon_audits_hardening_startup_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths = _paths(tmp_path)
+    failure = HardeningError(
+        code=ErrorCode.HARDENING_APPLY,
+        message="rule load failed",
+        security_result="daemon rejected",
+        unsafe_reason="hardening is mandatory",
+        next_action="repair hardening",
+    )
+
+    def fail(_policy: object) -> None:
+        raise failure
+
+    monkeypatch.setattr("astral_project.daemon.server.enforce", fail)
+    with pytest.raises(HardeningError):
+        DaemonServer(paths).start(apply_hardening=True)
+    database = StateDatabase.open(paths.state)
+    assert database.list_audit_events()[-1].kind == "hardening.failure"
 
 
 def test_stale_socket_repaired_and_two_starts_do_not_race(tmp_path: Path) -> None:

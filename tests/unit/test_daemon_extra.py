@@ -59,8 +59,8 @@ def test_cli_doctor_and_daemon_mode(monkeypatch: pytest.MonkeyPatch, tmp_path: P
         def __init__(self, value: DaemonPaths) -> None:
             assert value is paths
 
-        def start(self) -> None:
-            pass
+        def start(self, *, apply_hardening: bool = False) -> None:
+            assert apply_hardening is True
 
         def serve_forever(self) -> None:
             raise _error(ErrorCode.DAEMON_STARTUP)

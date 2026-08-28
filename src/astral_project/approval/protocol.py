@@ -8,6 +8,7 @@ import socket
 import stat
 import struct
 import threading
+from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
@@ -92,13 +93,19 @@ class ApprovalServer:
     """Serve exact-session approvals from a user-owned trusted runtime socket."""
 
     def __init__(
-        self, path: Path, mediator: UnknownPathMediator, *, allow_decisions: bool = True
+        self,
+        path: Path,
+        mediator: UnknownPathMediator,
+        *,
+        allow_decisions: bool = True,
+        audit_sink: Callable[[str, str, str, dict[str, object]], None] | None = None,
     ) -> None:
         if not path.is_absolute():
             raise ApprovalProtocolError("approval socket path must be absolute")
         self.path = path
         self.mediator = mediator
         self.allow_decisions = allow_decisions
+        self.audit_sink = audit_sink
         self._stop = threading.Event()
         self._listener: socket.socket | None = None
         self._thread: threading.Thread | None = None
@@ -176,6 +183,23 @@ class ApprovalServer:
                 sensitivity=Sensitivity(value["sensitivity"]),
                 opaque_ancestor=value["opaque_ancestor"],
             )
+            if self.audit_sink is not None:  # pragma: no branch - optional audit integration
+                self.audit_sink(
+                    "profile.requested",
+                    "session",
+                    value["session_id"],
+                    {
+                        "operation": value["operation"],
+                        "path": value["path"],
+                        "sensitivity": value["sensitivity"],
+                    },
+                )
+                self.audit_sink(
+                    "profile.approved" if result.allowed else "profile.denied",
+                    "session",
+                    value["session_id"],
+                    {"decision": result.decision.value},
+                )
             _write_frame(
                 connection,
                 {
@@ -222,6 +246,13 @@ class ApprovalServer:
                 request_number=request.request_number,
                 decision=request.decision,
             )
+            if self.audit_sink is not None:  # pragma: no branch - optional audit integration
+                self.audit_sink(
+                    "profile.approval",
+                    "session",
+                    request.session_id,
+                    {"decision": request.decision.value, "accepted": accepted},
+                )
             _write_frame(connection, {"accepted": accepted})
         except (ApprovalProtocolError, OSError, struct.error) as error:
             _write_frame(connection, {"accepted": False, "error": str(error)})

@@ -57,6 +57,8 @@ def test_event_rejects_bad_envelope_and_sensitive_payload() -> None:
     raw["payload"] = {"private_key": "x"}
     with pytest.raises(AuditEventError, match="secret"):
         AuditEvent.from_dict(raw)
+    with pytest.raises(AuditEventError, match="arguments"):
+        AuditEvent.create("kind", "subject", "id", {"command": ["tool", "secret"]})
     with pytest.raises(AuditEventError, match="timestamp"):
         AuditEvent("e", -1, "kind", "subject", "id", {})
     with pytest.raises(AuditEventError, match="schema"):
@@ -105,7 +107,7 @@ def test_audit_log_rotation_and_limits(tmp_path: Path) -> None:
     log.rotate()
     log.append("two", "x", "2", {})
     assert (tmp_path / "audit.log.1").exists()
-    assert log.read()[0].kind == "two"
+    assert [event.kind for event in log.read()] == ["one", "two"]
     assert stat.S_IMODE((tmp_path / "audit.log.1").stat().st_mode) == 0o600
 
 
@@ -124,6 +126,7 @@ def test_audit_log_auto_rotation_and_existing_generations(tmp_path: Path) -> Non
     log.rotate()
     assert (tmp_path / "generations.log.1").exists()
     assert (tmp_path / "generations.log.2").exists()
+    assert [event.kind for event in log.read()] == ["current"]
 
 
 def test_audit_log_read_handles_storage_error(

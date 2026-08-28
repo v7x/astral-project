@@ -6,7 +6,7 @@ Final installed candidate artifact:
 
 ```text
 artifact: astral-project_0.1.0_amd64.deb
-sha256: d999500e6d806b0330b4421b57fc83b3220db1482623f815e7defbbc25b7264c
+sha256: bfe34dfe26a655450984666d80a54e87d3432cdfdfc741da5b8c7ae21089232a
 ```
 
 The artifact was rebuilt from the closure source tree after the final Landlock,
@@ -16,7 +16,7 @@ source closure commit is `f04740e`.
 ## Local verification
 
 ```text
-./scripts/test                         813 passed, 1 skipped; coverage 100%
+./scripts/test                         817 passed, 1 skipped; coverage 100%
 uv run mypy src tests                   passed
 uv run pytest tests/unit/test_audit.py tests/unit/test_hardening.py
                                         passed
@@ -49,8 +49,8 @@ end with an explicit PASS marker:
 Raw transcript SHA-256 values:
 
 ```text
-packet-37-38-ubuntu24-raw.txt  4d5d0da666744533eb3961a65cee6827daa7c75f195aa81e68921633bdb951b3
-packet-37-38-ubuntu26-raw.txt  93ab954b14edc331edebc0aac9bd70e9913295cbecf47a8abcd20e5ecf28374a
+packet-37-38-ubuntu24-raw.txt  c79469c7bac57cdb4602e4cf909fb8c97fc76b46c3edc44b141286f67a3f9d65
+packet-37-38-ubuntu26-raw.txt  e130f1cd1a83488ed3a0d05a99b4a0b89ce1bb41dac7312391f6940501e9d89f
 ```
 
 Both installed runs passed the existing mount-namespace/AppArmor capability

@@ -13,6 +13,7 @@ from typing import Protocol
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from astral_project.audit.events import AuditLog
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.core.paths import _fsync_directory
 from astral_project.crypto.keys import public_key_bytes, store_private_key
@@ -116,12 +117,20 @@ def enroll(
     transport_key_id: str,
     private_key_path: Path,
     control_file: ControlFileIdentity,
+    audit_log: AuditLog | None = None,
 ) -> EnrollmentResult:
     """Install narrow remote authority; every created item has compensation."""
     if not bundle or len(issuer_key) != 32:
         raise _error("bundle or issuer key is invalid")
     if private_key_path.exists():
         raise _error("transport private key destination already exists")
+    if audit_log is not None:
+        audit_log.append(
+            "enrollment.started",
+            "host",
+            str(record.host_id),
+            {"transport_key_id": transport_key_id},
+        )
     private_key = Ed25519PrivateKey.generate()
     public_key = public_key_bytes(private_key)
     entry = authorized_key_entry(public_key, transport_key_id)
@@ -148,11 +157,25 @@ def enroll(
         journal.add(lambda: _remove_new_private_key(private_key_path))
         remote.smoke_test()
     except Exception as error:
+        if audit_log is not None:
+            audit_log.append(
+                "enrollment.failed",
+                "host",
+                str(record.host_id),
+                {"error_type": type(error).__name__},
+            )
         try:
             journal.rollback()
         except AstralError as rollback_error:
             raise rollback_error from error
         raise _error("remote enrollment failed", str(error)) from error
+    if audit_log is not None:
+        audit_log.append(
+            "enrollment.completed",
+            "host",
+            str(record.host_id),
+            {"bundle_digest": digest, "transport_key_id": transport_key_id},
+        )
     return EnrollmentResult(digest, entry, control_file)
 
 

@@ -253,6 +253,7 @@ def run_sandbox(
     approval_mediator: UnknownPathMediator | None = None,
     environment_policy: EnvironmentPolicy | None = None,
     session_id: str | None = None,
+    audit_sink: Callable[[str, str, str, dict[str, object]], None] | None = None,
 ) -> int:
     parsed = parse_arguments(arguments)
     profile, home_root = _projected_home_inputs(parsed)
@@ -283,6 +284,7 @@ def run_sandbox(
             approval_socket=parsed.approval_socket,
             mediation_socket=mediation_socket,
             input_fd=0 if approval_input_fd is None else approval_input_fd,
+            audit_sink=audit_sink,
         )
         host_rx_directory: Path | None = None
         try:
@@ -312,6 +314,7 @@ def run_sandbox(
                 approval=approval,
                 environment_policy=profile_environment,
                 hardening=hardening_policy(plan),
+                audit_sink=audit_sink,
             )
         finally:
             if projected is not None:
@@ -349,6 +352,7 @@ def run_sandbox(
         approval_socket=parsed.approval_socket,
         mediation_socket=mediation_socket,
         input_fd=0 if approval_input_fd is None else approval_input_fd,
+        audit_sink=audit_sink,
     )
     try:
         projected = _start_projected_home(
@@ -417,6 +421,7 @@ def run_sandbox(
             approval=approval,
             environment_policy=profile_environment,
             hardening=hardening_policy(plan),
+            audit_sink=audit_sink,
         )
     finally:
         if api is not None:

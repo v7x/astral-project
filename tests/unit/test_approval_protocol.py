@@ -59,7 +59,12 @@ def test_external_approval_accepts_exact_request_and_rejects_stale(tmp_path: Pat
     mediator = UnknownPathMediator(timeout=1)
     thread, number = _pending(mediator)
     socket_path = tmp_path / "approval.sock"
-    server = ApprovalServer(socket_path, mediator)
+    events: list[str] = []
+    server = ApprovalServer(
+        socket_path,
+        mediator,
+        audit_sink=lambda kind, *_values: events.append(kind),
+    )
     server.start()
     try:
         client = ApprovalClient(socket_path)
@@ -71,12 +76,19 @@ def test_external_approval_accepts_exact_request_and_rejects_stale(tmp_path: Pat
     finally:
         server.close()
     assert not socket_path.exists()
+    assert events == ["profile.approval", "profile.approval"]
 
 
 def test_remote_mediation_round_trip(tmp_path: Path) -> None:
     parent = UnknownPathMediator(timeout=1)
     socket_path = tmp_path / "mediation.sock"
-    server = ApprovalServer(socket_path, parent, allow_decisions=False)
+    events: list[str] = []
+    server = ApprovalServer(
+        socket_path,
+        parent,
+        allow_decisions=False,
+        audit_sink=lambda kind, *_values: events.append(kind),
+    )
     server.start()
     result: dict[str, object] = {}
 
@@ -107,6 +119,7 @@ def test_remote_mediation_round_trip(tmp_path: Path) -> None:
         )
         thread.join(1)
         assert cast(MediationResult, result["value"]).allowed is True
+        assert events == ["profile.requested", "profile.approved"]
     finally:
         server.close()
 

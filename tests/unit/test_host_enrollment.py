@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 import astral_project.host.enrollment as enrollment
+from astral_project.audit import AuditLog
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.host.enrollment import (
     ControlFileIdentity,
@@ -62,6 +63,7 @@ def test_restricted_key_and_enrollment_idempotent(tmp_path: Path) -> None:
     )
     assert "/usr/libexec/astral-project/aspr-server server ssh-entry" in entry
     remote = Remote()
+    audit_log = AuditLog(tmp_path / "audit.log")
     result = enroll(
         HostRecord.load(FIXTURE),
         remote,
@@ -70,8 +72,13 @@ def test_restricted_key_and_enrollment_idempotent(tmp_path: Path) -> None:
         transport_key_id="transport-1",
         private_key_path=tmp_path / "key",
         control_file=ControlFileIdentity(1, "a" * 64, 1),
+        audit_log=audit_log,
     )
     assert result.authorized_key.endswith(" aspr-transport-1")
+    assert [event.kind for event in audit_log.read()] == [
+        "enrollment.started",
+        "enrollment.completed",
+    ]
     assert remote.events == ["bundle", "issuer", "key", "smoke"]
 
 
@@ -87,6 +94,7 @@ def test_partial_enrollment_rolls_back(tmp_path: Path, fail: str) -> None:
             transport_key_id="id",
             private_key_path=tmp_path / "key",
             control_file=ControlFileIdentity(1, "a" * 64, 1),
+            audit_log=AuditLog(tmp_path / f"audit-{fail}.log"),
         )
     assert error.value.code is ErrorCode.HOST_ENROLLMENT
     assert any(event.startswith("remove-") for event in remote.events)

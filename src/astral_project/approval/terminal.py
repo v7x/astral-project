@@ -130,6 +130,7 @@ class ApprovalController:
         mediation_socket: Path | None = None,
         input_fd: int = 0,
         output: BinaryIO | None = None,
+        audit_sink: Callable[[str, str, str, dict[str, object]], None] | None = None,
     ) -> None:
         if not session_id:
             raise TerminalControllerError("approval session identity is required")
@@ -139,6 +140,7 @@ class ApprovalController:
         self.mediation_socket = mediation_socket
         self.input_fd = input_fd
         self.output = output
+        self.audit_sink = audit_sink
         self._resize_pending = False
         self._continue_pending = False
 
@@ -154,12 +156,19 @@ class ApprovalController:
         if not argv:
             raise TerminalControllerError("child argv is empty")
         mediation_server = (
-            ApprovalServer(self.mediation_socket, self.mediator, allow_decisions=False)
+            ApprovalServer(
+                self.mediation_socket,
+                self.mediator,
+                allow_decisions=False,
+                audit_sink=self.audit_sink,
+            )
             if self.mediation_socket
             else None
         )
         approval_server = (
-            ApprovalServer(self.approval_socket, self.mediator) if self.approval_socket else None
+            ApprovalServer(self.approval_socket, self.mediator, audit_sink=self.audit_sink)
+            if self.approval_socket
+            else None
         )
         if mediation_server is not None:
             mediation_server.start()

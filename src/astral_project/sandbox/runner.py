@@ -26,10 +26,24 @@ def run_plan(
     approval: object | None = None,
     environment_policy: EnvironmentPolicy | None = None,
     hardening: HardeningPolicy | None = None,
+    audit_sink: Callable[[str, str, str, dict[str, object]], None] | None = None,
 ) -> int:
     """Run one plan; terminate child when any daemon-owned remote view is lost."""
     if poll_seconds <= 0:
         raise _error("sandbox health interval must be positive")
+    if hardening is not None:
+        require_available(hardening)
+    if audit_sink is not None:
+        audit_sink(
+            "sandbox.launch",
+            "sandbox",
+            plan.session_id or "local",
+            {
+                "path": plan.command[0],
+                "network": plan.network.value,
+                "remote_count": len(plan.remotes),
+            },
+        )
     if approval is not None:
         from astral_project.approval.terminal import ApprovalController, TerminalControllerError
 
@@ -45,8 +59,6 @@ def run_plan(
             )
         except TerminalControllerError as error:
             raise _error(str(error), ErrorCode.DAEMON_UNAVAILABLE) from error
-    if hardening is not None:
-        require_available(hardening)
     try:
         process_kwargs: dict[str, object] = {
             "stdin": subprocess.PIPE,

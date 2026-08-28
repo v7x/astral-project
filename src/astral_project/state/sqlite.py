@@ -13,6 +13,7 @@ from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
@@ -252,6 +253,14 @@ class StateDatabase:
                 "INSERT INTO sessions VALUES (?, ?, ?, ?, ?)",
                 (str(session_id), str(grant.grant_id), "active", started_at, None),
             )
+            self._audit(
+                connection,
+                "session.activated",
+                "session",
+                str(session_id),
+                {"grant_id": str(grant.grant_id), "host_id": str(host_id)},
+                started_at,
+            )
 
     def store_signed_grant(
         self,
@@ -293,6 +302,10 @@ class StateDatabase:
                 ErrorCode.STATE_CORRUPT, "grant host metadata is not JSON", error
             ) from error
         with self.transaction(write=True) as connection:
+            existing_host = connection.execute(
+                "SELECT host_key_fingerprint FROM hosts WHERE host_id = ?",
+                (str(grant.host_id),),
+            ).fetchone()
             revoked = connection.execute(
                 "SELECT 1 FROM revocations WHERE grant_id = ?", (str(grant.grant_id),)
             ).fetchone()
@@ -333,6 +346,23 @@ class StateDatabase:
             connection.execute(
                 "INSERT INTO grant_issuer_keys(grant_id, public_key) VALUES (?, ?)",
                 (str(grant.grant_id), effective_issuer_key.public_bytes_raw()),
+            )
+            host_event = (
+                "host.enrolled"
+                if existing_host is None
+                else (
+                    "host.key.changed"
+                    if str(existing_host[0]) != host_key_fingerprint
+                    else "host.observed"
+                )
+            )
+            self._audit(
+                connection,
+                host_event,
+                "host",
+                str(grant.host_id),
+                {"host_key_fingerprint": host_key_fingerprint},
+                when,
             )
             self._audit(
                 connection,
@@ -661,7 +691,10 @@ class StateDatabase:
                 "session.opened",
                 "session",
                 session_id,
-                {"grant_id": grant_id},
+                {
+                    "grant_id": grant_id,
+                    "effective_export_hash": hashlib.sha256(signed.to_cbor()).hexdigest(),
+                },
                 when,
             )
             return session_id
@@ -906,6 +939,28 @@ class StateDatabase:
                     )
                 ),
             )
+            self._audit(
+                connection,
+                "rclone.mount.requested",
+                "mount",
+                str(record["mount_id"]),
+                {"transport_capability": record["transport_capability"]},
+                cast(int, record["created_at"]),
+            )
+            self._audit(
+                connection,
+                "mount.created",
+                "mount",
+                str(record["mount_id"]),
+                {
+                    "session_id": record["session_id"],
+                    "grant_id": record["grant_id"],
+                    "mount_path": record["mount_path"],
+                    "virtual_target": record["virtual_target"],
+                    "mode": record["mode"],
+                },
+                cast(int, record["created_at"]),
+            )
 
     def update_mount_runtime(self, mount_id: str, **fields: object) -> None:
         allowed = {
@@ -926,6 +981,14 @@ class StateDatabase:
             )
             if cursor.rowcount != 1:
                 raise _state_error(ErrorCode.STATE_CORRUPT, "mount runtime record was not found")
+            self._audit(
+                connection,
+                "mount.updated",
+                "mount",
+                mount_id,
+                {"state": fields.get("state", "unchanged")},
+                cast(int, fields.get("updated_at", int(time.time()))),
+            )
 
     def mount_runtime(self, mount_id: str) -> dict[str, object]:
         with self.transaction() as connection:

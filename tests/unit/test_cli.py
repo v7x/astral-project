@@ -14,6 +14,8 @@ import pytest
 
 from astral_project import PROTOCOL_VERSION, TARGET_PLATFORM, __version__, cli
 from astral_project.core.errors import AstralError, ErrorCode
+from astral_project.daemon.server import DaemonPaths
+from astral_project.state.sqlite import StateDatabase
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 LAUNCHER_DIRECTORY = Path(sys.executable).parent
@@ -136,6 +138,56 @@ def test_audit_command_rejects_unknown_form() -> None:
     stderr = StringIO()
     assert cli.run(["audit", "export", "--raw"], stdout=StringIO(), stderr=stderr) == 2
     assert "unknown command 'audit export'" in stderr.getvalue()
+
+
+def test_sandbox_audit_callback_records_versioned_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    observed: list[tuple[str, object]] = []
+
+    def fake_run_sandbox(*args: object, **kwargs: object) -> int:
+        sink = kwargs["audit_sink"]
+        assert callable(sink)
+        sink("sandbox.launch", "sandbox", "s1", {"path": "/bin/true"})
+        return 0
+
+    monkeypatch.setattr(cli, "run_sandbox", fake_run_sandbox)
+
+    def record(operation: str, payload: object = None) -> dict[str, object]:
+        observed.append((operation, payload))
+        return {}
+
+    monkeypatch.setattr(cli, "_daemon_request", record)
+    assert cli.run(["sandbox", "--", "/bin/true"], stdout=StringIO(), stderr=StringIO()) == 0
+    assert observed[0][0] == "audit.record"
+
+
+def test_sandbox_audit_falls_back_to_local_state_without_daemon(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    paths = DaemonPaths(tmp_path / "runtime", tmp_path / "state.sqlite3")
+    monkeypatch.setattr(cli, "_daemon_paths", lambda: paths)
+
+    def fake_run_sandbox(*args: object, **kwargs: object) -> int:
+        sink = kwargs["audit_sink"]
+        assert callable(sink)
+        sink("sandbox.launch", "sandbox", "s1", {"path": "/bin/true"})
+        return 0
+
+    monkeypatch.setattr(cli, "run_sandbox", fake_run_sandbox)
+    monkeypatch.setattr(
+        cli,
+        "_daemon_request",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AstralError(
+                ErrorCode.DAEMON_UNAVAILABLE,
+                "offline",
+                "offline",
+                "offline",
+                "retry",
+            )
+        ),
+    )
+    assert cli.run(["sandbox", "--", "/bin/true"], stdout=StringIO(), stderr=StringIO()) == 0
+    assert StateDatabase.open(paths.state).list_audit_events()[0].kind == "sandbox.launch"
 
 
 def test_run_dispatches_transport_key_ssh_entry(monkeypatch: pytest.MonkeyPatch) -> None:

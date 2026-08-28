@@ -1376,8 +1376,14 @@ def test_runner_checks_hardening_before_child_start(monkeypatch: pytest.MonkeyPa
         return 4
 
     monkeypatch.setattr("astral_project.sandbox.runner.require_available", record)
-    assert run_plan(plan, popen=popen, hardening=policy) == 0  # type: ignore[arg-type]
+    events: list[tuple[str, str, str, dict[str, object]]] = []
+
+    def audit(kind: str, subject_type: str, subject_id: str, payload: dict[str, object]) -> None:
+        events.append((kind, subject_type, subject_id, payload))
+
+    assert run_plan(plan, popen=popen, hardening=policy, audit_sink=audit) == 0  # type: ignore[arg-type]
     assert called == [policy]
+    assert events[0][0] == "sandbox.launch"
     assert "preexec_fn" not in captured
 
     monkeypatch.setattr("astral_project.sandbox.runner.enforce", lambda value: called.append(value))

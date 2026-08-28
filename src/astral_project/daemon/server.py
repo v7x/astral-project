@@ -22,7 +22,11 @@ from astral_project.crypto.grants import AccessMode, SignedGrant
 from astral_project.crypto.keys import public_key_from_bytes
 from astral_project.daemon.protocol import encode, make_response, parse_request, receive
 from astral_project.sandbox.hardening import (
+    HardeningError,
+    HardeningPolicy,
+    HardeningStatus,
     dependency_versions,
+    enforce,
 )
 from astral_project.sandbox.hardening import (
     status as hardening_status,
@@ -182,8 +186,9 @@ class DaemonServer:
         self._lock = DaemonLock(paths.lock)
         self._database: StateDatabase | None = None
         self._mounts: MountManager | None = None
+        self._hardening: HardeningStatus | None = None
 
-    def start(self) -> None:
+    def start(self, *, apply_hardening: bool = False) -> None:
         ensure_private_directory(self.paths.runtime)
         self._lock.acquire()
         try:
@@ -200,12 +205,34 @@ class DaemonServer:
             hardening = hardening_status(required=True)
             if not hardening.landlock_available:
                 raise _error(ErrorCode.HARDENING_UNAVAILABLE, hardening.reason)
+            self._hardening = hardening
             self._database.record_audit(
                 "hardening.status",
                 "daemon",
                 "local",
                 hardening.to_dict(),
             )
+            if apply_hardening:
+                try:
+                    self._hardening = enforce(
+                        HardeningPolicy.for_plan(
+                            ((self.paths.runtime, True), (self.paths.state.parent, True))
+                        )
+                    )
+                except HardeningError as error:
+                    self._database.record_audit(
+                        "hardening.failure",
+                        "process",
+                        "local-daemon",
+                        {"error_code": error.code.string},
+                    )
+                    raise
+                self._database.record_audit(
+                    "hardening.enforced",
+                    "process",
+                    "local-daemon",
+                    self._hardening.to_dict(),
+                )
             self._mounts = MountManager(
                 self._database,
                 self.paths.runtime,
@@ -337,7 +364,11 @@ class DaemonServer:
             return {
                 "alive": True,
                 "state_version": self._database.state_version,
-                "hardening": hardening_status(required=True).to_dict(),
+                "hardening": (
+                    hardening_status(required=True).to_dict()
+                    if self._hardening is None
+                    else self._hardening.to_dict()
+                ),
                 "dependencies": dependency_versions(("cbor2", "cryptography")),
             }
         if operation == "cancel":
@@ -434,6 +465,22 @@ class DaemonServer:
             except ValueError as error:
                 raise _error(ErrorCode.DAEMON_PROTOCOL, "audit path mode is invalid") from error
             return {"export": self._database.export_audit(path_mode=path_mode)}
+        if operation == "audit.record":
+            if self._database is None or payload is None:
+                raise _error(ErrorCode.DAEMON_PROTOCOL, "audit record payload is missing")
+            kind = payload.get("kind")
+            subject_type = payload.get("subject_type")
+            subject_id = payload.get("subject_id")
+            event_payload = payload.get("payload")
+            if (
+                not isinstance(kind, str)
+                or not isinstance(subject_type, str)
+                or not isinstance(subject_id, str)
+                or not isinstance(event_payload, dict)
+            ):
+                raise _error(ErrorCode.DAEMON_PROTOCOL, "audit record fields are invalid")
+            self._database.record_audit(kind, subject_type, subject_id, event_payload)
+            return {"recorded": True}
         if operation == "session.open":
             if self._database is None or payload is None:
                 raise _error(ErrorCode.DAEMON_PROTOCOL, "session open payload is missing")
