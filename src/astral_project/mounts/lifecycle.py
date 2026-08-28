@@ -165,7 +165,7 @@ class MountManager:
             self.database.record_audit(
                 "mount.requested", "mount", mount_id, {"grant_id": str(grant.grant_id)}
             )
-            capability = TransportCapability.create(self.runtime / "sockets" / "t")
+            capability = TransportCapability.create(self.runtime / "sockets")
             stream_lock = threading.Lock()
 
             def open_stream() -> ProcessStream:
