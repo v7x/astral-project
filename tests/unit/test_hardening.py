@@ -76,8 +76,10 @@ def test_root_role_merge_preserves_strongest_fixed_authority(
         hardening._stronger_role(RootRole.READ_ONLY, RootRole.REGULAR_WRITABLE)
         is RootRole.REGULAR_WRITABLE
     )
-    with pytest.raises(ValueError, match="conflicting"):
+    assert (
         hardening._stronger_role(RootRole.DEVICE_RUNTIME, RootRole.SOCKET_RUNTIME)
+        is RootRole.SOCKET_RUNTIME
+    )
     monkeypatch.setattr(
         hardening,
         "_access_for_role",

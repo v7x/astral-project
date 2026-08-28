@@ -69,7 +69,8 @@ static void aspr_hardening_add_rule(int ruleset, const char *path, int role) {
         ASPR_LANDLOCK_ACCESS_FS_MAKE_SYM | ASPR_LANDLOCK_ACCESS_FS_REFER |
         ASPR_LANDLOCK_ACCESS_FS_TRUNCATE;
     const uint64_t socket_access = read_access |
-        ASPR_LANDLOCK_ACCESS_FS_MAKE_SOCK | ASPR_LANDLOCK_ACCESS_FS_REMOVE_FILE;
+        ASPR_LANDLOCK_ACCESS_FS_WRITE_FILE | ASPR_LANDLOCK_ACCESS_FS_MAKE_SOCK |
+        ASPR_LANDLOCK_ACCESS_FS_REMOVE_FILE;
     struct aspr_landlock_path_beneath_attr rule = {
         .allowed_access = role == 3 ? socket_access :
             (role == 2 ? device_access : (role ? regular_access : read_access)),
