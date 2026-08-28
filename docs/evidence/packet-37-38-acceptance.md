@@ -6,19 +6,19 @@ Final installed candidate artifact:
 
 ```text
 artifact: astral-project_0.1.0_amd64.deb
-sha256: e1fc940dd655b5bad8d395ffaa403c1791c502aec9e1c3bef6758d834b381275
+sha256: 41a838f2e9a83f7f75e43f888969e2395754efb61ae5ab2ed275a3ee1dc40664
 ```
 
 The artifact was rebuilt from the closure source tree after the final Landlock,
 process-entrypoint, audit-protocol, and profile-audit-sink changes. The final
-source closure commit is `b887bedf6f138920121cff0839315de6b82e47e7`. Later
+source closure commit is `81b4d6af2faac90b61efb62ee50e61e1ae1ebfac`. Later
 commits are evidence-only; `packet-37-38-local-validation.txt` records the
 source-tree equivalence check from that closure through the final evidence HEAD.
 
 ## Local verification
 
 ```text
-./scripts/test                         828 passed, 1 skipped; coverage 100%
+./scripts/test                         829 passed, 1 skipped; coverage 100%
 uv run mypy src tests                   passed
 uv run pytest tests/unit/test_audit.py tests/unit/test_hardening.py
                                         passed
@@ -34,7 +34,7 @@ python scripts/parser_fuzz.py           passed
 Immutable local validation transcript:
 
 ```text
-packet-37-38-local-validation.txt  d45d4f43261ad522c8fcd04ed352348a39d9d854e8806097a9d586184837fc77
+packet-37-38-local-validation.txt  fdaae390ee5b461587bf37f8e9bbe6765f9dc0cf0cb7509d4ab1046e28fc34f2
 ```
 
 The full suite includes audit schema, path redaction and hashing, malformed-old-
@@ -57,8 +57,8 @@ end with an explicit PASS marker:
 Raw transcript SHA-256 values:
 
 ```text
-packet-37-38-ubuntu24-raw.txt  b607e8e232f8769982cb8d279700d3f7a9db3a691293355c9245579848ed3621
-packet-37-38-ubuntu26-raw.txt  26fa1482c035d81488e71ed5d2d46d6251b6abdb360fb5534a42eb51620c0809
+packet-37-38-ubuntu24-raw.txt  84c9b35bb658163dedace72750f5882262456b8ef6c398ed8753abd81f0ab8e0
+packet-37-38-ubuntu26-raw.txt  e9ac5b7172287cdb621990965bcfc8b9c671f8511a8dfd09dcbab1ea0077a2be
 ```
 
 Both installed runs passed the existing mount-namespace/AppArmor capability

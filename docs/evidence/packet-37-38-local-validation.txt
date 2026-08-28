@@ -1,15 +1,15 @@
 $ git rev-parse HEAD
-4249fc768b2384a3f9d84d4c60a511a32a4b0a2a
+81b4d6af2faac90b61efb62ee50e61e1ae1ebfac
 $ git status --short -- src packaging scripts tests .github docs/evidence
 (clean: no production, test, workflow, or evidence changes)
 $ git diff --quiet HEAD -- src packaging scripts tests .github docs/evidence
 PASS working-tree-clean
 $ git diff --cached --quiet -- src packaging scripts tests .github docs/evidence
 PASS index-clean
-$ git diff --quiet b887bedf6f138920121cff0839315de6b82e47e7..HEAD -- src packaging scripts tests .github
-PASS source-tree-equivalence source-closure=b887bedf6f138920121cff0839315de6b82e47e7 validated-head=4249fc768b2384a3f9d84d4c60a511a32a4b0a2a
+$ git diff --quiet 81b4d6af2faac90b61efb62ee50e61e1ae1ebfac..HEAD -- src packaging scripts tests .github
+PASS source-tree-equivalence source-closure=81b4d6af2faac90b61efb62ee50e61e1ae1ebfac validated-head=81b4d6af2faac90b61efb62ee50e61e1ae1ebfac
 $ ./scripts/test
-828 passed, 1 skipped, 100% coverage
+829 passed, 1 skipped, 100% coverage
 $ uv run mypy src tests
 Success: no issues found in 183 source files
 $ uv run pytest tests/unit/test_audit.py tests/unit/test_hardening.py
@@ -18,10 +18,10 @@ $ apparmor_parser -Q -K packaging/apparmor/usr.libexec.astral-project.aspr-bwrap
 PASS apparmor parser
 $ uv run python scripts/parser_fuzz.py
 PASS parser fuzz cases=5
-$ sha256sum /tmp/packet37-38-final-artifact.deb
- e1fc940dd655b5bad8d395ffaa403c1791c502aec9e1c3bef6758d834b381275  /tmp/packet37-38-final-artifact.deb
+$ sha256sum /tmp/packet37-38-build-current-final-1787930641/astral-project_0.1.0_amd64.deb
+41a838f2e9a83f7f75e43f888969e2395754efb61ae5ab2ed275a3ee1dc40664  /tmp/packet37-38-build-current-final-1787930641/astral-project_0.1.0_amd64.deb
 $ sha256sum docs/evidence/packet-37-38-ubuntu24-raw.txt docs/evidence/packet-37-38-ubuntu26-raw.txt
-b607e8e232f8769982cb8d279700d3f7a9db3a691293355c9245579848ed3621  docs/evidence/packet-37-38-ubuntu24-raw.txt
-26fa1482c035d81488e71ed5d2d46d6251b6abdb360fb5534a42eb51620c0809  docs/evidence/packet-37-38-ubuntu26-raw.txt
+84c9b35bb658163dedace72750f5882262456b8ef6c398ed8753abd81f0ab8e0  docs/evidence/packet-37-38-ubuntu24-raw.txt
+e9ac5b7172287cdb621990965bcfc8b9c671f8511a8dfd09dcbab1ea0077a2be  docs/evidence/packet-37-38-ubuntu26-raw.txt
 $ git diff --check
 PASS current verification
