@@ -6,22 +6,22 @@ Final installed candidate artifact:
 
 ```text
 artifact: astral-project_0.1.0_amd64.deb
-sha256: 6dfbd36133ab067479dcdce8d407d2ed83f38ae628f52e328b7f41f03ceb651c
+sha256: ba788f5c191e8f6612efdd2557f92868cee1d847bf6c9f12fa9bca517131d7fb
 ```
 
 The artifact was rebuilt from the closure source tree after the final Landlock,
 process-entrypoint, audit-protocol, and profile-audit-sink changes. The final
-source closure commit is `03be6a931c813a55b42024e6ee6f599fe2081c66`. Later
+source closure commit is `16e19b263014b7570c1e58d015a686be2a112cba`. Later
 commits are evidence-only; `packet-37-38-local-validation.txt` records the
 source-tree equivalence check from that closure through the final evidence HEAD.
 
 ## Local verification
 
 ```text
-./scripts/test                         853 passed, 1 skipped; coverage 100%
+./scripts/test                         858 passed, 1 skipped; coverage 100%
 uv run mypy src tests                   passed
 uv run pytest tests/unit/test_audit.py tests/unit/test_hardening.py
-                                        83 passed
+                                        86 passed
 uv run pytest tests/unit/test_server_protocol.py::test_local_and_remote_audit_events_share_session_correlation
                                         1 passed
 cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-bwrap-launch.c
@@ -36,7 +36,7 @@ python scripts/parser_fuzz.py           passed
 Immutable local validation transcript:
 
 ```text
-packet-37-38-local-validation.txt  92afa8d9ae349200a5e5900107a32eef18c0da9ff1298fb39591587e9e4d6df0
+packet-37-38-local-validation.txt  2dca1b6bb70c10fe98cad1be026bace227bf422fe0ffc38287901f90c889cbaa
 ```
 
 The full suite includes audit schema, path redaction and hashing, malformed-old-
@@ -59,8 +59,8 @@ end with an explicit PASS marker:
 Raw transcript SHA-256 values:
 
 ```text
-packet-37-38-ubuntu24-raw.txt  a6587eb3f94dd732e4878bf6d3d99310158e5a5c9fb81581b94ad9c21cb9b7f2
-packet-37-38-ubuntu26-raw.txt  a1937806295d2783f4d61a06a0e545e8f377ba0d16a4f2b63fd574808719a347
+packet-37-38-ubuntu24-raw.txt  d5a1c870d754fb3619cdc1b0abac6e775a40e5eace76aa9087e9012a330fa321
+packet-37-38-ubuntu26-raw.txt  04fe93ff30fe8fefeebf398525a296b46fb68ab7e6aba80adc1003294f739664
 ```
 
 Both installed runs passed the existing mount-namespace/AppArmor capability
@@ -93,7 +93,10 @@ the local daemon `audit.remote.export` operation and fixed SSH marker; raw mode
 is rejected, while server-side redaction/hash is covered by focused protocol
 acceptance. The wire-level `DaemonClient` test proves the allowlisted
 `audit.remote.export` operation reaches enrolled-host authorization and rejects
-an unenrolled host.
+an unenrolled host. The installed real-kernel remote-export regression also passed on
+both targets: post-hardening read succeeded through an `O_RDONLY` lock, and a
+pre-opened private recorder appended failure evidence without writable Landlock
+authority.
 
 ## Boundary statement
 
