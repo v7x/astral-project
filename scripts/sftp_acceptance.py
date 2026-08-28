@@ -34,6 +34,7 @@ def main() -> int:
     parser.add_argument("--known-hosts", type=Path)
     parser.add_argument("--grant-cbor", type=Path, required=True)
     parser.add_argument("--root", default="/")
+    parser.add_argument("--read-write", action="store_true")
     args = parser.parse_args()
     if (
         not args.ssh.is_absolute()
@@ -106,8 +107,9 @@ def main() -> int:
             sys.stderr.buffer.write(stderr)
         _stop_process(process)
         return 70
+    client = SftpClient(ProcessStream(process))
     try:
-        report = DirectSftpAcceptanceHarness(SftpClient(ProcessStream(process))).run(args.root)
+        report = DirectSftpAcceptanceHarness(client).run(args.root)
     except Exception:
         _stop_process(process)
         if process.stderr is not None:
@@ -115,11 +117,27 @@ def main() -> int:
             if diagnostic:
                 sys.stderr.buffer.write(diagnostic)
         raise
+    read_write = False
+    if args.read_write:
+        path = args.root.rstrip("/") + "/.aspr-sftp-acceptance-" + secrets.token_hex(8)
+        data = b"astral-sftp-landlock-acceptance\n"
+        handle = client.open(path, read=False, write=True, create=True, exclusive=True)
+        client.write(handle, 0, data)
+        client.close(handle)
+        read_handle = client.open(path, read=True)
+        observed = client.read(read_handle, 0, len(data))
+        client.close(read_handle)
+        if observed != data:
+            raise RuntimeError("remote SFTP read-back mismatch")
+        client.remove(path)
+        read_write = True
     print(
         json.dumps(
             {
                 "extensions": sorted(name.decode("utf-8", "replace") for name in report.extensions),
-                "operations": report.operations,
+                "operations": report.operations
+                + (("OPEN", "WRITE", "READ", "REMOVE") if read_write else ()),
+                "read_write": read_write,
                 "root": report.root.decode("utf-8", "replace"),
                 "root_entries": len(report.root_entries),
                 "version": report.version,

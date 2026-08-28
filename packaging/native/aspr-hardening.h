@@ -51,6 +51,7 @@ static void aspr_hardening_add_rule(int ruleset, const char *path, int writable)
     }
     const uint64_t read_access = ASPR_LANDLOCK_ACCESS_FS_EXECUTE |
         ASPR_LANDLOCK_ACCESS_FS_READ_FILE | ASPR_LANDLOCK_ACCESS_FS_READ_DIR;
+    const uint64_t device_access = read_access | ASPR_LANDLOCK_ACCESS_FS_WRITE_FILE;
     const uint64_t write_access = read_access | ASPR_LANDLOCK_ACCESS_FS_WRITE_FILE |
         ASPR_LANDLOCK_ACCESS_FS_REMOVE_DIR | ASPR_LANDLOCK_ACCESS_FS_REMOVE_FILE |
         ASPR_LANDLOCK_ACCESS_FS_MAKE_CHAR | ASPR_LANDLOCK_ACCESS_FS_MAKE_DIR |
@@ -59,11 +60,13 @@ static void aspr_hardening_add_rule(int ruleset, const char *path, int writable)
         ASPR_LANDLOCK_ACCESS_FS_MAKE_SYM | ASPR_LANDLOCK_ACCESS_FS_REFER |
         ASPR_LANDLOCK_ACCESS_FS_TRUNCATE;
     struct aspr_landlock_path_beneath_attr rule = {
-        .allowed_access = writable ? write_access : read_access,
+        .allowed_access = writable == 2 ? device_access : (writable ? write_access : read_access),
         .parent_fd = descriptor,
     };
     if (syscall(ASPR_LANDLOCK_ADD_RULE, ruleset,
                 ASPR_LANDLOCK_RULE_TYPE_PATH_BENEATH, &rule, 0) != 0) {
+        dprintf(STDERR_FILENO, "ASPR_SANDBOX_ENTRY: Landlock rule failed for %s: %s\\n",
+                path, strerror(errno));
         close(descriptor);
         aspr_hardening_fail("Landlock rule loading failed");
     }
@@ -72,7 +75,7 @@ static void aspr_hardening_add_rule(int ruleset, const char *path, int writable)
 
 static void __attribute__((unused)) aspr_harden_roots(
     const char *const *read_roots, size_t read_count,
-    const char *const *write_roots, size_t write_count) {
+    const char *const *write_roots, size_t write_count, const char *device_root) {
     const uint64_t handled = ASPR_LANDLOCK_ACCESS_FS_EXECUTE |
         ASPR_LANDLOCK_ACCESS_FS_WRITE_FILE | ASPR_LANDLOCK_ACCESS_FS_READ_FILE |
         ASPR_LANDLOCK_ACCESS_FS_READ_DIR | ASPR_LANDLOCK_ACCESS_FS_REMOVE_DIR |
@@ -90,6 +93,7 @@ static void __attribute__((unused)) aspr_harden_roots(
     for (size_t index = 0; index < write_count; ++index) {
         aspr_hardening_add_rule(ruleset, write_roots[index], 1);
     }
+    if (device_root != NULL) aspr_hardening_add_rule(ruleset, device_root, 2);
     if (syscall(SYS_prctl, ASPR_PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) {
         close(ruleset);
         aspr_hardening_fail("no_new_privs could not be enabled");
@@ -123,13 +127,6 @@ static void __attribute__((unused)) aspr_harden_roots(
         aspr_hardening_fail("Landlock restrictions could not be enabled");
     }
     close(ruleset);
-}
-
-static void __attribute__((unused)) aspr_harden_minimal(
-    const char *read_root, const char *write_root) {
-    const char *read_roots[] = {read_root};
-    const char *write_roots[] = {write_root};
-    aspr_harden_roots(read_roots, 1, write_roots, 1);
 }
 
 static void __attribute__((unused)) aspr_harden_payload(

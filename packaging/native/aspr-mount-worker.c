@@ -200,8 +200,7 @@ int main(int argc,char **argv) {
  discard_setup_authority();
  enter_apparmor_profile(apparmor_control);
  set_no_new_privs();
- write_roots[write_root_count++]="/dev/null";
- aspr_harden_roots(read_roots, read_root_count, write_roots, write_root_count);
+ aspr_harden_roots(read_roots, read_root_count, write_roots, write_root_count, "/dev");
  run_fixed_sftp();
  return 111;
 }

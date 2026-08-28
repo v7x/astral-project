@@ -60,7 +60,8 @@ def test_mount_worker_uses_only_fixed_fd_abi_and_descriptor_syscalls() -> None:
         '"/.astral-project-runtime/sftp-server"',
         "aspr_harden_roots",
         '"/.astral-project-runtime", "/etc"',
-        '"/dev/null"',
+        "read_root_count",
+        "write_root_count",
         "granted_targets",
     ):
         assert required in source
