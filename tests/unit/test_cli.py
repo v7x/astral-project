@@ -8,11 +8,12 @@ import sys
 import tomllib
 from io import StringIO
 from pathlib import Path
-from typing import NoReturn
+from typing import NoReturn, TextIO
 
 import pytest
 
 from astral_project import PROTOCOL_VERSION, TARGET_PLATFORM, __version__, cli
+from astral_project.core.errors import AstralError, ErrorCode
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 LAUNCHER_DIRECTORY = Path(sys.executable).parent
@@ -85,6 +86,56 @@ def test_run_supports_text_and_both_json_positions(monkeypatch: pytest.MonkeyPat
         json_stdout = StringIO()
         assert cli.run(arguments, stdout=json_stdout, stderr=StringIO()) == 0
         assert json.loads(json_stdout.getvalue())["git_revision"] == "deadbeef"
+
+
+def test_audit_requires_subcommand_and_rejects_unknown_subcommand() -> None:
+    for arguments in (["audit"], ["audit", "unknown"]):
+        stderr = StringIO()
+        assert cli.run(arguments, stdout=StringIO(), stderr=stderr) == 2
+        assert "unknown command 'audit" in stderr.getvalue()
+
+
+def test_audit_commands_dispatch_fixed_operations(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, dict[str, object] | None]] = []
+
+    def fake_operation(
+        operation: str,
+        payload: dict[str, object] | None,
+        stdout: TextIO,
+        stderr: TextIO,
+    ) -> int:
+        del stderr
+        calls.append((operation, payload))
+        stdout.write("ok\n")
+        return 0
+
+    monkeypatch.setattr(cli, "_run_json_operation", fake_operation)
+    assert cli.run(["audit", "list"], stdout=StringIO(), stderr=StringIO()) == 0
+    assert cli.run(["audit", "show", "event-1"], stdout=StringIO(), stderr=StringIO()) == 0
+    assert cli.run(["audit", "export"], stdout=StringIO(), stderr=StringIO()) == 0
+    assert cli.run(["audit", "export", "--hash"], stdout=StringIO(), stderr=StringIO()) == 0
+    assert calls == [
+        ("audit.list", None),
+        ("audit.show", {"event_id": "event-1"}),
+        ("audit.export", {"path_mode": "redact"}),
+        ("audit.export", {"path_mode": "hash"}),
+    ]
+
+
+def test_audit_command_handles_daemon_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    def failed(*_args: object, **_kwargs: object) -> int:
+        raise AstralError(ErrorCode.DAEMON_UNAVAILABLE, "down", "no", "unsafe", "fix")
+
+    monkeypatch.setattr(cli, "_run_audit", failed)
+    stderr = StringIO()
+    assert cli.run(["audit", "list"], stdout=StringIO(), stderr=stderr) == 70
+    assert "ASPR_DAEMON_UNAVAILABLE" in stderr.getvalue()
+
+
+def test_audit_command_rejects_unknown_form() -> None:
+    stderr = StringIO()
+    assert cli.run(["audit", "export", "--raw"], stdout=StringIO(), stderr=stderr) == 2
+    assert "unknown command 'audit export'" in stderr.getvalue()
 
 
 def test_run_dispatches_transport_key_ssh_entry(monkeypatch: pytest.MonkeyPatch) -> None:

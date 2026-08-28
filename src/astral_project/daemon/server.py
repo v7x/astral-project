@@ -15,11 +15,18 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
+from astral_project.audit.events import PathMode
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.core.paths import ensure_private_directory
 from astral_project.crypto.grants import AccessMode, SignedGrant
 from astral_project.crypto.keys import public_key_from_bytes
 from astral_project.daemon.protocol import encode, make_response, parse_request, receive
+from astral_project.sandbox.hardening import (
+    dependency_versions,
+)
+from astral_project.sandbox.hardening import (
+    status as hardening_status,
+)
 from astral_project.session.listing import SessionListingScope
 from astral_project.state.sqlite import ActiveListingSession, StateDatabase
 
@@ -190,6 +197,15 @@ class DaemonServer:
             from astral_project.mounts import MountManager
 
             self._database = StateDatabase.open(self.paths.state)
+            hardening = hardening_status(required=True)
+            if not hardening.landlock_available:
+                raise _error(ErrorCode.HARDENING_UNAVAILABLE, hardening.reason)
+            self._database.record_audit(
+                "hardening.status",
+                "daemon",
+                "local",
+                hardening.to_dict(),
+            )
             self._mounts = MountManager(
                 self._database,
                 self.paths.runtime,
@@ -318,7 +334,12 @@ class DaemonServer:
         if operation == "status":
             if self._database is None:
                 raise _error(ErrorCode.DAEMON_STARTUP, "state database is unavailable")
-            return {"alive": True, "state_version": self._database.state_version}
+            return {
+                "alive": True,
+                "state_version": self._database.state_version,
+                "hardening": hardening_status(required=True).to_dict(),
+                "dependencies": dependency_versions(("cbor2", "cryptography")),
+            }
         if operation == "cancel":
             return {"cancelled": True}
         if operation == "grant.list":
@@ -389,6 +410,30 @@ class DaemonServer:
                     grant_id, reason=str(payload.get("reason", "user request"))
                 ),
             }
+        if operation == "audit.list":
+            if self._database is None:
+                raise _error(ErrorCode.DAEMON_STARTUP, "state database is unavailable")
+            return {
+                "events": [
+                    event.to_dict(path_mode=PathMode.REDACT)
+                    for event in self._database.list_audit_events()
+                ],
+                "chain_errors": list(self._database.audit_chain_errors()),
+            }
+        if operation == "audit.show":
+            if self._database is None or payload is None:
+                raise _error(ErrorCode.DAEMON_PROTOCOL, "audit show payload is missing")
+            event = self._database.audit_event(str(payload.get("event_id", "")))
+            return event.to_dict(path_mode=PathMode.REDACT)
+        if operation == "audit.export":
+            if self._database is None or payload is None:
+                raise _error(ErrorCode.DAEMON_PROTOCOL, "audit export payload is missing")
+            requested_mode = str(payload.get("path_mode", PathMode.REDACT.value))
+            try:
+                path_mode = PathMode(requested_mode)
+            except ValueError as error:
+                raise _error(ErrorCode.DAEMON_PROTOCOL, "audit path mode is invalid") from error
+            return {"export": self._database.export_audit(path_mode=path_mode)}
         if operation == "session.open":
             if self._database is None or payload is None:
                 raise _error(ErrorCode.DAEMON_PROTOCOL, "session open payload is missing")

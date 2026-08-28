@@ -6,7 +6,7 @@ import errno
 import os
 import stat
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +23,7 @@ from astral_project.homed.mediation import RemoteUnknownPathMediator, UnknownPat
 from astral_project.homed.overlay import OverlayBackend
 from astral_project.homed.private import PrivateWritableBackend
 from astral_project.profile import Profile
+from astral_project.sandbox.hardening import HardeningPolicy, enforce
 
 try:
     import pyfuse3 as _pyfuse3  # type: ignore[import-not-found]
@@ -522,7 +523,11 @@ else:
 
 
 def _mount_operations(  # pragma: no cover - exercised by installed FUSE acceptance
-    mountpoint: str | os.PathLike[str], operations: Any, *, debug: bool = False
+    mountpoint: str | os.PathLike[str],
+    operations: Any,
+    *,
+    debug: bool = False,
+    hardening_roots: Sequence[tuple[Path, bool]] = (),
 ) -> None:
     if _pyfuse3 is None:
         raise FuseUnavailable("pyfuse3 is not installed")
@@ -536,7 +541,9 @@ def _mount_operations(  # pragma: no cover - exercised by installed FUSE accepta
         options.add("ro")
     if debug:
         options.add("debug")
+    policy = HardeningPolicy.for_plan([(path, True), *hardening_roots])
     _pyfuse3.init(operations, os.fspath(path), options)
+    enforce(policy)
     try:
         trio.run(_pyfuse3.main)
     finally:
@@ -565,7 +572,12 @@ def mount_private(  # pragma: no cover - exercised by installed FUSE acceptance
     """Run private writable projected home backed by persistent profile state."""
     view = PrivateWritableBackend(storage_root, profile, max_bytes=max_bytes, max_files=max_files)
     try:
-        _mount_operations(mountpoint, ProjectedHomeOperations(private_view=view), debug=debug)
+        _mount_operations(
+            mountpoint,
+            ProjectedHomeOperations(private_view=view),
+            debug=debug,
+            hardening_roots=((Path(storage_root), True),),
+        )
     finally:
         view.close()
 
@@ -581,7 +593,12 @@ def mount_overlay(  # pragma: no cover - exercised by installed FUSE acceptance
     """Run writable descriptor-confined overlay projected home."""
     view = OverlayBackend(lower_root, upper_root, profile)
     try:
-        _mount_operations(mountpoint, ProjectedHomeOperations(overlay_view=view), debug=debug)
+        _mount_operations(
+            mountpoint,
+            ProjectedHomeOperations(overlay_view=view),
+            debug=debug,
+            hardening_roots=((Path(lower_root), False), (Path(upper_root), True)),
+        )
     finally:
         view.close()
 
@@ -602,12 +619,18 @@ def mount_composite(  # pragma: no cover - exercised by installed FUSE acceptanc
     private = None if storage_root is None else PrivateWritableBackend(storage_root, profile)
     overlay = None if overlay_root is None else OverlayBackend(root, overlay_root, profile)
     try:
+        roots: list[tuple[Path, bool]] = [(Path(root), False)]
+        if storage_root is not None:
+            roots.append((Path(storage_root), True))
+        if overlay_root is not None:
+            roots.append((Path(overlay_root), True))
         _mount_operations(
             mountpoint,
             ProjectedHomeOperations(
                 host_view=host, private_view=private, overlay_view=overlay, profile=profile
             ),
             debug=debug,
+            hardening_roots=roots,
         )
     finally:
         # Composite owns all non-null backends once construction succeeds; these

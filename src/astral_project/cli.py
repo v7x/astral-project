@@ -26,6 +26,7 @@ from astral_project.profile_lifecycle import ProfileStore
 from astral_project.sandbox.command import run_sandbox
 from astral_project.sandbox.session_api import SessionApiClient
 from astral_project.server.entry import run_ssh_entry
+from astral_project.state.sqlite import StateDatabase
 from astral_project.transport.local import run_transport
 
 _INTERNAL_MODES = frozenset({"daemon", "homed", "server", "transport"})
@@ -226,7 +227,9 @@ def _run_json_operation(
 
 
 def _profile_store() -> ProfileStore:
-    return ProfileStore(resolve_xdg_paths(os.environ).config)
+    paths = resolve_xdg_paths(os.environ)
+    database = StateDatabase.open(paths.state / "state.sqlite3")
+    return ProfileStore(paths.config, audit_sink=database.record_audit)
 
 
 def _profile_json(profile: Profile) -> str:
@@ -328,6 +331,22 @@ def _run_profile(arguments: Sequence[str], stdout: TextIO, stderr: TextIO) -> in
         profile = store.import_profile(Path(arguments[2]), profile_id=requested_id)
         stdout.write(_profile_json(profile) + "\n")
         return 0
+    return _write_unknown_command(" ".join(arguments[:2]), stderr)
+
+
+def _run_audit(arguments: Sequence[str], stdout: TextIO, stderr: TextIO) -> int:
+    if len(arguments) < 2:
+        return _write_unknown_command("audit", stderr)
+    command = arguments[1]
+    if command == "list" and len(arguments) == 2:
+        return _run_json_operation("audit.list", None, stdout, stderr)
+    if command == "show" and len(arguments) == 3:
+        return _run_json_operation("audit.show", {"event_id": arguments[2]}, stdout, stderr)
+    if command == "export" and len(arguments) in {2, 3}:
+        if len(arguments) == 3 and arguments[2] != "--hash":
+            return _write_unknown_command("audit export", stderr)
+        mode = "hash" if len(arguments) == 3 else "redact"
+        return _run_json_operation("audit.export", {"path_mode": mode}, stdout, stderr)
     return _write_unknown_command(" ".join(arguments[:2]), stderr)
 
 
@@ -613,6 +632,12 @@ def run(argv: Sequence[str], *, stdout: TextIO, stderr: TextIO) -> int:
             return _run_profile(arguments, stdout, stderr)
         except (ProfileError, LearnerError, AstralError) as error:
             stderr.write(f"{error}\n")
+            return 70
+    if arguments and arguments[0] == "audit":
+        try:
+            return _run_audit(arguments, stdout, stderr)
+        except AstralError as error:
+            stderr.write(f"{error.to_text()}\n")
             return 70
     if arguments and arguments[0] in {"grant", "session", "mount"}:
         try:

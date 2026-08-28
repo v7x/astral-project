@@ -52,8 +52,9 @@ from astral_project.sandbox.command import (
     run_sandbox,
 )
 from astral_project.sandbox.environment import EnvironmentPolicy
+from astral_project.sandbox.hardening import HardeningPolicy
 from astral_project.sandbox.plan import LocalSandboxPlan, NetworkMode, RemoteBinding
-from astral_project.sandbox.runner import _terminate, run_plan
+from astral_project.sandbox.runner import _enforce_policy, _terminate, run_plan
 from astral_project.sandbox.session_api import SessionApiClient, SessionApiServer, _read_line
 
 
@@ -1341,6 +1342,47 @@ def test_run_plan_supplies_visible_path_roots_to_environment(
     assert result == 0
     environment = cast(dict[str, str], captured["env"])
     assert environment["PATH"] == str(visible)
+
+
+def test_runner_checks_hardening_before_child_start(monkeypatch: pytest.MonkeyPatch) -> None:
+    plan = LocalSandboxPlan(("/bin/true",), NetworkMode.INHERIT)
+    policy = HardeningPolicy(allowed_roots=((Path("/usr"), False),))
+    captured: dict[str, object] = {}
+
+    class Finished:
+        pid = 1
+        returncode = 0
+
+        def __init__(self) -> None:
+            self.stdin = self
+
+        def write(self, _value: bytes) -> None:
+            return None
+
+        def close(self) -> None:
+            return None
+
+        def poll(self) -> int:
+            return 0
+
+    def popen(*_args: object, **kwargs: object) -> Finished:
+        captured.update(kwargs)
+        return Finished()
+
+    called: list[HardeningPolicy] = []
+
+    def record(value: HardeningPolicy) -> int:
+        called.append(value)
+        return 4
+
+    monkeypatch.setattr("astral_project.sandbox.runner.require_available", record)
+    assert run_plan(plan, popen=popen, hardening=policy) == 0  # type: ignore[arg-type]
+    assert called == [policy]
+    assert "preexec_fn" not in captured
+
+    monkeypatch.setattr("astral_project.sandbox.runner.enforce", lambda value: called.append(value))
+    _enforce_policy(policy)
+    assert called == [policy, policy]
 
 
 def test_runner_error_and_kill_paths(monkeypatch: pytest.MonkeyPatch) -> None:

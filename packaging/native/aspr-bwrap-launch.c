@@ -560,6 +560,16 @@ static void execute_plan(const Plan *plan) {
     }
     add(argv, &count, capacity, "--");
     add(argv, &count, capacity, ENTRY);
+    add(argv, &count, capacity, "--aspr-hardening");
+    for (uint32_t index = 0; index < plan->remote_count; ++index) {
+        add(argv, &count, capacity, plan->remote[index].mode == 1 ? "--aspr-write-root" : "--aspr-read-root");
+        add(argv, &count, capacity, plan->remote[index].target.value);
+    }
+    if (plan->has_projected_home) {
+        add(argv, &count, capacity, plan->projected_home_writable ? "--aspr-write-root" : "--aspr-read-root");
+        add(argv, &count, capacity, "/home/sandbox");
+    }
+    add(argv, &count, capacity, "--");
     if (plan->has_host_rx_manifest) add(argv, &count, capacity, HOST_RX);
     for (uint32_t index = 0; index < plan->command_count; ++index) add(argv, &count, capacity, plan->command[index].value);
     argv[count] = NULL;

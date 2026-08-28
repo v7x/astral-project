@@ -1,0 +1,269 @@
+"""Packet 37 audit event and private storage tests."""
+
+from __future__ import annotations
+
+import json
+import stat
+from pathlib import Path
+
+import pytest
+
+from astral_project.audit import AuditEvent, AuditEventError, AuditLog, PathMode, validate_chain
+from astral_project.core.errors import AstralError
+from astral_project.daemon.server import DaemonPaths, DaemonServer
+from astral_project.state.sqlite import StateDatabase
+
+
+def test_event_round_trip_and_path_export_modes() -> None:
+    event = AuditEvent.create(
+        "session.started",
+        "session",
+        "s1",
+        {"path": "/secret/home", "nested": {"root": "/runtime"}, "count": 2},
+        occurred_at=4,
+    )
+    restored = AuditEvent.from_dict(event.to_dict())
+    assert restored == event
+    assert restored.to_dict(path_mode=PathMode.REDACT)["payload"] == {
+        "path": "<redacted>",
+        "nested": {"root": "<redacted>"},
+        "count": 2,
+    }
+    hashed = restored.to_dict(path_mode=PathMode.HASH)
+    hashed_payload = hashed["payload"]
+    assert isinstance(hashed_payload, dict)
+    assert str(hashed_payload["path"]).startswith("sha256:")
+    restored_hashed = AuditEvent.from_dict(hashed)
+    assert hashed_payload["path"] == restored_hashed.payload["path"]
+
+
+def test_event_rejects_bad_payload_shape_and_previous_type() -> None:
+    event = AuditEvent.create("kind", "subject", "id", {})
+    raw = event.to_dict()
+    raw["payload"] = []
+    with pytest.raises(AuditEventError, match="payload"):
+        AuditEvent.from_dict(raw)
+    raw = event.to_dict()
+    raw["previous_event_id"] = 3
+    with pytest.raises(AuditEventError, match="previous"):
+        AuditEvent.from_dict(raw)
+
+
+def test_event_rejects_bad_envelope_and_sensitive_payload() -> None:
+    with pytest.raises(AuditEventError, match="fields"):
+        AuditEvent.from_dict({})
+    event = AuditEvent.create("kind", "subject", "id", {})
+    raw = event.to_dict()
+    raw["payload"] = {"private_key": "x"}
+    with pytest.raises(AuditEventError, match="secret"):
+        AuditEvent.from_dict(raw)
+    with pytest.raises(AuditEventError, match="timestamp"):
+        AuditEvent("e", -1, "kind", "subject", "id", {})
+    with pytest.raises(AuditEventError, match="schema"):
+        AuditEvent("e", 0, "kind", "subject", "id", {}, schema_version=2)
+    with pytest.raises(AuditEventError, match="payload"):
+        AuditEvent.create("kind", "subject", "id", {"bad": object()})
+
+
+def test_audit_log_append_read_diagnostics_and_chain(tmp_path: Path) -> None:
+    log = AuditLog(tmp_path / "audit.log")
+    first = log.append("one", "session", "s1", {"path": "/one"}, occurred_at=1)
+    second = log.append("two", "session", "s1", {}, occurred_at=2)
+    assert second.previous_event_id == first.event_id
+    assert log.read() == (first, second)
+    assert log.diagnostics() == ()
+    with log.path.open("a", encoding="utf-8") as stream:
+        stream.write("not-json\n")
+        stream.write(json.dumps({"wrong": True}) + "\n")
+        stream.write(json.dumps([]) + "\n")
+    assert log.read() == (first, second)
+    assert log.diagnostics() == (
+        "malformed audit row skipped",
+        "malformed audit row skipped",
+        "malformed audit row skipped",
+    )
+    assert validate_chain(log.read()) == ()
+    assert "<redacted>" in log.export()
+    assert "sha256:" in log.export(path_mode=PathMode.HASH)
+
+
+def test_audit_log_rejects_zero_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    log = AuditLog(tmp_path / "audit.log")
+    monkeypatch.setattr("astral_project.audit.events.os.write", lambda *_args: 0)
+    with pytest.raises(OSError, match="no progress"):
+        log.append("kind", "subject", "id", {})
+
+
+def test_audit_log_rotation_and_limits(tmp_path: Path) -> None:
+    with pytest.raises(ValueError):
+        AuditLog(tmp_path / "audit.log", max_bytes=0)
+    with pytest.raises(ValueError):
+        AuditLog(tmp_path / "audit.log", retain=0)
+    log = AuditLog(tmp_path / "audit.log", max_bytes=1, retain=1)
+    log.append("one", "x", "1", {})
+    log.rotate()
+    log.rotate()
+    log.append("two", "x", "2", {})
+    assert (tmp_path / "audit.log.1").exists()
+    assert log.read()[0].kind == "two"
+    assert stat.S_IMODE((tmp_path / "audit.log.1").stat().st_mode) == 0o600
+
+
+def test_audit_log_auto_rotation_and_existing_generations(tmp_path: Path) -> None:
+    automatic = AuditLog(tmp_path / "automatic.log", max_bytes=1, retain=1)
+    automatic.append("one", "subject", "1", {})
+    automatic.append("two", "subject", "2", {})
+    assert (tmp_path / "automatic.log.1").exists()
+
+    log = AuditLog(tmp_path / "generations.log", retain=2)
+    log.append("current", "subject", "0", {})
+    for index in (0, 1, 2):
+        generation = tmp_path / f"generations.log.{index}"
+        generation.write_text("old", encoding="utf-8")
+        generation.chmod(0o600)
+    log.rotate()
+    assert (tmp_path / "generations.log.1").exists()
+    assert (tmp_path / "generations.log.2").exists()
+
+
+def test_audit_log_read_handles_storage_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "audit.log"
+    path.write_text("", encoding="utf-8")
+    path.chmod(0o600)
+    monkeypatch.setattr(
+        Path, "open", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("read"))
+    )
+    log = AuditLog(path)
+    assert log.read() == ()
+    assert log.diagnostics() == ()
+
+
+def test_audit_log_rejects_unsafe_existing_file(tmp_path: Path) -> None:
+    path = tmp_path / "audit.log"
+    path.write_text("", encoding="utf-8")
+    path.chmod(0o644)
+    with pytest.raises(PermissionError):
+        AuditLog(path)
+
+
+def test_payload_lists_and_invalid_keys_are_rejected() -> None:
+    with pytest.raises(AuditEventError, match="payload key"):
+        AuditEvent.create("kind", "subject", "id", {"bad\x00key": "x"})
+    with pytest.raises(AuditEventError, match="JSON-safe"):
+        AuditEvent.create("kind", "subject", "id", {"items": [object()]})
+    event = AuditEvent.create("kind", "subject", "id", {"items": ["x"], "note": "ok"})
+    assert event.to_dict(path_mode=PathMode.REDACT)["payload"] == {
+        "items": ["x"],
+        "note": "ok",
+    }
+
+
+def test_chain_detects_duplicate_and_forward_reference() -> None:
+    first = AuditEvent("same", 1, "a", "s", "1", {})
+    forward = AuditEvent("later", 2, "b", "s", "2", {}, previous_event_id="missing")
+    duplicate = AuditEvent("same", 3, "c", "s", "3", {}, previous_event_id="same")
+    assert validate_chain((first, forward, duplicate)) == ("later", "same")
+
+
+def test_state_database_audit_api_reads_legacy_and_new_rows(tmp_path: Path) -> None:
+    database = StateDatabase.open(tmp_path / "state.sqlite3")
+    with database.transaction(write=True) as connection:
+        connection.execute(
+            "INSERT INTO audit_events VALUES (?, ?, ?, ?, ?, ?)",
+            ("legacy", 1, "legacy.kind", "subject", "id", '{"path":"/old"}'),
+        )
+        connection.execute(
+            "INSERT INTO audit_events VALUES (?, ?, ?, ?, ?, ?)",
+            ("broken", 2, "broken", "subject", "id", "not-json"),
+        )
+        connection.execute(
+            "INSERT INTO audit_events VALUES (?, ?, ?, ?, ?, ?)",
+            ("list", 3, "list", "subject", "id", "[]"),
+        )
+        connection.execute(
+            "INSERT INTO audit_events VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                "envelope-list",
+                4,
+                "envelope",
+                "subject",
+                "id",
+                '{"payload":[],"previous_event_id":null,"schema_version":1}',
+            ),
+        )
+    events = database.list_audit_events()
+    assert len(events) == 1
+    assert events[0].event_id == "legacy"
+    assert "<redacted>" in database.export_audit()
+    assert database.audit_chain_errors() == ()
+
+
+def test_state_database_rejects_secret_audit_payload(tmp_path: Path) -> None:
+    database = StateDatabase.open(tmp_path / "state.sqlite3")
+    with pytest.raises(AuditEventError), database.transaction(write=True) as connection:
+        database._audit(connection, "bad", "subject", "id", {"token": "x"}, 1)
+
+
+def test_daemon_audit_operations_require_started_database(tmp_path: Path) -> None:
+    server = DaemonServer(DaemonPaths(tmp_path / "runtime", tmp_path / "state.sqlite3"))
+    for operation, payload in (
+        ("audit.list", None),
+        ("audit.show", {}),
+        ("audit.export", {}),
+    ):
+        with pytest.raises(AstralError, match=r"state database|payload"):
+            server._response(operation, payload)
+
+
+def test_daemon_audit_operations_use_redaction_and_hashing(tmp_path: Path) -> None:
+    server = DaemonServer(DaemonPaths(tmp_path / "runtime", tmp_path / "state.sqlite3"))
+    server.start()
+    try:
+        assert server._database is not None
+        with server._database.transaction(write=True) as connection:
+            connection.execute(
+                "INSERT INTO audit_events VALUES (?, ?, ?, ?, ?, ?)",
+                ("event-1", 1, "kind", "subject", "id", '{"path":"/secret"}'),
+            )
+        listed = server._response("audit.list")
+        assert listed["chain_errors"] == []
+        events = listed["events"]
+        assert isinstance(events, list)
+        event = next(item for item in events if item["event_id"] == "event-1")
+        assert event["payload"] == {"path": "<redacted>"}
+        assert server._response("audit.show", {"event_id": "event-1"})["payload"] == {
+            "path": "<redacted>"
+        }
+        exported = server._response("audit.export", {"path_mode": "hash"})
+        assert "sha256:" in str(exported["export"])
+        with pytest.raises(AstralError, match="path mode"):
+            server._response("audit.export", {"path_mode": "bad"})
+        with pytest.raises(AstralError, match="not found"):
+            server._response("audit.show", {"event_id": "missing"})
+    finally:
+        server.close()
+
+
+def test_audit_log_missing_path_and_invalid_previous(tmp_path: Path) -> None:
+    event = AuditEvent("e", 0, "kind", "subject", "id", {}, previous_event_id="previous")
+    assert event.previous_event_id == "previous"
+    assert AuditLog(tmp_path / "missing.log").read() == ()
+    with pytest.raises(AuditEventError, match="previous"):
+        AuditEvent("e", 0, "kind", "subject", "id", {}, previous_event_id="")
+    with pytest.raises(AuditEventError, match="invalid audit event_id"):
+        AuditEvent("", 0, "kind", "subject", "id", {})
+    with pytest.raises(AuditEventError, match="unsupported audit schema"):
+        AuditEvent.from_dict(
+            {
+                "event_id": "e",
+                "occurred_at": 0,
+                "kind": "kind",
+                "subject_type": "s",
+                "subject_id": "id",
+                "payload": {},
+                "previous_event_id": None,
+                "schema_version": True,
+            }
+        )

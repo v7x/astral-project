@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from dataclasses import replace
 from io import BytesIO, StringIO
+from pathlib import Path
 
 import pytest
 
+from astral_project.audit import AuditLog
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.core.ids import GrantId, HostId, IssuerKeyId, SessionId
 from astral_project.crypto.grants import (
@@ -101,6 +103,110 @@ def test_unenrolled_issuer_is_rejected() -> None:
         )
         == 70
     )
+
+
+def test_remote_audit_log_records_verified_and_rejected_sessions(tmp_path: Path) -> None:
+    request, trust = signed_request()
+    verified_log = AuditLog(tmp_path / "verified.log")
+    assert (
+        run_ssh_entry(
+            "transport-1",
+            stdin=framed(request),
+            stdout=BytesIO(),
+            stderr=StringIO(),
+            environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_COMMAND},
+            trust=trust,
+            now=150,
+            audit_log=verified_log,
+        )
+        == 0
+    )
+    assert verified_log.read()[0].kind == "session.remote.verified"
+    rejected_log = AuditLog(tmp_path / "rejected.log")
+    assert (
+        run_ssh_entry(
+            "transport-1",
+            stdin=framed(request),
+            stdout=BytesIO(),
+            stderr=StringIO(),
+            environment={"SSH_ORIGINAL_COMMAND": "wrong"},
+            trust=trust,
+            now=150,
+            audit_log=rejected_log,
+        )
+        == 70
+    )
+    assert rejected_log.read()[0].kind == "session.remote.rejected"
+
+
+def test_remote_entry_applies_final_child_hardening(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    request, trust = signed_request()
+    broker_directory = tmp_path / "broker"
+    broker_directory.mkdir()
+    monkeypatch.setattr(
+        "astral_project.server.entry.BROKER_SOCKET", broker_directory / "broker.sock"
+    )
+    policies: list[object] = []
+    monkeypatch.setattr(
+        "astral_project.server.entry.enforce", lambda policy: policies.append(policy)
+    )
+    assert (
+        run_ssh_entry(
+            "transport-1",
+            stdin=framed(request),
+            stdout=BytesIO(),
+            stderr=StringIO(),
+            environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_COMMAND},
+            trust=trust,
+            now=150,
+            apply_hardening=True,
+        )
+        == 0
+    )
+    assert len(policies) == 1
+
+
+def test_remote_hardening_failure_is_audited(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    request, trust = signed_request()
+    broker_directory = tmp_path / "broker"
+    broker_directory.mkdir()
+    monkeypatch.setattr(
+        "astral_project.server.entry.BROKER_SOCKET", broker_directory / "broker.sock"
+    )
+    audit_log = AuditLog(tmp_path / "hardening.log")
+    failure = AstralError(
+        code=ErrorCode.HARDENING_APPLY,
+        message="rule load failed",
+        security_result="remote process was rejected",
+        unsafe_reason="hardening is mandatory",
+        next_action="repair hardening",
+    )
+    monkeypatch.setattr(
+        "astral_project.server.entry.enforce", lambda _policy: (_ for _ in ()).throw(failure)
+    )
+    assert (
+        run_ssh_entry(
+            "transport-1",
+            stdin=framed(request),
+            stdout=BytesIO(),
+            stderr=StringIO(),
+            environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_COMMAND},
+            trust=trust,
+            now=150,
+            apply_hardening=True,
+            audit_log=audit_log,
+        )
+        == 70
+    )
+    assert [event.kind for event in audit_log.read()] == [
+        "session.remote.verified",
+        "hardening.failure",
+        "session.remote.rejected",
+    ]
 
 
 def test_authenticated_verification_callback_runs_before_dispatch() -> None:

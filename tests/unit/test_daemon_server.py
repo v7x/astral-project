@@ -41,9 +41,15 @@ def test_same_uid_ping_status_restart_and_database_persistence(tmp_path: Path) -
     restarted.start()
     try:
         thread = _serve(restarted)
-        assert DaemonClient(paths.socket).request(
+        result = DaemonClient(paths.socket).request(
             request_id="status-1", cancellation_id="cancel-2", operation="status"
-        ) == {"alive": True, "state_version": 1}
+        )
+        assert result["alive"] is True
+        assert result["state_version"] == 1
+        hardening = result["hardening"]
+        assert isinstance(hardening, dict)
+        assert hardening["landlock_available"] is True
+        assert hardening["required"] is True
         thread.join(timeout=1)
         assert not thread.is_alive()
     finally:

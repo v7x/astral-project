@@ -23,7 +23,7 @@ from astral_project.profile import Operation, Profile, ProfileError
 from astral_project.sandbox.environment import EnvironmentPolicy
 from astral_project.sandbox.plan import LocalSandboxPlan, NetworkMode, RemoteBinding
 from astral_project.sandbox.resources import ResourcePolicy
-from astral_project.sandbox.runner import run_plan
+from astral_project.sandbox.runner import hardening_policy, run_plan
 from astral_project.sandbox.session_api import SessionApiServer
 from astral_project.session.listing import (
     SessionListingScope,
@@ -296,20 +296,22 @@ def run_sandbox(
                 overlay_root=parsed.overlay_root,
             )
             host_rx_manifest, host_rx_directory = _write_host_rx_manifest(runtime, host_rx_target)
+            plan = LocalSandboxPlan(
+                parsed.command,
+                parsed.network,
+                projected_home=None if projected is None else projected.mountpoint,
+                projected_home_writable=projected_writable,
+                host_rx_manifest=host_rx_manifest,
+                socket_paths=approved_sockets,
+            )
             return run_plan(
-                LocalSandboxPlan(
-                    parsed.command,
-                    parsed.network,
-                    projected_home=None if projected is None else projected.mountpoint,
-                    projected_home_writable=projected_writable,
-                    host_rx_manifest=host_rx_manifest,
-                    socket_paths=approved_sockets,
-                ),
+                plan,
                 health_check=None
                 if projected is None
                 else getattr(projected, "healthy", lambda: True),
                 approval=approval,
                 environment_policy=profile_environment,
+                hardening=hardening_policy(plan),
             )
         finally:
             if projected is not None:
@@ -395,24 +397,26 @@ def run_sandbox(
             )
             for mount_id, path, remote in zip(mount_ids, mount_paths, parsed.remotes, strict=True)
         )
+        plan = LocalSandboxPlan(
+            parsed.command,
+            parsed.network,
+            bindings,
+            session_socket,
+            session_id,
+            projected_home=None if projected is None else projected.mountpoint,
+            projected_home_writable=projected_writable,
+            host_rx_manifest=host_rx_manifest,
+            socket_paths=approved_sockets,
+        )
         return run_plan(
-            LocalSandboxPlan(
-                parsed.command,
-                parsed.network,
-                bindings,
-                session_socket,
-                session_id,
-                projected_home=None if projected is None else projected.mountpoint,
-                projected_home_writable=projected_writable,
-                host_rx_manifest=host_rx_manifest,
-                socket_paths=approved_sockets,
-            ),
+            plan,
             health_check=lambda: (
                 _mounts_healthy(mount_ids, daemon_request)
                 and (projected is None or getattr(projected, "healthy", lambda: True)())
             ),
             approval=approval,
             environment_policy=profile_environment,
+            hardening=hardening_policy(plan),
         )
     finally:
         if api is not None:

@@ -149,6 +149,7 @@ class ApprovalController:
         env: dict[str, str] | None = None,
         preface: bytes = b"",
         health_check: Callable[[], bool] | None = None,
+        preexec_fn: Callable[[], None] | None = None,
     ) -> int:
         if not argv:
             raise TerminalControllerError("child argv is empty")
@@ -171,6 +172,11 @@ class ApprovalController:
         try:
             pid, master = pty.fork()
             if pid == 0:  # pragma: no cover - child process has a separate coverage runtime
+                if preexec_fn is not None:
+                    try:
+                        preexec_fn()
+                    except Exception:
+                        os._exit(70)
                 if env is None:
                     os.execvp(argv[0], list(argv))
                 os.execvpe(argv[0], list(argv), env)

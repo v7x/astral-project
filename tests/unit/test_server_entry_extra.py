@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from astral_project.audit import AuditLog
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.core.ids import HostId, IssuerKeyId
 from astral_project.server import entry
@@ -23,6 +24,15 @@ def _trust() -> entry.ServerTrust:
         {issuer: key},
         frozenset({"transport"}),
     )
+
+
+def test_default_remote_audit_log_requires_absolute_state(tmp_path: Path) -> None:
+    log = entry._default_audit_log({"XDG_STATE_HOME": str(tmp_path / "state")})
+    assert isinstance(log, AuditLog)
+    with pytest.raises(AstralError, match="absolute"):
+        entry._default_audit_log({"XDG_STATE_HOME": "relative"})
+    with pytest.raises(AstralError, match="absolute"):
+        entry._default_audit_log({"XDG_STATE_HOME": str(tmp_path / ".." / "escape")})
 
 
 def test_command_and_transport_checks() -> None:

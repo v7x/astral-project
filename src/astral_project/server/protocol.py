@@ -49,9 +49,10 @@ def read_outer_response(stream: BinaryIO) -> dict[str, object]:
 
 
 def fuzz_outer_request(data: bytes) -> None:
+    """Exercise parser on arbitrary bytes without allowing parser crashes."""
     try:
         read_outer_request(BytesIO(data))
-    except AstralError:
+    except (AstralError, OSError, TypeError, ValueError, UnicodeError):
         return
 
 

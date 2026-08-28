@@ -16,6 +16,7 @@ from pathlib import Path
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
+from astral_project.audit.events import AuditEvent, AuditEventError, PathMode, validate_chain
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.core.ids import HostId, SessionId
 from astral_project.core.paths import check_private_path, ensure_private_directory
@@ -517,17 +518,108 @@ class StateDatabase:
         payload: Mapping[str, object],
         occurred_at: int,
     ) -> None:
+        previous_row = connection.execute(
+            "SELECT event_id FROM audit_events ORDER BY rowid DESC LIMIT 1"
+        ).fetchone()
+        previous = None if previous_row is None else str(previous_row[0])
+        event = AuditEvent.create(
+            kind,
+            subject_type,
+            subject_id,
+            payload,
+            previous_event_id=previous,
+            occurred_at=occurred_at,
+        )
+        envelope = {
+            "payload": dict(event.payload),
+            "previous_event_id": event.previous_event_id,
+            "schema_version": event.schema_version,
+        }
         connection.execute(
             "INSERT INTO audit_events VALUES (?, ?, ?, ?, ?, ?)",
             (
-                str(uuid.uuid4()),
-                occurred_at,
-                kind,
-                subject_type,
-                subject_id,
-                json.dumps(payload, sort_keys=True),
+                event.event_id,
+                event.occurred_at,
+                event.kind,
+                event.subject_type,
+                event.subject_id,
+                json.dumps(envelope, separators=(",", ":"), sort_keys=True),
             ),
         )
+
+    def list_audit_events(self) -> tuple[AuditEvent, ...]:
+        """Return valid audit events; malformed legacy rows are ignored safely."""
+        with self.transaction() as connection:
+            rows = connection.execute(
+                "SELECT event_id, occurred_at, kind, subject_type, subject_id, payload_json "
+                "FROM audit_events ORDER BY rowid"
+            ).fetchall()
+        events: list[AuditEvent] = []
+        for row in rows:
+            try:
+                raw_payload = json.loads(str(row[5]))
+                if not isinstance(raw_payload, dict):
+                    raise AuditEventError("audit payload is not an object")
+                if set(raw_payload) == {"payload", "previous_event_id", "schema_version"}:
+                    payload = raw_payload["payload"]
+                    previous = raw_payload["previous_event_id"]
+                    version = raw_payload["schema_version"]
+                else:
+                    payload = raw_payload
+                    previous = None
+                    version = 1
+                if not isinstance(payload, dict):
+                    raise AuditEventError("audit payload is not an object")
+                events.append(
+                    AuditEvent(
+                        event_id=row[0],
+                        occurred_at=row[1],
+                        kind=row[2],
+                        subject_type=row[3],
+                        subject_id=row[4],
+                        payload=payload,
+                        previous_event_id=previous,
+                        schema_version=version,
+                    )
+                )
+            except (AuditEventError, TypeError, ValueError, json.JSONDecodeError):
+                continue
+        return tuple(events)
+
+    def record_audit(
+        self,
+        kind: str,
+        subject_type: str,
+        subject_id: str,
+        payload: Mapping[str, object],
+        *,
+        occurred_at: int | None = None,
+    ) -> None:
+        """Persist one validated audit event outside another state transaction."""
+        when = int(time.time()) if occurred_at is None else occurred_at
+        with self.transaction(write=True) as connection:
+            self._audit(connection, kind, subject_type, subject_id, payload, when)
+
+    def audit_event(self, event_id: str) -> AuditEvent:
+        """Load one exact event or reject an unknown identifier."""
+        match = next(
+            (event for event in self.list_audit_events() if event.event_id == event_id), None
+        )
+        if match is None:
+            raise _state_error(ErrorCode.STATE_CORRUPT, "audit event was not found")
+        return match
+
+    def export_audit(self, *, path_mode: PathMode = PathMode.REDACT) -> str:
+        """Export valid local events with explicit path privacy treatment."""
+        return "".join(
+            json.dumps(event.to_dict(path_mode=path_mode), separators=(",", ":"), sort_keys=True)
+            + "\n"
+            for event in self.list_audit_events()
+        )
+
+    def audit_chain_errors(self) -> tuple[str, ...]:
+        """Return broken event references without exposing payload details."""
+        return validate_chain(self.list_audit_events())
 
     def retire_expired_sessions(self, *, now: int | None = None) -> int:
         when = int(time.time()) if now is None else now

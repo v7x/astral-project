@@ -13,13 +13,19 @@ from typing import BinaryIO, TextIO
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
+from astral_project.audit.events import AuditLog
 from astral_project.core.config import load_toml_config
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.core.ids import HostId, IssuerKeyId
 from astral_project.core.paths import check_private_path
 from astral_project.crypto.grants import GrantVerificationContext
 from astral_project.crypto.keys import public_key_from_bytes
-from astral_project.server.broker_bridge import bridge_sftp_stream, open_broker_sftp_stream
+from astral_project.sandbox.hardening import HardeningPolicy, enforce
+from astral_project.server.broker_bridge import (
+    BROKER_SOCKET,
+    bridge_sftp_stream,
+    open_broker_sftp_stream,
+)
 from astral_project.server.protocol import (
     read_outer_request,
     write_outer_ready,
@@ -57,6 +63,8 @@ def run_ssh_entry(
     now: int | None = None,
     after_verification: Callable[[RemoteSessionRequestV1], None] | None = None,
     broker_dispatch: bool = False,
+    apply_hardening: bool = False,
+    audit_log: AuditLog | None = None,
 ) -> int:
     """Serve one outer session frame; `Ready` is final frame before raw SFTP."""
     nonce: bytes | None = None
@@ -79,14 +87,43 @@ def run_ssh_entry(
             ),
         )
         # Packet 9 ends here. Later packets dispatch only after this authentication gate.
+        if audit_log is not None:
+            audit_log.append(
+                "session.remote.verified",
+                "session",
+                request.session_id.value,
+                {"transport_key_id": transport_key_id},
+                occurred_at=int(time.time()) if now is None else now,
+            )
         if after_verification is not None:
             after_verification(request)
+        if apply_hardening:
+            enforce(HardeningPolicy.for_plan(((BROKER_SOCKET.parent, False),)))
         stream = open_broker_sftp_stream(request) if broker_dispatch else None
         write_outer_ready(stdout, RemoteSessionReadyV1(request.session_id, request.session_nonce))
         if stream is not None:
             bridge_sftp_stream(stream, stdin=stdin, stdout=stdout)
         return 0
     except AstralError as error:
+        if audit_log is not None:
+            if isinstance(error, AstralError) and error.code in {
+                ErrorCode.HARDENING_UNAVAILABLE,
+                ErrorCode.HARDENING_APPLY,
+            }:
+                audit_log.append(
+                    "hardening.failure",
+                    "process",
+                    "remote-server",
+                    {"error_code": error.code.string},
+                    occurred_at=int(time.time()) if now is None else now,
+                )
+            audit_log.append(
+                "session.remote.rejected",
+                "session",
+                "unknown" if nonce is None else nonce.hex(),
+                {"error_code": error.code.string},
+                occurred_at=int(time.time()) if now is None else now,
+            )
         write_outer_rejection(stdout, RemoteSessionRejectedV1(nonce, error.code.string))
         stderr.write(f"{error.to_text()}\n")
         return 70
@@ -188,6 +225,15 @@ def _issuer_error(message: str) -> AstralError:
     )
 
 
+def _default_audit_log(environment: Mapping[str, str]) -> AuditLog:
+    """Resolve private remote audit state without accepting caller-chosen files."""
+    home = Path.home()
+    state_root = Path(environment.get("XDG_STATE_HOME", home / ".local" / "state"))
+    if not state_root.is_absolute() or ".." in state_root.parts:
+        raise _command_error("remote audit state root is not absolute and normalized")
+    return AuditLog(state_root / "astral-project" / "audit" / "events.jsonl")
+
+
 def main() -> None:
     """Standalone remote entry for fixed launcher bundles."""
     arguments = sys.argv[1:]
@@ -205,6 +251,8 @@ def main() -> None:
             stderr=sys.stderr,
             environment=os.environ,
             broker_dispatch=True,
+            apply_hardening=True,
+            audit_log=_default_audit_log(os.environ),
         )
     )
 

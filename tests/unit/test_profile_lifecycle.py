@@ -12,6 +12,7 @@ from typing import cast
 import pytest
 
 from astral_project import cli
+from astral_project.audit import AuditLog
 from astral_project.homed.mediation import (
     MediationDecision,
     PendingRequest,
@@ -36,6 +37,42 @@ from astral_project.profile_lifecycle import ProfileLifecycleError, ProfileStore
 
 def _rule(path: str = "config.toml") -> Rule:
     return Rule(path, RuleScope.EXACT, RuleMode.HOST_RO)
+
+
+def test_profile_store_supports_database_audit_sink(tmp_path: Path) -> None:
+    events: list[tuple[str, str, str, Mapping[str, object]]] = []
+    store = ProfileStore(
+        tmp_path / "config",
+        audit_sink=lambda *values: events.append(values),
+    )
+    store.create("profile")
+    assert events[0][:3] == ("profile.created", "profile", "profile")
+    with pytest.raises(ValueError, match="one sink"):
+        ProfileStore(
+            tmp_path / "other",
+            audit_log=AuditLog(tmp_path / "audit.log"),
+            audit_sink=lambda *_values: None,
+        )
+
+
+def test_profile_store_emits_audit_lifecycle_events(tmp_path: Path) -> None:
+    log = AuditLog(tmp_path / "audit" / "events.jsonl")
+    store = ProfileStore(tmp_path / "config", audit_log=log)
+    store.create("profile")
+    store.commit_learning("profile", (_rule(),))
+    store.seal("profile")
+    store.unseal("profile")
+    store.archive_profile("profile")
+    assert [event.kind for event in log.read()] == [
+        "profile.created",
+        "profile.edited",
+        "profile.learned",
+        "profile.edited",
+        "profile.sealed",
+        "profile.edited",
+        "profile.unsealed",
+        "profile.archived",
+    ]
 
 
 def test_profile_store_lifecycle_round_trip_and_archive(tmp_path: Path) -> None:

@@ -9,11 +9,12 @@ import shlex
 import subprocess
 import tempfile
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager, suppress
 from dataclasses import replace
 from pathlib import Path
 
+from astral_project.audit.events import AuditLog
 from astral_project.core.errors import AstralError
 from astral_project.core.paths import (
     atomic_write_private,
@@ -29,6 +30,8 @@ from astral_project.profile import (
     Rule,
     validate_profile,
 )
+
+AuditSink = Callable[[str, str, str, Mapping[str, object]], None]
 
 
 class ProfileLifecycleError(ProfileError):
@@ -47,10 +50,20 @@ def _has_symlink_component(path: Path) -> bool:
 class ProfileStore:
     """Own profile files below one private, path-safe configuration directory."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(
+        self,
+        root: Path,
+        *,
+        audit_log: AuditLog | None = None,
+        audit_sink: AuditSink | None = None,
+    ) -> None:
         self.root = root
         self.profiles = root / "profiles"
         self.archive = self.profiles / "archive"
+        if audit_log is not None and audit_sink is not None:
+            raise ValueError("profile audit requires one sink")
+        self.audit_log = audit_log
+        self.audit_sink = audit_sink
         ensure_private_directory(self.profiles)
 
     def path(self, profile_id: str) -> Path:
@@ -83,6 +96,7 @@ class ProfileStore:
             raise ProfileLifecycleError(
                 f"profile already exists or could not be created: {profile_id}"
             ) from error
+        self._audit("profile.created", profile_id, {"revision": profile.revision})
         return profile
 
     def save(self, profile: Profile, *, expected_revision: int | None = None) -> Profile:
@@ -102,6 +116,7 @@ class ProfileStore:
             raise ProfileLifecycleError(
                 f"profile could not be saved: {profile.profile_id}"
             ) from error
+        self._audit("profile.edited", profile.profile_id, {"revision": profile.revision})
         return profile
 
     def commit_learning(
@@ -137,27 +152,33 @@ class ProfileStore:
                 revision=current.revision + 1,
                 provenance=current.provenance + provenances + staged_provenance,
             )
-            return self._save_locked(updated, expected_revision=current.revision)
+            saved = self._save_locked(updated, expected_revision=current.revision)
+            self._audit("profile.learned", profile_id, {"revision": saved.revision})
+            return saved
 
     def seal(self, profile_id: str) -> Profile:
         with self._profile_lock(profile_id):
             current = self.load(profile_id)
             if current.sealed:
                 return current
-            return self._save_locked(
+            saved = self._save_locked(
                 replace(current, sealed=True, revision=current.revision + 1),
                 expected_revision=current.revision,
             )
+            self._audit("profile.sealed", profile_id, {"revision": saved.revision})
+            return saved
 
     def unseal(self, profile_id: str) -> Profile:
         with self._profile_lock(profile_id):
             current = self.load(profile_id)
             if not current.sealed:
                 return current
-            return self._save_locked(
+            saved = self._save_locked(
                 replace(current, sealed=False, revision=current.revision + 1),
                 expected_revision=current.revision,
             )
+            self._audit("profile.unsealed", profile_id, {"revision": saved.revision})
+            return saved
 
     def export(self, profile_id: str, destination: Path) -> Path:
         profile = self.load(profile_id)
@@ -194,6 +215,7 @@ class ProfileStore:
             create_private_file(self.path(profile.profile_id), profile.to_toml().encode())
         except (OSError, AstralError) as error:
             raise ProfileLifecycleError("profile could not be imported") from error
+        self._audit("profile.imported", profile.profile_id, {"revision": profile.revision})
         return profile
 
     def archive_profile(self, profile_id: str) -> Path:
@@ -215,7 +237,14 @@ class ProfileStore:
             except OSError as error:
                 raise ProfileLifecycleError("profile archive failed") from error
             check_private_path(destination)
+            self._audit("profile.archived", profile_id, {"revision": profile.revision})
             return destination
+
+    def _audit(self, kind: str, profile_id: str, payload: dict[str, object]) -> None:
+        if self.audit_sink is not None:
+            self.audit_sink(kind, "profile", profile_id, payload)
+        elif self.audit_log is not None:
+            self.audit_log.append(kind, "profile", profile_id, payload)
 
     @contextmanager
     def _profile_lock(self, profile_id: str) -> Iterator[None]:

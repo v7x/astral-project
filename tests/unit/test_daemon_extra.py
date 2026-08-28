@@ -23,6 +23,7 @@ from astral_project.crypto.grants import (
 from astral_project.daemon.client import DaemonClient
 from astral_project.daemon.protocol import Response, encode, parse_request
 from astral_project.daemon.server import DaemonLock, DaemonPaths, DaemonServer
+from astral_project.sandbox.hardening import HardeningStatus
 from astral_project.session.listing import SessionListingScope
 from astral_project.state.sqlite import ActiveListingSession
 
@@ -71,6 +72,20 @@ def test_cli_doctor_and_daemon_mode(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     assert cli.run(["__internal", "daemon"], stdout=StringIO(), stderr=StringIO()) == 70
 
 
+def test_daemon_start_fails_closed_without_landlock(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        "astral_project.daemon.server.hardening_status",
+        lambda required: HardeningStatus(False, None, required, False, "missing ABI"),
+    )
+    server = DaemonServer(DaemonPaths(tmp_path / "runtime", tmp_path / "state.sqlite3"))
+    with pytest.raises(AstralError) as error:
+        server.start()
+    assert error.value.code is ErrorCode.HARDENING_UNAVAILABLE
+    assert not server.paths.socket.exists()
+
+
 def test_default_daemon_binds_active_grant_to_listing(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -110,6 +125,9 @@ def test_default_daemon_binds_active_grant_to_listing(
     class FakeDatabase:
         def active_listing_session(self) -> ActiveListingSession:
             return active
+
+        def record_audit(self, *_args: object, **_kwargs: object) -> None:
+            return None
 
     monkeypatch.setattr(
         "astral_project.daemon.server.StateDatabase.open",

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.sandbox.environment import EnvironmentPolicy
+from astral_project.sandbox.hardening import HardeningPolicy, enforce, require_available
 from astral_project.sandbox.plan import LocalSandboxPlan
 
 HealthCheck = Callable[[], bool]
@@ -24,6 +25,7 @@ def run_plan(
     popen: Callable[..., subprocess.Popen[bytes]] = subprocess.Popen,
     approval: object | None = None,
     environment_policy: EnvironmentPolicy | None = None,
+    hardening: HardeningPolicy | None = None,
 ) -> int:
     """Run one plan; terminate child when any daemon-owned remote view is lost."""
     if poll_seconds <= 0:
@@ -39,19 +41,22 @@ def run_plan(
                 env=_sandbox_environment(environment_policy, visible_paths=_visible_paths(plan)),
                 preface=plan.plan_bytes(),
                 health_check=health_check,
+                preexec_fn=None,
             )
         except TerminalControllerError as error:
             raise _error(str(error), ErrorCode.DAEMON_UNAVAILABLE) from error
+    if hardening is not None:
+        require_available(hardening)
     try:
-        process = popen(
-            plan.launcher_argv(),
-            stdin=subprocess.PIPE,
-            stdout=None,
-            stderr=None,
-            env=_sandbox_environment(environment_policy, visible_paths=_visible_paths(plan)),
-            close_fds=True,
-            start_new_session=True,
-        )
+        process_kwargs: dict[str, object] = {
+            "stdin": subprocess.PIPE,
+            "stdout": None,
+            "stderr": None,
+            "env": _sandbox_environment(environment_policy, visible_paths=_visible_paths(plan)),
+            "close_fds": True,
+            "start_new_session": True,
+        }
+        process = popen(plan.launcher_argv(), **process_kwargs)
         if process.stdin is None:
             raise _error("fixed sandbox launcher stdin is unavailable")
         try:
@@ -76,11 +81,29 @@ def run_plan(
     return int(process.returncode or 0)
 
 
+def _enforce_policy(policy: HardeningPolicy) -> None:
+    """Apply hardening for callers that own the final child process."""
+    enforce(policy)
+
+
 def _sandbox_environment(
     policy: EnvironmentPolicy | None = None, *, visible_paths: tuple[Path, ...] = ()
 ) -> dict[str, str]:
     """Return allowlisted, secret-free environment for both launcher paths."""
     return (policy or EnvironmentPolicy()).sanitize(os.environ, visible_paths=visible_paths).values
+
+
+def hardening_policy(plan: LocalSandboxPlan) -> HardeningPolicy:
+    """Derive second-wall roots from fixed namespace and exact plan bindings."""
+    roots: list[tuple[Path, bool]] = [(path, False) for path in _visible_paths(plan)]
+    roots.extend((binding.host_path, binding.mode.value == "rw") for binding in plan.remotes)
+    if plan.projected_home is not None:
+        roots.append((plan.projected_home, plan.projected_home_writable))
+    if plan.host_rx_manifest is not None:
+        roots.append((plan.host_rx_manifest, False))
+    if plan.session_socket is not None:
+        roots.append((plan.session_socket.parent, False))
+    return HardeningPolicy.for_plan(roots)
 
 
 def _visible_paths(plan: LocalSandboxPlan) -> tuple[Path, ...]:

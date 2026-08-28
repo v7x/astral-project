@@ -5,5 +5,6 @@ uv sync --locked --all-groups
 uv run ruff format --check .
 uv run ruff check .
 uv run mypy src tests
+uv run python scripts/parser_fuzz.py
 uv run coverage run -m pytest
 uv run coverage report
