@@ -69,6 +69,17 @@ def test_require_available_fails_closed_and_reports_abi(monkeypatch: pytest.Monk
         require_available(HardeningPolicy(required=True))
 
 
+def test_enforce_converts_probe_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        hardening, "detect_landlock", lambda: (_ for _ in ()).throw(OSError("probe"))
+    )
+    with pytest.raises(hardening.HardeningError, match="probe") as error:
+        enforce(HardeningPolicy(required=True))
+    assert error.value.code is ErrorCode.HARDENING_UNAVAILABLE
+    optional = enforce(HardeningPolicy(required=False))
+    assert optional.reason.startswith("Landlock probe failed")
+
+
 def test_enforce_fails_closed_or_reports_optional_absence(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(hardening, "detect_landlock", lambda: None)
     with pytest.raises(hardening.HardeningError) as error:

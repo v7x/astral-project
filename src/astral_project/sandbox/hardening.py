@@ -116,7 +116,14 @@ def require_available(policy: HardeningPolicy) -> int:
 
 def enforce(policy: HardeningPolicy) -> HardeningStatus:
     """Apply all second-wall controls to current process or raise."""
-    abi = detect_landlock()
+    try:
+        abi = detect_landlock()
+    except OSError as error:
+        if policy.required:
+            raise _hardening_error(
+                f"Landlock ABI probe failed: {error}", ErrorCode.HARDENING_UNAVAILABLE
+            ) from error
+        return HardeningStatus(False, None, False, False, f"Landlock probe failed: {error}")
     if abi is None:
         if policy.required:
             raise _hardening_error("Landlock ABI is unavailable")

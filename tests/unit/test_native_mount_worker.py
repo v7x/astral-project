@@ -42,6 +42,7 @@ def test_mount_worker_uses_only_fixed_fd_abi_and_descriptor_syscalls() -> None:
         "F_GET_SEALS",
         "seals<0",
         "overlap_target",
+        'overlap_target(p,n,"/dev")',
         "SYS_pivot_root",
         "MOUNT_ATTR_NOSUID",
         "MOUNT_ATTR_NODEV",

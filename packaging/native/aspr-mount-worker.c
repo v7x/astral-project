@@ -59,7 +59,7 @@ static void verify_fd(int fd,uint64_t dev,uint64_t ino,uint64_t mnt,unsigned cha
 }
 static void valid_target(const unsigned char *p,size_t n) {
  size_t start=1,i; if(n<2||p[0]!='/') bad("target invalid");
- if(overlap_target(p,n,RUNTIME_TARGET)||overlap_target(p,n,"/oldroot")||overlap_target(p,n,"/.astral-project")) bad("target overlaps reserved path");
+ if(overlap_target(p,n,RUNTIME_TARGET)||overlap_target(p,n,"/oldroot")||overlap_target(p,n,"/.astral-project")||overlap_target(p,n,"/dev")||overlap_target(p,n,"/etc")) bad("target overlaps reserved path");
  for(i=1;i<=n;i++) if(i==n||p[i]=='/') { size_t l=i-start; if(!l||(l==1&&p[start]=='.')||(l==2&&p[start]=='.'&&p[start+1]=='.')) bad("target invalid"); start=i+1; } else if(!p[i]) bad("target invalid");
 }
 static void make_target(char *p,unsigned char kind) {
