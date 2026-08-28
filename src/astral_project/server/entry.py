@@ -14,7 +14,7 @@ from typing import BinaryIO, TextIO
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-from astral_project.audit.events import AuditLog, PathMode
+from astral_project.audit.events import AuditFailureRecorder, AuditLog, PathMode
 from astral_project.core.config import load_toml_config
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.core.ids import HostId, IssuerKeyId
@@ -162,6 +162,7 @@ def run_audit_export_entry(
 ) -> int:
     """Serve one bounded, redacted remote audit export over enrolled SSH authority."""
     log = audit_log if audit_log is not None else _default_audit_log(environment)
+    failure_recorder: AuditFailureRecorder | None = None
     try:
         if environment.get("SSH_ORIGINAL_COMMAND") != SSH_ORIGINAL_AUDIT_COMMAND:
             raise _command_error("SSH original command is not the audit export marker")
@@ -175,6 +176,9 @@ def run_audit_export_entry(
             "remote-audit",
             {"path_mode": path_mode.value},
         )
+        # Reserve the lock and append descriptors while the parent is still unrestricted.
+        # The post-hardening policy is intentionally read-only for the audit directory.
+        failure_recorder = log.prepare_failure_recorder()
         enforce(HardeningPolicy.for_plan(((log.path.parent, False),)))
         events = log.read()[-MAX_AUDIT_EXPORT_RECORDS:]
         exported = "".join(
@@ -188,9 +192,13 @@ def run_audit_export_entry(
         return 0
     except (AstralError, OSError, TypeError, ValueError, json.JSONDecodeError) as error:
         if isinstance(error, HardeningError):
-            log.append(
-                "hardening.failure", "process", "remote-audit", {"error_code": error.code.string}
-            )
+            failure_payload = {"error_code": error.code.string}
+            if failure_recorder is None:
+                log.append("hardening.failure", "process", "remote-audit", failure_payload)
+            else:
+                failure_recorder.append(
+                    "hardening.failure", "process", "remote-audit", failure_payload
+                )
         if isinstance(error, AstralError):
             code = error.code.string
             message = error.message
@@ -200,6 +208,9 @@ def run_audit_export_entry(
         _write_audit_response(stdout, {"version": 1, "ok": False, "error_code": code})
         stderr.write(f"{message}\n")
         return 70
+    finally:
+        if failure_recorder is not None:
+            failure_recorder.close()
 
 
 def _read_audit_request(stdin: BinaryIO) -> dict[str, object]:

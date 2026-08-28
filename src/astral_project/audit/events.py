@@ -427,6 +427,7 @@ class AuditLog:
             _check_private_file(path)
         if os.path.lexists(self.lock_path):
             _check_private_file(self.lock_path)
+        self._ensure_lock_file()
         if os.path.lexists(self.boundary_path):
             _check_private_file(self.boundary_path)
 
@@ -482,6 +483,10 @@ class AuditLog:
             _check_private_file(self.path)
             self._apply_retention_unlocked()
             return event
+
+    def prepare_failure_recorder(self) -> AuditFailureRecorder:
+        """Reserve private descriptors for failure evidence before a read-only wall."""
+        return AuditFailureRecorder(self)
 
     def read(self) -> tuple[AuditEvent, ...]:
         """Read valid rows only; malformed historical rows never crash readers."""
@@ -653,8 +658,7 @@ class AuditLog:
         ):
             self._rotate_unlocked()
 
-    @contextmanager
-    def _lock(self, *, exclusive: bool) -> Iterator[None]:
+    def _ensure_lock_file(self) -> None:
         descriptor = os.open(
             self.lock_path,
             os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW,
@@ -662,6 +666,17 @@ class AuditLog:
         )
         try:
             os.fchmod(descriptor, 0o600)
+        finally:
+            os.close(descriptor)
+        _check_private_file(self.lock_path)
+
+    @contextmanager
+    def _lock(self, *, exclusive: bool) -> Iterator[None]:
+        flags = (os.O_RDWR if exclusive else os.O_RDONLY) | os.O_NOFOLLOW
+        descriptor = os.open(self.lock_path, flags)
+        try:
+            if exclusive:
+                os.fchmod(descriptor, 0o600)
             _check_private_file(self.lock_path)
             fcntl.flock(descriptor, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
             yield
@@ -704,6 +719,79 @@ class AuditLog:
                         yield None, "malformed audit row skipped"
         except OSError:
             return
+
+
+class AuditFailureRecorder:
+    """Append one safe failure event through descriptors opened pre-hardening."""
+
+    def __init__(self, log: AuditLog) -> None:
+        self._log = log
+        self._lock_descriptor = -1
+        self._append_descriptor = -1
+        try:
+            self._lock_descriptor = os.open(log.lock_path, os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC)
+            self._append_descriptor = os.open(
+                log.path, os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW | os.O_CLOEXEC
+            )
+            _check_private_file(log.lock_path)
+            _check_private_file(log.path)
+        except BaseException:
+            self.close()
+            raise
+
+    def append(
+        self,
+        kind: str,
+        subject_type: str,
+        subject_id: str,
+        payload: Mapping[str, object],
+        *,
+        occurred_at: int | None = None,
+    ) -> AuditEvent:
+        if self._lock_descriptor < 0 or self._append_descriptor < 0:
+            raise OSError("audit failure recorder is closed")
+        fcntl.flock(self._lock_descriptor, fcntl.LOCK_EX)
+        try:
+            previous = next(iter(reversed(self._log._read_unlocked())), None)
+            event = AuditEvent.create(
+                kind,
+                subject_type,
+                subject_id,
+                payload,
+                previous_event_id=None if previous is None else previous.event_id,
+                occurred_at=occurred_at,
+            )
+            data = (
+                json.dumps(event.to_dict(), separators=(",", ":"), sort_keys=True) + "\n"
+            ).encode()
+            if len(data) > AUDIT_MAX_EVENT_BYTES:
+                raise AuditEventError("audit event exceeds serialized size limit")
+            view = memoryview(data)
+            while view:
+                written = os.write(self._append_descriptor, view)
+                if written <= 0:
+                    raise OSError("audit failure write made no progress")
+                view = view[written:]
+            os.fsync(self._append_descriptor)
+            _check_private_file(self._log.path)
+            return event
+        finally:
+            with suppress(OSError):
+                fcntl.flock(self._lock_descriptor, fcntl.LOCK_UN)
+
+    def close(self) -> None:
+        for descriptor in (self._append_descriptor, self._lock_descriptor):
+            if descriptor >= 0:
+                with suppress(OSError):
+                    os.close(descriptor)
+        self._append_descriptor = -1
+        self._lock_descriptor = -1
+
+    def __enter__(self) -> AuditFailureRecorder:
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        self.close()
 
 
 def _read_private_text(path: Path) -> str:

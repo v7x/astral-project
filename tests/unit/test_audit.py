@@ -13,6 +13,7 @@ import pytest
 
 import astral_project.audit.events as audit_events
 from astral_project.audit import (
+    AUDIT_MAX_EVENT_BYTES,
     AuditEvent,
     AuditEventError,
     AuditLog,
@@ -323,6 +324,53 @@ def test_audit_log_concurrent_append_with_retention_is_bounded(tmp_path: Path) -
     log = AuditLog(path, retention=2)
     assert len(log.read()) == 2
     assert log.chain_errors() == ()
+
+
+def test_failure_recorder_appends_after_read_only_wall(tmp_path: Path) -> None:
+    log = AuditLog(tmp_path / "failure.log")
+    first = log.append("probe.started", "process", "probe", {})
+    with log.prepare_failure_recorder() as recorder:
+        failure = recorder.append(
+            "hardening.failure", "process", "remote-audit", {"error_code": "probe"}
+        )
+    assert failure.previous_event_id == first.event_id
+    assert [event.kind for event in log.read()] == ["probe.started", "hardening.failure"]
+
+
+def test_failure_recorder_rejects_closed_oversized_and_stalled_writes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    log = AuditLog(tmp_path / "failure.log")
+    log.append("probe.started", "process", "probe", {})
+    recorder = log.prepare_failure_recorder()
+    recorder.close()
+    recorder.close()
+    with pytest.raises(OSError, match="closed"):
+        recorder.append("hardening.failure", "process", "remote-audit", {"error_code": "probe"})
+
+    recorder = log.prepare_failure_recorder()
+    with pytest.raises(AuditEventError, match="serialized size"):
+        recorder.append(
+            "hardening.failure",
+            "process",
+            "remote-audit",
+            {"result": "x" * AUDIT_MAX_EVENT_BYTES},
+        )
+    monkeypatch.setattr("astral_project.audit.events.os.write", lambda *_args: 0)
+    with pytest.raises(OSError, match="no progress"):
+        recorder.append("hardening.failure", "process", "remote-audit", {"error_code": "probe"})
+    recorder.close()
+
+
+def test_failure_recorder_rejects_symlinked_log(tmp_path: Path) -> None:
+    log = AuditLog(tmp_path / "failure.log")
+    log.append("probe.started", "process", "probe", {})
+    replacement = tmp_path / "replacement.log"
+    replacement.write_text("", encoding="utf-8")
+    log.path.unlink()
+    log.path.symlink_to(replacement)
+    with pytest.raises(OSError):
+        log.prepare_failure_recorder()
 
 
 def test_audit_log_rejects_symlink_lock(tmp_path: Path) -> None:

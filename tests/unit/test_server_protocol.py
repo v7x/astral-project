@@ -202,6 +202,37 @@ def test_remote_audit_export_rejects_bad_requests_and_hardening_failures(
     assert "hardening.failure" in [event.kind for event in log.read()]
 
 
+def test_remote_audit_export_records_failure_without_reserved_recorder(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _, trust = signed_request()
+    log = AuditLog(tmp_path / "remote-fallback.log")
+    failure = HardeningError(
+        code=ErrorCode.HARDENING_APPLY,
+        message="hardening failed",
+        security_result="rejected",
+        unsafe_reason="mandatory",
+        next_action="repair",
+    )
+    monkeypatch.setattr(log, "prepare_failure_recorder", lambda: None)
+    monkeypatch.setattr(
+        "astral_project.server.entry.enforce", lambda _policy: (_ for _ in ()).throw(failure)
+    )
+    assert (
+        run_audit_export_entry(
+            "transport-1",
+            stdin=BytesIO(b'{"version":1,"path_mode":"redact"}'),
+            stdout=BytesIO(),
+            stderr=StringIO(),
+            environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_AUDIT_COMMAND},
+            trust=trust,
+            audit_log=log,
+        )
+        == 70
+    )
+    assert log.read()[1].kind == "hardening.failure"
+
+
 def test_remote_audit_export_response_limits(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
