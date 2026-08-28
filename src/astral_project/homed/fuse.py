@@ -543,15 +543,18 @@ def _mount_operations(  # pragma: no cover - exercised by installed FUSE accepta
     if debug:
         options.add("debug")
     policy = HardeningPolicy.for_plan([(path, True), *hardening_roots], writable_tmp=writable_tmp)
-    _pyfuse3.init(operations, os.fspath(path), options)
+    initialized = False
     try:
+        _pyfuse3.init(operations, os.fspath(path), options)
+        initialized = True
         enforce(policy)
         trio.run(_pyfuse3.main)
     finally:
         operations.state.close()
         if operations.host_view is not None:
             operations.host_view.close()
-        _pyfuse3.close(unmount=False)
+        if initialized:
+            _pyfuse3.close(unmount=False)
 
 
 def mount_empty(  # pragma: no cover - exercised by installed FUSE acceptance
