@@ -990,3 +990,9 @@ PASS 0036 remote JSONL rotation preserves linear chain; local SQLite and remote 
 .                                                                        [100%]
 1 passed in 0.08s
 PASS 0036 local/remote session correlation uses identical session_id and grant_id
+
+--- 4d97 installed session relay Ubuntu26 ---
+relay-ok
+session_relay=passed
+
+PASS 4d97 installed session relay Ubuntu26 package=c985e3cc0cfcd7e67dfdf3d2b9f943c5b2c32cc4a98e34b378bde6a1696b4fd6 rc=0

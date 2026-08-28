@@ -1,17 +1,19 @@
 $ git rev-parse HEAD
-0036d0e9fb062a5afd63167a323cd531b3fbe9a3
+4d97d38b153156304baaae566ac778bdfa5a9a09
 $ git rev-parse origin/master
-0036d0e9fb062a5afd63167a323cd531b3fbe9a3
+4d97d38b153156304baaae566ac778bdfa5a9a09
 $ git status --short -- src packaging scripts tests .github docs/evidence
 (clean: no entries)
 $ git diff --quiet HEAD -- src packaging scripts tests .github docs/evidence
 PASS scoped-working-tree-clean
 $ git diff --cached --quiet -- src packaging scripts tests .github docs/evidence
 PASS scoped-index-clean
-$ git diff --quiet 0036d0e9fb062a5afd63167a323cd531b3fbe9a3..HEAD -- src packaging scripts tests .github
-PASS source-tree-equivalence source-closure=0036d0e9fb062a5afd63167a323cd531b3fbe9a3
+$ git diff --quiet 4d97d38b153156304baaae566ac778bdfa5a9a09..HEAD -- src packaging scripts tests .github
+PASS source-tree-equivalence source-closure=4d97d38b153156304baaae566ac778bdfa5a9a09
 $ uv lock --check
 PASS lockfile
+$ uv run ruff format --check .
+208 files already formatted
 $ uv run ruff check src tests scripts
 All checks passed!
 $ uv run mypy src tests
@@ -22,23 +24,25 @@ $ uv run pytest tests/unit/test_audit.py tests/unit/test_hardening.py tests/unit
 64 passed
 $ uv run pytest tests/unit/test_server_protocol.py::test_local_and_remote_audit_events_share_session_correlation -q
 1 passed
-PASS local/remote session correlation uses identical session_id and grant_id across StateDatabase and remote AuditLog
 $ uv run python - <<'PY'
 remote_rotation_events=2 chain_errors=() boundary_segments=3
 local_retention_events=2 chain_errors=() boundary_segments=3
 PY
 PASS JSONL byte rotation and SQLite count retention preserve linear chains with append-only boundary segments
-$ apparmor_parser -Q -K packaging/apparmor/usr.libexec.astral-project.aspr-bwrap-launch
-PASS AppArmor parser
 $ uv run python scripts/parser_fuzz.py
 PASS parser fuzz cases=5
-$ cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-bwrap-launch.c -o /tmp/aspr-bwrap-launch-0036
+$ apparmor_parser -Q -K packaging/apparmor/usr.libexec.astral-project.aspr-bwrap-launch
+PASS AppArmor parser
+$ cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-bwrap-launch.c -o /tmp/aspr-bwrap-launch-4d97
 PASS native launcher compile
-$ cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-sandbox-entry.c -o /tmp/aspr-sandbox-entry-0036
+$ cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-sandbox-entry.c -o /tmp/aspr-sandbox-entry-4d97
 PASS native entry compile
-$ cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-mount-worker.c -o /tmp/aspr-mount-worker-0036
+$ cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-mount-worker.c -o /tmp/aspr-mount-worker-4d97
 PASS native mount compile
-$ sha256sum /tmp/packet37-38-build-0036-1787944121/astral-project_0.1.0_amd64.deb
- df937e48e592bf0755389d229a686379a65b00a70026c5be8982385d8d0f7a62  /tmp/packet37-38-build-0036-1787944121/astral-project_0.1.0_amd64.deb
+$ sha256sum /tmp/packet37-38-build-4d97-1787946858/astral-project_0.1.0_amd64.deb
+c985e3cc0cfcd7e67dfdf3d2b9f943c5b2c32cc4a98e34b378bde6a1696b4fd6  /tmp/packet37-38-build-4d97-1787946858/astral-project_0.1.0_amd64.deb
+$ installed session relay acceptance on Ubuntu 24.04 and 26.04
+session_relay=passed
+PASS installed relay both targets
 $ git diff --check
 PASS current verification
