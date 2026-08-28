@@ -1,13 +1,13 @@
 $ git rev-parse HEAD
-fc1a6f5c9d5e91299a9365315a1afc7575f25c43
+75610ebba3b833e918caf378d1a6d7779fb362a6
 $ git status --short -- src packaging scripts tests .github docs/evidence
 (clean: no production, test, workflow, or evidence changes)
 $ git diff --quiet HEAD -- src packaging scripts tests .github docs/evidence
 PASS working-tree-clean
 $ git diff --cached --quiet -- src packaging scripts tests .github docs/evidence
 PASS index-clean
-$ git diff --quiet fc1a6f5c9d5e91299a9365315a1afc7575f25c43..HEAD -- src packaging scripts tests .github
-PASS source-tree-equivalence source-closure=fc1a6f5c9d5e91299a9365315a1afc7575f25c43 validated-head=fc1a6f5c9d5e91299a9365315a1afc7575f25c43
+$ git diff --quiet 75610ebba3b833e918caf378d1a6d7779fb362a6..HEAD -- src packaging scripts tests .github
+PASS source-tree-equivalence source-closure=75610ebba3b833e918caf378d1a6d7779fb362a6 validated-head=75610ebba3b833e918caf378d1a6d7779fb362a6
 $ uv lock --check
 PASS lockfile
 $ uv run ruff check src tests scripts
@@ -28,10 +28,10 @@ $ cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-sandbox-entry.c -o
 PASS native entry compile
 $ cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-mount-worker.c -o /tmp/aspr-mount-worker-packet38
 PASS native mount compile
-$ sha256sum /tmp/packet37-38-build-final-goal-fc1-1787940825/astral-project_0.1.0_amd64.deb
-3c64bb78d45a274fce4e95bb540d45ca460ab2d96e296b8affdb2fd3ddace24d  /tmp/packet37-38-build-final-goal-fc1-1787940825/astral-project_0.1.0_amd64.deb
+$ sha256sum /tmp/packet37-38-build-final-756-1787941831/astral-project_0.1.0_amd64.deb
+706f1ad8e8219f8888ad4e17d3212c54bb59924ef079fa9343be6ac767d7ec18  /tmp/packet37-38-build-final-756-1787941831/astral-project_0.1.0_amd64.deb
 $ sha256sum docs/evidence/packet-37-38-ubuntu24-raw.txt docs/evidence/packet-37-38-ubuntu26-raw.txt
-092e6ef1120d9292272b9c19f8c03b7ddcd0f284bf5d10eb2f578ca78cc93b83  docs/evidence/packet-37-38-ubuntu24-raw.txt
-875c0ef099f94a5c92a7413afe17fe6fa6f419768187b0c270b9e74b58a00037  docs/evidence/packet-37-38-ubuntu26-raw.txt
+249791f6cf8f64acc5a716850868ab050c705ed9a37057e630f5c8962c372948  docs/evidence/packet-37-38-ubuntu24-raw.txt
+f1875ca0f012f587eebbbad704a587c7d65b198367520bc0b010048d5b9bd6bf  docs/evidence/packet-37-38-ubuntu26-raw.txt
 $ git diff --check
 PASS current verification
