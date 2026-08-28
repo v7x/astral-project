@@ -142,7 +142,7 @@ apparmor module is loaded.
    wpcom
 2 processes have profiles defined.
 2 processes are in enforce mode.
-   /usr/bin/python3.12 (149856) aspr-broker
+   /usr/bin/python3.12 (183505) aspr-broker
    /usr/sbin/rsyslogd (717) rsyslogd
 0 processes are in complain mode.
 0 processes are in prompt mode.
@@ -158,212 +158,96 @@ $ apparmor_parser --remove /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap
 $ apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
 $ taskset -c 0 unshare -n aa-exec -p aspr-bwrap-setup -- /usr/libexec/astral-project/aspr-apparmor-net-admin-probe
 setup_net_admin_probe_audit=passed
-audit: type=1400 audit(1787921966.470:14534): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=179111 comm="aspr-apparmor-n" capability=12  capname="net_admin"
+audit: type=1400 audit(1787923669.780:14862): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=185665 comm="aspr-apparmor-n" capability=12  capname="net_admin"
 $ apparmor_parser --remove /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
 $ apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
 $ sudo -u testuser env XDG_RUNTIME_DIR=/run/user/1002 /usr/bin/aspr sandbox --network none -- /bin/true
-ASPRB64
-QVNQUlNCMDEBAAAAAQAAAAkvYmluL3RydWUAAAAAAAAAAAAAAQAAADUvcnVuL3VzZXIvMTAwMi9hc3RyYWwtcHJvamVjdC9wcm9qZWN0ZWQtaG9tZS05a3c5cTNhNwAA
 setup_runtime_capabilities=passed
-audit: type=1400 audit(1787921972.470:14540): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=179126 comm="bwrap" capability=21  capname="sys_admin"
-audit: type=1400 audit(1787921972.471:14542): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=179127 comm="bwrap" capability=8  capname="setpcap"
-audit: type=1400 audit(1787921972.471:14543): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=179127 comm="bwrap" capability=12  capname="net_admin"
-audit: type=1400 audit(1787921972.471:14544): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=179127 comm="bwrap" capability=21  capname="sys_admin"
+audit: type=1400 audit(1787923675.781:14868): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=185680 comm="bwrap" capability=21  capname="sys_admin"
+audit: type=1400 audit(1787923675.781:14870): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=185681 comm="bwrap" capability=8  capname="setpcap"
+audit: type=1400 audit(1787923675.782:14871): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=185681 comm="bwrap" capability=12  capname="net_admin"
+audit: type=1400 audit(1787923675.782:14872): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=185681 comm="bwrap" capability=21  capname="sys_admin"
 $ apparmor_parser --remove /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
 $ apparmor_parser --replace /tmp/aspr-bwrap-no-net-admin
 $ taskset -c 0 unshare -n aa-exec -p aspr-bwrap-setup -- /usr/libexec/astral-project/aspr-apparmor-net-admin-probe
 setup_net_admin_negative_probe=passed
-audit: type=1400 audit(1787921993.304:14552): apparmor="DENIED" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=179136 comm="aspr-apparmor-n" capability=12  capname="net_admin"
+audit: type=1400 audit(1787923696.623:14880): apparmor="DENIED" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=185862 comm="aspr-apparmor-n" capability=12  capname="net_admin"
 $ sudo -u testuser env XDG_RUNTIME_DIR=/run/user/1002 /usr/bin/aspr sandbox --network none -- /bin/true
-ASPRB64
-QVNQUlNCMDEBAAAAAQAAAAkvYmluL3RydWUAAAAAAAAAAAAAAQAAADUvcnVuL3VzZXIvMTAwMi9hc3RyYWwtcHJvamVjdC9wcm9qZWN0ZWQtaG9tZS1peHg4b3NoNQAA
-bwrap: loopback: Failed RTM_NEWADDR: No child processes
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/pathlib.py", line 1313, in mkdir
+    os.mkdir(self, mode)
+FileNotFoundError: [Errno 2] No such file or directory: '/run/user/1002/astral-project'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/usr/lib/astral-project/python/astral_project/cli.py", line 728, in main
+    raise SystemExit(run(sys.argv[1:], stdout=sys.stdout, stderr=sys.stderr))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/astral-project/python/astral_project/cli.py", line 677, in run
+    return run_sandbox(
+           ^^^^^^^^^^^^
+  File "/usr/lib/astral-project/python/astral_project/sandbox/command.py", line 279, in run_sandbox
+    mediation_socket, mediation_directory = _approval_endpoint(runtime, None)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/astral-project/python/astral_project/sandbox/command.py", line 213, in _approval_endpoint
+    runtime.mkdir(mode=0o700, parents=True, exist_ok=True)
+  File "/usr/lib/python3.12/pathlib.py", line 1317, in mkdir
+    self.parent.mkdir(parents=True, exist_ok=True)
+  File "/usr/lib/python3.12/pathlib.py", line 1313, in mkdir
+    os.mkdir(self, mode)
+PermissionError: [Errno 13] Permission denied: '/run/user/1002'
 setup_net_admin_runtime_dependency=passed
 $ apparmor_parser --remove /tmp/aspr-bwrap-no-net-admin
 $ apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
 $ taskset -c 0 unshare -n aa-exec -p aspr-bwrap-setup -- /usr/libexec/astral-project/aspr-apparmor-net-admin-probe
 setup_profile_restored_net_admin=passed
-audit: type=1400 audit(1787921999.513:14562): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=179155 comm="aspr-apparmor-n" capability=12  capname="net_admin"
+audit: type=1400 audit(1787923702.419:14885): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=185872 comm="aspr-apparmor-n" capability=12  capname="net_admin"
 $ sudo -u testuser env XDG_RUNTIME_DIR=/run/user/1002 /usr/bin/aspr sandbox --network none -- /bin/true
-ASPRB64
-QVNQUlNCMDEBAAAAAQAAAAkvYmluL3RydWUAAAAAAAAAAAAAAQAAADUvcnVuL3VzZXIvMTAwMi9hc3RyYWwtcHJvamVjdC9wcm9qZWN0ZWQtaG9tZS1xdnR1N3gxdAAA
-$ aa-status
-apparmor module is loaded.
-122 profiles are loaded.
-28 profiles are in enforce mode.
-   /usr/bin/man
-   /usr/lib/snapd/snap-confine
-   aspr-broker
-   aspr-bwrap-setup
-   aspr-namespace-setup
-   aspr-sandbox-payload
-   aspr-sftp-v1
-   lsb_release
-   man_filter
-   man_groff
-   nvidia_modprobe
-   nvidia_modprobe//kmod
-   plasmashell
-   plasmashell//QtWebEngineProcess
-   rsyslogd
-   tcpdump
-   ubuntu_pro_apt_news
-   ubuntu_pro_esm_cache
-   ubuntu_pro_esm_cache//apt_methods
-   ubuntu_pro_esm_cache//apt_methods_gpgv
-   ubuntu_pro_esm_cache//cloud_id
-   ubuntu_pro_esm_cache//dpkg
-   ubuntu_pro_esm_cache//ps
-   ubuntu_pro_esm_cache//ubuntu_distro_info
-   ubuntu_pro_esm_cache_systemctl
-   ubuntu_pro_esm_cache_systemd_detect_virt
-   unix-chkpwd
-   unprivileged_userns
-4 profiles are in complain mode.
-   transmission-cli
-   transmission-daemon
-   transmission-gtk
-   transmission-qt
-0 profiles are in prompt mode.
-0 profiles are in kill mode.
-90 profiles are in unconfined mode.
-   1password
-   Discord
-   MongoDB Compass
-   QtWebEngineProcess
-   balena-etcher
-   brave
-   buildah
-   bwrap
-   cam
-   ch-checkns
-   ch-run
-   chrome
-   crun
-   devhelp
-   element-desktop
-   epiphany
-   evolution
-   firefox
-   flatpak
-   foliate
-   geary
-   github-desktop
-   goldendict
-   ipa_verify
-   kchmviewer
-   keybase
-   lc-compliance
-   libcamerify
-   linux-sandbox
-   loupe
-   lxc-attach
-   lxc-create
-   lxc-destroy
-   lxc-execute
-   lxc-stop
-   lxc-unshare
-   lxc-usernsexec
-   mmdebstrap
-   msedge
-   notepadqq
-   obsidian
-   opam
-   opera
-   pageedit
-   podman
-   polypane
-   privacybrowser
-   qcam
-   qmapshack
-   qutebrowser
-   rootlesskit
-   rpm
-   rssguard
-   runc
-   sbuild
-   sbuild-abort
-   sbuild-adduser
-   sbuild-apt
-   sbuild-checkpackages
-   sbuild-clean
-   sbuild-createchroot
-   sbuild-destroychroot
-   sbuild-distupgrade
-   sbuild-hold
-   sbuild-shell
-   sbuild-unhold
-   sbuild-update
-   sbuild-upgrade
-   scide
-   signal-desktop
-   slack
-   slirp4netns
-   steam
-   stress-ng
-   surfshark
-   systemd-coredump
-   thunderbird
-   toybox
-   trinity
-   tup
-   tuxedo-control-center
-   userbindmount
-   uwsgi-core
-   vdens
-   virtiofsd
-   vivaldi-bin
-   vpnns
-   vscode
-   wike
-   wpcom
-2 processes have profiles defined.
-2 processes are in enforce mode.
-   /usr/bin/python3.12 (149856) aspr-broker
-   /usr/sbin/rsyslogd (717) rsyslogd
-0 processes are in complain mode.
-0 processes are in prompt mode.
-0 processes are in kill mode.
-0 processes are unconfined but have a profile defined.
-0 processes are in mixed mode.
-setup_profile_restored=passed
-audit: type=1400 audit(1787921949.553:14512): apparmor="AUDIT" operation="mount" class="mount" profile="aspr-bwrap-setup" name="/tmp/" pid=179041 comm="mount" fstype="tmpfs" srcname="tmpfs" flags="rw, nosuid, nodev"
-audit: type=1400 audit(1787921949.553:14513): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=179041 comm="mount" capability=21  capname="sys_admin"
-audit: type=1400 audit(1787921949.555:14515): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=179042 comm="unshare" capability=21  capname="sys_admin"
-audit: type=1400 audit(1787921949.981:14518): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=179053 comm="bwrap" capability=8  capname="setpcap"
-audit: type=1400 audit(1787921949.981:14519): apparmor="AUDIT" operation="mount" class="mount" profile="aspr-bwrap-setup" name="/tmp/" pid=179053 comm="bwrap" fstype="tmpfs" srcname="tmpfs" flags="rw, nosuid, nodev"
-{"audit_serial_baseline": 14511, "normal_audit_records": 8, "normal_setup_capabilities": ["setpcap", "sys_admin"], "normal_setup_operations": ["capable", "mount", "userns_create"], "setup_mount_probe": "passed", "setup_net_admin_negative_probe": "passed", "setup_net_admin_probe": "passed", "setup_net_admin_runtime_dependency": "passed", "setup_profile_restored": "passed", "setup_runtime_capabilities": ["net_admin", "setpcap", "sys_admin"], "setup_userns_probe": "passed"}
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/pathlib.py", line 1313, in mkdir
+    os.mkdir(self, mode)
+FileNotFoundError: [Errno 2] No such file or directory: '/run/user/1002/astral-project'
 
-PASS packet-37-38 ubuntu24 installed acceptance artifact=1a3ea86066413636a83ad5d72907aa726ce60d44ece0abd00eba23853a4dedc7 rc=0
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/usr/lib/astral-project/python/astral_project/cli.py", line 728, in main
+    raise SystemExit(run(sys.argv[1:], stdout=sys.stdout, stderr=sys.stderr))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/astral-project/python/astral_project/cli.py", line 677, in run
+    return run_sandbox(
+           ^^^^^^^^^^^^
+  File "/usr/lib/astral-project/python/astral_project/sandbox/command.py", line 279, in run_sandbox
+    mediation_socket, mediation_directory = _approval_endpoint(runtime, None)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/astral-project/python/astral_project/sandbox/command.py", line 213, in _approval_endpoint
+    runtime.mkdir(mode=0o700, parents=True, exist_ok=True)
+  File "/usr/lib/python3.12/pathlib.py", line 1317, in mkdir
+    self.parent.mkdir(parents=True, exist_ok=True)
+  File "/usr/lib/python3.12/pathlib.py", line 1313, in mkdir
+    os.mkdir(self, mode)
+PermissionError: [Errno 13] Permission denied: '/run/user/1002'
+restored production profile rejected installed network=none
+
+--- direct packaged remote SFTP read-only ---
+{"extensions": ["copy-data", "expand-path@openssh.com", "fstatvfs@openssh.com", "fsync@openssh.com", "hardlink@openssh.com", "home-directory", "limits@openssh.com", "lsetstat@openssh.com", "posix-rename@openssh.com", "statvfs@openssh.com", "users-groups-by-id@openssh.com"], "operations": ["INIT", "VERSION", "REALPATH", "STAT", "LSTAT", "OPENDIR", "READDIR", "CLOSE"], "read_write": false, "root": "/project", "root_entries": 3, "version": 3}
+
+PASS SFTP read-only ubuntu24 package=b033565faad776d2bfd4e887261e14fef70e0a354c75e45e296d11729d058168 rc=0
+
+--- direct packaged remote SFTP read-write ---
+{"extensions": ["copy-data", "expand-path@openssh.com", "fstatvfs@openssh.com", "fsync@openssh.com", "hardlink@openssh.com", "home-directory", "limits@openssh.com", "lsetstat@openssh.com", "posix-rename@openssh.com", "statvfs@openssh.com", "users-groups-by-id@openssh.com"], "operations": ["INIT", "VERSION", "REALPATH", "STAT", "LSTAT", "OPENDIR", "READDIR", "CLOSE", "OPEN", "WRITE", "READ", "REMOVE"], "read_write": true, "root": "/project", "root_entries": 3, "version": 3}
+Warning: The unit file, source configuration file or drop-ins of astral-project-broker.service changed on disk. Run 'systemctl daemon-reload' to reload units.
+
+PASS SFTP read-write ubuntu24 package=b033565faad776d2bfd4e887261e14fef70e0a354c75e45e296d11729d058168 rc=0
+
+--- installed doctor and audit privacy ---
 {"alive":true,"dependencies":{"cbor2":"5.6.2","cryptography":"41.0.7"},"hardening":{"enforced":true,"landlock_abi":4,"landlock_available":true,"reason":"Landlock and process hardening enforced","required":true},"state_version":1}
-{"export":"{\"event_id\":\"c653444b-14e8-4dcc-aa29-d2ca6efcd3f6\",\"kind\":\"hardening.status\",\"occurred_at\":1787889069,\"payload\":{\"enforced\":false,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock available but not applied\",\"required\":true},\"previous_event_id\":null,\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"daemon\"}\n{\"event_id\":\"addd4481-4a39-4b1a-8657-8a4915d72f12\",\"kind\":\"hardening.status\",\"occurred_at\":1787889156,\"payload\":{\"enforced\":false,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock available but not applied\",\"required\":true},\"previous_event_id\":\"c653444b-14e8-4dcc-aa29-d2ca6efcd3f6\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"daemon\"}\n{\"event_id\":\"59da5886-0ba0-4a57-bce2-2a564ba7b116\",\"kind\":\"hardening.status\",\"occurred_at\":1787889165,\"payload\":{\"enforced\":false,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock available but not applied\",\"required\":true},\"previous_event_id\":\"addd4481-4a39-4b1a-8657-8a4915d72f12\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"daemon\"}\n{\"event_id\":\"374f0e5d-1740-4db5-a04b-292909317879\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787891171,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"59da5886-0ba0-4a57-bce2-2a564ba7b116\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"c7375761-bb7b-4144-8b37-6e423c4ffb7d\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787891192,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"374f0e5d-1740-4db5-a04b-292909317879\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"e2c74443-5d91-48d5-8309-4ea7d697b257\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787891199,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"c7375761-bb7b-4144-8b37-6e423c4ffb7d\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"61a4bafd-fd6b-425c-bb4e-572b94d2d2b9\",\"kind\":\"hardening.status\",\"occurred_at\":1787891218,\"payload\":{\"enforced\":false,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock available but not applied\",\"required\":true},\"previous_event_id\":\"e2c74443-5d91-48d5-8309-4ea7d697b257\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"daemon\"}\n{\"event_id\":\"1357fce1-0e94-42a4-8119-897e55fe5bd5\",\"kind\":\"hardening.enforced\",\"occurred_at\":1787891218,\"payload\":{\"enforced\":true,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock and process hardening enforced\",\"required\":true},\"previous_event_id\":\"61a4bafd-fd6b-425c-bb4e-572b94d2d2b9\",\"schema_version\":1,\"subject_id\":\"local-daemon\",\"subject_type\":\"process\"}\n{\"event_id\":\"6c1367a2-a390-4013-9b64-6afcaa22ddb7\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787916182,\"payload\":{\"network\":\"inherit\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"1357fce1-0e94-42a4-8119-897e55fe5bd5\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"ae97dc4b-4552-4db7-9c33-414c28959753\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787916183,\"payload\":{\"network\":\"none\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"6c1367a2-a390-4013-9b64-6afcaa22ddb7\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"7db4ee1e-a9a1-41cb-9ac0-d62412626df0\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787916205,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"ae97dc4b-4552-4db7-9c33-414c28959753\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"18b59c5a-dc7d-41ed-a552-80adf16763f4\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787916227,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"7db4ee1e-a9a1-41cb-9ac0-d62412626df0\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"4a817952-fb45-4cbe-ac2f-f0211906bc76\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787916233,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"18b59c5a-dc7d-41ed-a552-80adf16763f4\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"eb6456b5-08f5-4015-b89c-a278bededa05\",\"kind\":\"hardening.status\",\"occurred_at\":1787916244,\"payload\":{\"enforced\":false,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock available but not applied\",\"required\":true},\"previous_event_id\":\"4a817952-fb45-4cbe-ac2f-f0211906bc76\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"daemon\"}\n{\"event_id\":\"d583d237-0218-4d80-b88c-3e419f2f49ac\",\"kind\":\"hardening.enforced\",\"occurred_at\":1787916244,\"payload\":{\"enforced\":true,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock and process hardening enforced\",\"required\":true},\"previous_event_id\":\"eb6456b5-08f5-4015-b89c-a278bededa05\",\"schema_version\":1,\"subject_id\":\"local-daemon\",\"subject_type\":\"process\"}\n{\"event_id\":\"36e66905-68ed-44f4-b566-b8b698a4b972\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787917135,\"payload\":{\"network\":\"inherit\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"d583d237-0218-4d80-b88c-3e419f2f49ac\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"b5578607-d134-4ef8-98b2-0037202f0de9\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787917136,\"payload\":{\"network\":\"none\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"36e66905-68ed-44f4-b566-b8b698a4b972\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"b6ab97ef-b0d3-4b53-bebb-de9cc1ef6188\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787917158,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"b5578607-d134-4ef8-98b2-0037202f0de9\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"8648ae98-ac9c-41b8-9154-0d010adb4555\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787917179,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"b6ab97ef-b0d3-4b53-bebb-de9cc1ef6188\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"943975df-76cb-418f-ac1d-3159d2038883\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787917186,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"8648ae98-ac9c-41b8-9154-0d010adb4555\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"355f51dd-73b9-4aa5-a4d5-685526a31b72\",\"kind\":\"hardening.status\",\"occurred_at\":1787917200,\"payload\":{\"enforced\":false,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock available but not applied\",\"required\":true},\"previous_event_id\":\"943975df-76cb-418f-ac1d-3159d2038883\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"daemon\"}\n{\"event_id\":\"9fc5e3e6-b8c6-4f58-ac82-d227e8cd0cfa\",\"kind\":\"hardening.enforced\",\"occurred_at\":1787917200,\"payload\":{\"enforced\":true,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock and process hardening enforced\",\"required\":true},\"previous_event_id\":\"355f51dd-73b9-4aa5-a4d5-685526a31b72\",\"schema_version\":1,\"subject_id\":\"local-daemon\",\"subject_type\":\"process\"}\n{\"event_id\":\"d7fb24cc-9f8f-493c-bde7-4c0869c180b5\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787917925,\"payload\":{\"network\":\"inherit\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"9fc5e3e6-b8c6-4f58-ac82-d227e8cd0cfa\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"1c2d1867-d921-4d1b-9e4e-91811fe82a8d\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787917925,\"payload\":{\"network\":\"none\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"d7fb24cc-9f8f-493c-bde7-4c0869c180b5\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"bd207541-4571-49e1-8074-ef43deee28f9\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787917947,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"1c2d1867-d921-4d1b-9e4e-91811fe82a8d\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"e354b058-9e52-458b-8d75-6810a7c8c576\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787917969,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"bd207541-4571-49e1-8074-ef43deee28f9\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"f8500314-6462-4338-9349-7d8d19c1bb37\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787917975,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"e354b058-9e52-458b-8d75-6810a7c8c576\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"58e3065e-297c-496c-9696-5c651441bb21\",\"kind\":\"hardening.status\",\"occurred_at\":1787917987,\"payload\":{\"enforced\":false,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock available but not applied\",\"required\":true},\"previous_event_id\":\"f8500314-6462-4338-9349-7d8d19c1bb37\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"daemon\"}\n{\"event_id\":\"d0ff25f0-bcff-43b2-8380-8e1c1d559308\",\"kind\":\"hardening.enforced\",\"occurred_at\":1787917987,\"payload\":{\"enforced\":true,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock and process hardening enforced\",\"required\":true},\"previous_event_id\":\"58e3065e-297c-496c-9696-5c651441bb21\",\"schema_version\":1,\"subject_id\":\"local-daemon\",\"subject_type\":\"process\"}\n{\"event_id\":\"22a03090-8de4-4404-bad3-50f98ad38aca\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787918423,\"payload\":{\"network\":\"inherit\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"d0ff25f0-bcff-43b2-8380-8e1c1d559308\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"0b88b889-aba8-4ca3-b095-eb20110123b6\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787918423,\"payload\":{\"network\":\"none\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"22a03090-8de4-4404-bad3-50f98ad38aca\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"6fff77cd-8d58-4aa2-8d10-d7dc8502e185\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787918445,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"0b88b889-aba8-4ca3-b095-eb20110123b6\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"a850c8a1-a724-4d35-a761-7d054943e881\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787918467,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"6fff77cd-8d58-4aa2-8d10-d7dc8502e185\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"9f6f88d4-226b-49be-b7e5-fa5f17e919e7\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787918473,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"a850c8a1-a724-4d35-a761-7d054943e881\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"7fabe699-1a60-4f7a-9bde-61c8623577c6\",\"kind\":\"hardening.status\",\"occurred_at\":1787918488,\"payload\":{\"enforced\":false,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock available but not applied\",\"required\":true},\"previous_event_id\":\"9f6f88d4-226b-49be-b7e5-fa5f17e919e7\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"daemon\"}\n{\"event_id\":\"b7365464-7273-485d-aaf3-56f02d257785\",\"kind\":\"hardening.enforced\",\"occurred_at\":1787918488,\"payload\":{\"enforced\":true,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock and process hardening enforced\",\"required\":true},\"previous_event_id\":\"7fabe699-1a60-4f7a-9bde-61c8623577c6\",\"schema_version\":1,\"subject_id\":\"local-daemon\",\"subject_type\":\"process\"}\n{\"event_id\":\"3510c035-8d68-4cd6-979d-63024f87c0f5\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787919000,\"payload\":{\"network\":\"inherit\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"b7365464-7273-485d-aaf3-56f02d257785\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"0f3f06ea-a12c-47b8-81fe-d3c2e35fee7b\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787919001,\"payload\":{\"network\":\"none\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"3510c035-8d68-4cd6-979d-63024f87c0f5\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"17ae8c09-5e96-4b28-a84f-ee3599b1bbfd\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787919023,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"0f3f06ea-a12c-47b8-81fe-d3c2e35fee7b\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"80c128a9-6735-486a-8dd6-7f3f9da91a51\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787919044,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"17ae8c09-5e96-4b28-a84f-ee3599b1bbfd\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"66920556-7197-456d-bca0-54a1c0f628c2\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787919050,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"80c128a9-6735-486a-8dd6-7f3f9da91a51\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"0cb8cf5a-245f-47b6-92c4-5f6a7cd27384\",\"kind\":\"hardening.status\",\"occurred_at\":1787919063,\"payload\":{\"enforced\":false,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock available but not applied\",\"required\":true},\"previous_event_id\":\"66920556-7197-456d-bca0-54a1c0f628c2\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"daemon\"}\n{\"event_id\":\"cd41b62c-1aac-4578-930f-f24171fdf374\",\"kind\":\"hardening.enforced\",\"occurred_at\":1787919063,\"payload\":{\"enforced\":true,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock and process hardening enforced\",\"required\":true},\"previous_event_id\":\"0cb8cf5a-245f-47b6-92c4-5f6a7cd27384\",\"schema_version\":1,\"subject_id\":\"local-daemon\",\"subject_type\":\"process\"}\n{\"event_id\":\"6f5cef80-f8cc-431a-907a-b00aaa7d0d43\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787919486,\"payload\":{\"network\":\"inherit\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"cd41b62c-1aac-4578-930f-f24171fdf374\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"87c25991-3685-459f-883c-2eb7eb80ce2b\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787919487,\"payload\":{\"network\":\"none\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"6f5cef80-f8cc-431a-907a-b00aaa7d0d43\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"2bb427ed-8443-42a1-9157-465411dcfe05\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787919509,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"87c25991-3685-459f-883c-2eb7eb80ce2b\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"bdc5a612-0f32-4a6e-bc76-15690c72a5ce\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787919530,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"2bb427ed-8443-42a1-9157-465411dcfe05\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"2f58aede-ac9c-4403-ab60-97bfdc5c9ae0\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787919537,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"bdc5a612-0f32-4a6e-bc76-15690c72a5ce\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"1892708b-3d02-4803-8502-2cc1928b6f5a\",\"kind\":\"hardening.status\",\"occurred_at\":1787919549,\"payload\":{\"enforced\":false,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock available but not applied\",\"required\":true},\"previous_event_id\":\"2f58aede-ac9c-4403-ab60-97bfdc5c9ae0\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"daemon\"}\n{\"event_id\":\"2021939d-d654-4422-97e2-a241319d7edf\",\"kind\":\"hardening.enforced\",\"occurred_at\":1787919549,\"payload\":{\"enforced\":true,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock and process hardening enforced\",\"required\":true},\"previous_event_id\":\"1892708b-3d02-4803-8502-2cc1928b6f5a\",\"schema_version\":1,\"subject_id\":\"local-daemon\",\"subject_type\":\"process\"}\n{\"event_id\":\"5bd613cf-64e8-4b49-8816-05a983de31e8\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787919628,\"payload\":{\"network\":\"inherit\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"2021939d-d654-4422-97e2-a241319d7edf\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"31ba0876-0b42-4f22-a7c5-688e80fbda71\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787919629,\"payload\":{\"network\":\"none\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"5bd613cf-64e8-4b49-8816-05a983de31e8\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"8d7e7149-fcc8-4b9c-9a56-651d3bdecda0\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787919651,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"31ba0876-0b42-4f22-a7c5-688e80fbda71\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"a373225f-cd1b-4c00-941b-3383f1b63092\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787919673,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"8d7e7149-fcc8-4b9c-9a56-651d3bdecda0\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"9e7a2b1b-2f6d-47e8-b2c0-8e9b24ec62a1\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787919679,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"a373225f-cd1b-4c00-941b-3383f1b63092\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"7ff26581-c194-4ac3-9beb-54bf3d31f034\",\"kind\":\"hardening.status\",\"occurred_at\":1787919690,\"payload\":{\"enforced\":false,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock available but not applied\",\"required\":true},\"previous_event_id\":\"9e7a2b1b-2f6d-47e8-b2c0-8e9b24ec62a1\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"daemon\"}\n{\"event_id\":\"a6c9844e-5bde-4f80-8ce8-50e30a501fa2\",\"kind\":\"hardening.enforced\",\"occurred_at\":1787919690,\"payload\":{\"enforced\":true,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock and process hardening enforced\",\"required\":true},\"previous_event_id\":\"7ff26581-c194-4ac3-9beb-54bf3d31f034\",\"schema_version\":1,\"subject_id\":\"local-daemon\",\"subject_type\":\"process\"}\n{\"event_id\":\"e9565bf3-3f20-4b39-9221-e0c61ec2874e\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787920104,\"payload\":{\"network\":\"inherit\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"a6c9844e-5bde-4f80-8ce8-50e30a501fa2\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"d132c58b-aec3-4200-9e43-144c21f22bab\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787920105,\"payload\":{\"network\":\"none\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"e9565bf3-3f20-4b39-9221-e0c61ec2874e\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"4516d492-09a2-492d-b093-75bae20fe88d\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787920126,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"d132c58b-aec3-4200-9e43-144c21f22bab\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"6c56d335-eb0c-4244-85b7-94e1e0bf9200\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787920148,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"4516d492-09a2-492d-b093-75bae20fe88d\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"63450a75-a410-4b5b-8873-88d2e7aaae2d\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787920154,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"6c56d335-eb0c-4244-85b7-94e1e0bf9200\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"bc6c01ed-1b72-4c2e-bef6-f33a8f7979dc\",\"kind\":\"hardening.status\",\"occurred_at\":1787920169,\"payload\":{\"enforced\":false,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock available but not applied\",\"required\":true},\"previous_event_id\":\"63450a75-a410-4b5b-8873-88d2e7aaae2d\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"daemon\"}\n{\"event_id\":\"2217a5a9-aee6-4590-9e8a-82da8ff4e967\",\"kind\":\"hardening.enforced\",\"occurred_at\":1787920169,\"payload\":{\"enforced\":true,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock and process hardening enforced\",\"required\":true},\"previous_event_id\":\"bc6c01ed-1b72-4c2e-bef6-f33a8f7979dc\",\"schema_version\":1,\"subject_id\":\"local-daemon\",\"subject_type\":\"process\"}\n{\"event_id\":\"628ee3e0-a0d0-4e5f-9ac8-78343fe676db\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787920534,\"payload\":{\"network\":\"inherit\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"2217a5a9-aee6-4590-9e8a-82da8ff4e967\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"70e847e1-250e-4873-8503-054c84c54a53\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787920535,\"payload\":{\"network\":\"none\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"628ee3e0-a0d0-4e5f-9ac8-78343fe676db\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"9133a991-bd4a-455c-a630-8409bebf3211\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787920556,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"70e847e1-250e-4873-8503-054c84c54a53\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"2cb4f199-f3f6-4804-a440-6e27270368cb\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787920578,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"9133a991-bd4a-455c-a630-8409bebf3211\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"e8ab4989-25b7-4b09-a5e9-8532910e0dd6\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787920584,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"2cb4f199-f3f6-4804-a440-6e27270368cb\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"506cbe20-5cdf-49ab-84cc-077ca98c9512\",\"kind\":\"hardening.status\",\"occurred_at\":1787920597,\"payload\":{\"enforced\":false,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock available but not applied\",\"required\":true},\"previous_event_id\":\"e8ab4989-25b7-4b09-a5e9-8532910e0dd6\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"daemon\"}\n{\"event_id\":\"d2093042-23c1-4707-a9bd-4b8ce67028f5\",\"kind\":\"hardening.enforced\",\"occurred_at\":1787920597,\"payload\":{\"enforced\":true,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock and process hardening enforced\",\"required\":true},\"previous_event_id\":\"506cbe20-5cdf-49ab-84cc-077ca98c9512\",\"schema_version\":1,\"subject_id\":\"local-daemon\",\"subject_type\":\"process\"}\n{\"event_id\":\"8296d0b0-138e-4d3f-88bd-b6c5ba60e268\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787921591,\"payload\":{\"network\":\"inherit\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"d2093042-23c1-4707-a9bd-4b8ce67028f5\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"9f5091d4-35b7-4c77-9704-cb0db50bbd19\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787921591,\"payload\":{\"network\":\"none\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"8296d0b0-138e-4d3f-88bd-b6c5ba60e268\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"2d936979-2852-4c58-bc17-83491cc8ebda\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787921613,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"9f5091d4-35b7-4c77-9704-cb0db50bbd19\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"a222d748-2558-4eaa-b70e-2a5cbdb1b05c\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787921635,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"2d936979-2852-4c58-bc17-83491cc8ebda\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"831eda9f-ae6f-496e-becc-43e29b725cb6\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787921641,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"a222d748-2558-4eaa-b70e-2a5cbdb1b05c\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"d02b966a-6211-4c88-9941-fdd454de32f9\",\"kind\":\"hardening.status\",\"occurred_at\":1787921655,\"payload\":{\"enforced\":false,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock available but not applied\",\"required\":true},\"previous_event_id\":\"831eda9f-ae6f-496e-becc-43e29b725cb6\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"daemon\"}\n{\"event_id\":\"78ced676-4214-43f0-a9f3-f5ab6a107863\",\"kind\":\"hardening.enforced\",\"occurred_at\":1787921655,\"payload\":{\"enforced\":true,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock and process hardening enforced\",\"required\":true},\"previous_event_id\":\"d02b966a-6211-4c88-9941-fdd454de32f9\",\"schema_version\":1,\"subject_id\":\"local-daemon\",\"subject_type\":\"process\"}\n{\"event_id\":\"41793be2-0df3-40cc-87ad-0480142350ac\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787921776,\"payload\":{\"network\":\"inherit\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"78ced676-4214-43f0-a9f3-f5ab6a107863\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"12c7acba-aa9b-462f-ae9d-43c46e44b7fd\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787921776,\"payload\":{\"network\":\"none\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"41793be2-0df3-40cc-87ad-0480142350ac\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"02c515fb-5e18-43a9-b61c-2f67c223112c\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787921798,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"12c7acba-aa9b-462f-ae9d-43c46e44b7fd\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"21821f36-56a6-4225-940d-521d5d5a1ebb\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787921820,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"02c515fb-5e18-43a9-b61c-2f67c223112c\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"fd94e48e-b744-4d46-b052-40b404eb2fb6\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787921826,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"21821f36-56a6-4225-940d-521d5d5a1ebb\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"0b2ef8e3-f5c8-46d3-a346-613d0632c56a\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787921949,\"payload\":{\"network\":\"inherit\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"fd94e48e-b744-4d46-b052-40b404eb2fb6\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"f90f4db4-bde2-4861-b551-cb18c98368eb\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787921950,\"payload\":{\"network\":\"none\",\"path\":\"sha256:5e2732b24695dfe0839db0336238cecccbc6f8400fd074dfd15aa6fbf847bcc7\",\"remote_count\":0},\"previous_event_id\":\"0b2ef8e3-f5c8-46d3-a346-613d0632c56a\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"16eaff2f-6ba7-469b-b080-48946ca286ba\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787921972,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"f90f4db4-bde2-4861-b551-cb18c98368eb\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"91f89573-a0a1-4c58-9fd9-c385a9396b76\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787921994,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"16eaff2f-6ba7-469b-b080-48946ca286ba\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"6530b3e0-ec72-4d00-bb5c-51197640320b\",\"kind\":\"sandbox.launch\",\"occurred_at\":1787922000,\"payload\":{\"network\":\"none\",\"path\":\"sha256:9c51b36773cca10e10774737786e47c87a0a59ea036b5bef2a6732877ba80b8a\",\"remote_count\":0},\"previous_event_id\":\"91f89573-a0a1-4c58-9fd9-c385a9396b76\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"sandbox\"}\n{\"event_id\":\"740c650b-0083-4ef1-9cfa-973611552f58\",\"kind\":\"hardening.status\",\"occurred_at\":1787922014,\"payload\":{\"enforced\":false,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock available but not applied\",\"required\":true},\"previous_event_id\":\"6530b3e0-ec72-4d00-bb5c-51197640320b\",\"schema_version\":1,\"subject_id\":\"local\",\"subject_type\":\"daemon\"}\n{\"event_id\":\"3cbcb4f7-719e-4956-ae9d-04da22cbc717\",\"kind\":\"hardening.enforced\",\"occurred_at\":1787922014,\"payload\":{\"enforced\":true,\"landlock_abi\":4,\"landlock_available\":true,\"reason\":\"Landlock and process hardening enforced\",\"required\":true},\"previous_event_id\":\"740c650b-0083-4ef1-9cfa-973611552f58\",\"schema_version\":1,\"subject_id\":\"local-daemon\",\"subject_type\":\"process\"}\n"}
 remote_secret_rejection=passed
 remote_audit_mode=600
-remote_redacted={"event_id":"7b131d87-5361-4575-bb7f-b88965923ff7","kind":"server.session","occurred_at":1787889230,"payload":{"path":"<redacted>","result":"accepted"},"previous_event_id":null,"schema_version":1,"subject_id":"vm24","subject_type":"session"}
-{"event_id":"12d7846e-bbb0-42c0-b09b-5fa1f9d9a2bb","kind":"server.session","occurred_at":1787891220,"payload":{"path":"<redacted>","result":"accepted"},"previous_event_id":"7b131d87-5361-4575-bb7f-b88965923ff7","schema_version":1,"subject_id":"vm24-final","subject_type":"session"}
-{"event_id":"e2e6b9d2-4ecb-4d20-ae8e-291d0919bcfa","kind":"server.session","occurred_at":1787916247,"payload":{"path":"<redacted>","result":"accepted"},"previous_event_id":"12d7846e-bbb0-42c0-b09b-5fa1f9d9a2bb","schema_version":1,"subject_id":"vm24-final2","subject_type":"session"}
-{"event_id":"6dbc65f5-8efe-431c-8b9b-33b195914313","kind":"server.session","occurred_at":1787917202,"payload":{"path":"<redacted>","result":"accepted"},"previous_event_id":"e2e6b9d2-4ecb-4d20-ae8e-291d0919bcfa","schema_version":1,"subject_id":"vm24-final3","subject_type":"session"}
-{"event_id":"d4fbe474-8729-45af-bccf-06406c8153de","kind":"server.session","occurred_at":1787917990,"payload":{"path":"<redacted>","result":"accepted"},"previous_event_id":"6dbc65f5-8efe-431c-8b9b-33b195914313","schema_version":1,"subject_id":"vm24-final4","subject_type":"session"}
-{"event_id":"7fdfb5c6-c914-4cc9-8aa7-5db9aee969e4","kind":"server.session","occurred_at":1787918490,"payload":{"path":"<redacted>","result":"accepted"},"previous_event_id":"d4fbe474-8729-45af-bccf-06406c8153de","schema_version":1,"subject_id":"vm24-final5","subject_type":"session"}
-{"event_id":"fb167454-015c-46ce-ab9d-79b4eaa8adc4","kind":"server.session","occurred_at":1787919066,"payload":{"path":"<redacted>","result":"accepted"},"previous_event_id":"7fdfb5c6-c914-4cc9-8aa7-5db9aee969e4","schema_version":1,"subject_id":"vm24-final6","subject_type":"session"}
-{"event_id":"83d33c01-7f22-46c4-8d97-13863f7a6b5c","kind":"server.session","occurred_at":1787919552,"payload":{"path":"<redacted>","result":"accepted"},"previous_event_id":"fb167454-015c-46ce-ab9d-79b4eaa8adc4","schema_version":1,"subject_id":"vm24-final7","subject_type":"session"}
-{"event_id":"e1993f44-c58a-4e3f-95a5-50947352c281","kind":"server.session","occurred_at":1787919693,"payload":{"path":"<redacted>","result":"accepted"},"previous_event_id":"83d33c01-7f22-46c4-8d97-13863f7a6b5c","schema_version":1,"subject_id":"vm24-final8","subject_type":"session"}
-{"event_id":"5e917143-cc09-4ed0-896d-1e31323e4615","kind":"server.session","occurred_at":1787920172,"payload":{"path":"<redacted>","result":"accepted"},"previous_event_id":"e1993f44-c58a-4e3f-95a5-50947352c281","schema_version":1,"subject_id":"vm24-final9","subject_type":"session"}
-{"event_id":"37659a36-39e6-4a6f-b8a2-543d44c614cd","kind":"server.session","occurred_at":1787920600,"payload":{"path":"<redacted>","result":"accepted"},"previous_event_id":"5e917143-cc09-4ed0-896d-1e31323e4615","schema_version":1,"subject_id":"vm24-final10","subject_type":"session"}
-{"event_id":"5647ee58-c73c-4b4c-8a9a-8fa7456f8f07","kind":"server.session","occurred_at":1787921658,"payload":{"path":"<redacted>","result":"accepted"},"previous_event_id":"37659a36-39e6-4a6f-b8a2-543d44c614cd","schema_version":1,"subject_id":"vm24-final11","subject_type":"session"}
-{"event_id":"356634e1-933c-4504-a72c-16e67681a0a9","kind":"server.session","occurred_at":1787922016,"payload":{"path":"<redacted>","result":"accepted"},"previous_event_id":"5647ee58-c73c-4b4c-8a9a-8fa7456f8f07","schema_version":1,"subject_id":"vm24-final12","subject_type":"session"}
-remote_hashed={"event_id":"7b131d87-5361-4575-bb7f-b88965923ff7","kind":"server.session","occurred_at":1787889230,"payload":{"path":"sha256:4ad31b31998673d416d98575bcb234477372b14db707ef2f587514bc5af0ac19","result":"accepted"},"previous_event_id":null,"schema_version":1,"subject_id":"vm24","subject_type":"session"}
-{"event_id":"12d7846e-bbb0-42c0-b09b-5fa1f9d9a2bb","kind":"server.session","occurred_at":1787891220,"payload":{"path":"sha256:4ad31b31998673d416d98575bcb234477372b14db707ef2f587514bc5af0ac19","result":"accepted"},"previous_event_id":"7b131d87-5361-4575-bb7f-b88965923ff7","schema_version":1,"subject_id":"vm24-final","subject_type":"session"}
-{"event_id":"e2e6b9d2-4ecb-4d20-ae8e-291d0919bcfa","kind":"server.session","occurred_at":1787916247,"payload":{"path":"sha256:4ad31b31998673d416d98575bcb234477372b14db707ef2f587514bc5af0ac19","result":"accepted"},"previous_event_id":"12d7846e-bbb0-42c0-b09b-5fa1f9d9a2bb","schema_version":1,"subject_id":"vm24-final2","subject_type":"session"}
-{"event_id":"6dbc65f5-8efe-431c-8b9b-33b195914313","kind":"server.session","occurred_at":1787917202,"payload":{"path":"sha256:4ad31b31998673d416d98575bcb234477372b14db707ef2f587514bc5af0ac19","result":"accepted"},"previous_event_id":"e2e6b9d2-4ecb-4d20-ae8e-291d0919bcfa","schema_version":1,"subject_id":"vm24-final3","subject_type":"session"}
-{"event_id":"d4fbe474-8729-45af-bccf-06406c8153de","kind":"server.session","occurred_at":1787917990,"payload":{"path":"sha256:4ad31b31998673d416d98575bcb234477372b14db707ef2f587514bc5af0ac19","result":"accepted"},"previous_event_id":"6dbc65f5-8efe-431c-8b9b-33b195914313","schema_version":1,"subject_id":"vm24-final4","subject_type":"session"}
-{"event_id":"7fdfb5c6-c914-4cc9-8aa7-5db9aee969e4","kind":"server.session","occurred_at":1787918490,"payload":{"path":"sha256:4ad31b31998673d416d98575bcb234477372b14db707ef2f587514bc5af0ac19","result":"accepted"},"previous_event_id":"d4fbe474-8729-45af-bccf-06406c8153de","schema_version":1,"subject_id":"vm24-final5","subject_type":"session"}
-{"event_id":"fb167454-015c-46ce-ab9d-79b4eaa8adc4","kind":"server.session","occurred_at":1787919066,"payload":{"path":"sha256:4ad31b31998673d416d98575bcb234477372b14db707ef2f587514bc5af0ac19","result":"accepted"},"previous_event_id":"7fdfb5c6-c914-4cc9-8aa7-5db9aee969e4","schema_version":1,"subject_id":"vm24-final6","subject_type":"session"}
-{"event_id":"83d33c01-7f22-46c4-8d97-13863f7a6b5c","kind":"server.session","occurred_at":1787919552,"payload":{"path":"sha256:4ad31b31998673d416d98575bcb234477372b14db707ef2f587514bc5af0ac19","result":"accepted"},"previous_event_id":"fb167454-015c-46ce-ab9d-79b4eaa8adc4","schema_version":1,"subject_id":"vm24-final7","subject_type":"session"}
-{"event_id":"e1993f44-c58a-4e3f-95a5-50947352c281","kind":"server.session","occurred_at":1787919693,"payload":{"path":"sha256:4ad31b31998673d416d98575bcb234477372b14db707ef2f587514bc5af0ac19","result":"accepted"},"previous_event_id":"83d33c01-7f22-46c4-8d97-13863f7a6b5c","schema_version":1,"subject_id":"vm24-final8","subject_type":"session"}
-{"event_id":"5e917143-cc09-4ed0-896d-1e31323e4615","kind":"server.session","occurred_at":1787920172,"payload":{"path":"sha256:4ad31b31998673d416d98575bcb234477372b14db707ef2f587514bc5af0ac19","result":"accepted"},"previous_event_id":"e1993f44-c58a-4e3f-95a5-50947352c281","schema_version":1,"subject_id":"vm24-final9","subject_type":"session"}
-{"event_id":"37659a36-39e6-4a6f-b8a2-543d44c614cd","kind":"server.session","occurred_at":1787920600,"payload":{"path":"sha256:4ad31b31998673d416d98575bcb234477372b14db707ef2f587514bc5af0ac19","result":"accepted"},"previous_event_id":"5e917143-cc09-4ed0-896d-1e31323e4615","schema_version":1,"subject_id":"vm24-final10","subject_type":"session"}
-{"event_id":"5647ee58-c73c-4b4c-8a9a-8fa7456f8f07","kind":"server.session","occurred_at":1787921658,"payload":{"path":"sha256:4ad31b31998673d416d98575bcb234477372b14db707ef2f587514bc5af0ac19","result":"accepted"},"previous_event_id":"37659a36-39e6-4a6f-b8a2-543d44c614cd","schema_version":1,"subject_id":"vm24-final11","subject_type":"session"}
-{"event_id":"356634e1-933c-4504-a72c-16e67681a0a9","kind":"server.session","occurred_at":1787922016,"payload":{"path":"sha256:4ad31b31998673d416d98575bcb234477372b14db707ef2f587514bc5af0ac19","result":"accepted"},"previous_event_id":"5647ee58-c73c-4b4c-8a9a-8fa7456f8f07","schema_version":1,"subject_id":"vm24-final12","subject_type":"session"}
+remote_redacted={"event_id":"b55b7daa-b321-4a08-927b-0a8c9e58f1fd","kind":"server.session","occurred_at":1787923732,"payload":{"path":"<redacted>","result":"accepted"},"previous_event_id":"affb147f-260d-4557-89fc-6a93093cb940","schema_version":1,"subject_id":"vm24-final15","subject_type":"session"}
+remote_hashed={"event_id":"b55b7daa-b321-4a08-927b-0a8c9e58f1fd","kind":"server.session","occurred_at":1787923732,"payload":{"path":"sha256:4ad31b31998673d416d98575bcb234477372b14db707ef2f587514bc5af0ac19","result":"accepted"},"previous_event_id":"affb147f-260d-4557-89fc-6a93093cb940","schema_version":1,"subject_id":"vm24-final15","subject_type":"session"}
 
 PASS packet-37-38 ubuntu24 audit-doctor-redaction
