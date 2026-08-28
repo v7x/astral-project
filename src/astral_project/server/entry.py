@@ -96,7 +96,11 @@ def run_ssh_entry(
                 "session.remote.verified",
                 "session",
                 request.session_id.value,
-                {"transport_key_id": transport_key_id},
+                {
+                    "transport_key_id": transport_key_id,
+                    "grant_id": request.signed_grant.grant.grant_id.value,
+                    "host_id": active_trust.host_id.value,
+                },
                 occurred_at=int(time.time()) if now is None else now,
             )
         if after_verification is not None:
