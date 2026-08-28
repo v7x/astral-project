@@ -6,12 +6,12 @@ Final installed candidate artifact:
 
 ```text
 artifact: astral-project_0.1.0_amd64.deb
-sha256: 53ef87638ba66a21a1e037b2d79da8af34c348094fe9f44995fc1a3aa670ac1c
+sha256: 3fd1e07ad564d5794d4bd441b0be3fa8d9da1a7c9691ae3df59ed76bccfd1c20
 ```
 
 The artifact was rebuilt from the closure source tree after the final Landlock,
 process-entrypoint, audit-protocol, and profile-audit-sink changes. The final
-source closure commit is `32e1809da8918c1bdce6026aafc0b95ae0238c1a`. Later
+source closure commit is `32e18095ae01369804fb1178a2a8e715c4da2aeb`. Later
 commits are evidence-only; `packet-37-38-local-validation.txt` records the
 source-tree equivalence check from that closure through the final evidence HEAD.
 
@@ -34,7 +34,7 @@ python scripts/parser_fuzz.py           passed
 Immutable local validation transcript:
 
 ```text
-packet-37-38-local-validation.txt  359c600308746bb5db655608f633684cee3d05ed65a61b76695c76f739bbde51
+packet-37-38-local-validation.txt  10d04719c7bcf4e936b8817bcb38061bb2b34da8cce4b27fed493c8c37ecb5fb
 ```
 
 The full suite includes audit schema, path redaction and hashing, malformed-old-
@@ -57,8 +57,8 @@ end with an explicit PASS marker:
 Raw transcript SHA-256 values:
 
 ```text
-packet-37-38-ubuntu24-raw.txt  0434e7a60046580f1a4d7b7d7982911ba1880b61f95dae0bdfcf1096647caf86
-packet-37-38-ubuntu26-raw.txt  ef1621b52bde1c40fc4a99b4999492885d02424610b1c8079ab195879ec86951
+packet-37-38-ubuntu24-raw.txt  9fea2ae8929b6508fc490c9287320a3e74d59296c2ba786a34e42a43b82b5171
+packet-37-38-ubuntu26-raw.txt  0db613bb179e98d697a8cd153b533e96e5adae49bfe5f16727817918dfbf42fa
 ```
 
 Both installed runs passed the existing mount-namespace/AppArmor capability
