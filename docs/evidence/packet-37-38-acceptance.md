@@ -6,7 +6,7 @@ Final installed candidate artifact:
 
 ```text
 artifact: astral-project_0.1.0_amd64.deb
-sha256: ddda52060b6ee972b80bb2d67b26b5952437d9382ba40fcb0a54f86d9cbf839b
+sha256: 3c64bb78d45a274fce4e95bb540d45ca460ab2d96e296b8affdb2fd3ddace24d
 ```
 
 The artifact was rebuilt from the closure source tree after the final Landlock,
@@ -34,7 +34,7 @@ python scripts/parser_fuzz.py           passed
 Immutable local validation transcript:
 
 ```text
-packet-37-38-local-validation.txt  1c7aa44c02387f7e0649549c61d3fd9ec4615b8661608a2f494fb9118c6dfc75
+packet-37-38-local-validation.txt  23a745491ef3035c7746ef22b8cc2ed3d4da1961229b272c0e2d204b1d42933f
 ```
 
 The full suite includes audit schema, path redaction and hashing, malformed-old-
@@ -57,8 +57,8 @@ end with an explicit PASS marker:
 Raw transcript SHA-256 values:
 
 ```text
-packet-37-38-ubuntu24-raw.txt  04872fcbadec49d45febdfe7891c1171cb584f947c37b3aa1f04ebb1cedd7c84
-packet-37-38-ubuntu26-raw.txt  4a006ef4e85a3a909ef914c76838e68a581d62277c22ce90050dcb392ca55caa
+packet-37-38-ubuntu24-raw.txt  092e6ef1120d9292272b9c19f8c03b7ddcd0f284bf5d10eb2f578ca78cc93b83
+packet-37-38-ubuntu26-raw.txt  875c0ef099f94a5c92a7413afe17fe6fa6f419768187b0c270b9e74b58a00037
 ```
 
 Both installed runs passed the existing mount-namespace/AppArmor capability

@@ -28,10 +28,10 @@ $ cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-sandbox-entry.c -o
 PASS native entry compile
 $ cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-mount-worker.c -o /tmp/aspr-mount-worker-packet38
 PASS native mount compile
-$ sha256sum /tmp/packet37-38-build-goal2-final-1787939821/astral-project_0.1.0_amd64.deb
-3a671d5fa7063ea5a154e674a8a41e25782eee67a8bb1fb8a968074f81fd5e42  /tmp/packet37-38-build-goal2-final-1787939821/astral-project_0.1.0_amd64.deb
+$ sha256sum /tmp/packet37-38-build-final-goal-fc1-1787940825/astral-project_0.1.0_amd64.deb
+3c64bb78d45a274fce4e95bb540d45ca460ab2d96e296b8affdb2fd3ddace24d  /tmp/packet37-38-build-final-goal-fc1-1787940825/astral-project_0.1.0_amd64.deb
 $ sha256sum docs/evidence/packet-37-38-ubuntu24-raw.txt docs/evidence/packet-37-38-ubuntu26-raw.txt
-04872fcbadec49d45febdfe7891c1171cb584f947c37b3aa1f04ebb1cedd7c84  docs/evidence/packet-37-38-ubuntu24-raw.txt
-4a006ef4e85a3a909ef914c76838e68a581d62277c22ce90050dcb392ca55caa  docs/evidence/packet-37-38-ubuntu26-raw.txt
+092e6ef1120d9292272b9c19f8c03b7ddcd0f284bf5d10eb2f578ca78cc93b83  docs/evidence/packet-37-38-ubuntu24-raw.txt
+875c0ef099f94a5c92a7413afe17fe6fa6f419768187b0c270b9e74b58a00037  docs/evidence/packet-37-38-ubuntu26-raw.txt
 $ git diff --check
 PASS current verification
