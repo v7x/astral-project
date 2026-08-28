@@ -34,7 +34,7 @@ python scripts/parser_fuzz.py           passed
 Immutable local validation transcript:
 
 ```text
-packet-37-38-local-validation.txt  a48b5b7863a9f8ad647088aeee9db765ff4a569a974e5fd15ee2cb66e8eed765
+packet-37-38-local-validation.txt  d4ba5140ea04fe2c680d072f8846cd632dacb80ef0f29fd5081b7f2054829354
 ```
 
 The full suite includes audit schema, path redaction and hashing, malformed-old-
