@@ -11,7 +11,9 @@ sha256: 7bbfff214c11a3011cb85065c6b4d8a6fb1bd35c58fd0261e7c08b582681c803
 
 The artifact was rebuilt from the closure source tree after the final Landlock,
 process-entrypoint, audit-protocol, and profile-audit-sink changes. The final
-source closure commit is `37fa1318fb6667621de5a6537dd32653e1d96262`.
+source closure commit is `37fa1318fb6667621de5a6537dd32653e1d96262`. Later
+commits are evidence-only; `packet-37-38-local-validation.txt` records the
+source-tree equivalence check from that closure through the final evidence HEAD.
 
 ## Local verification
 
@@ -27,6 +29,12 @@ cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-sandbox-entry.c
 apparmor_parser -Q -K packaging/apparmor/usr.libexec.astral-project.aspr-bwrap-launch
                                         passed
 python scripts/parser_fuzz.py           passed
+```
+
+Immutable local validation transcript:
+
+```text
+packet-37-38-local-validation.txt  962ce9dfcf20d9a3746f269e9a689cbe9724506f08c10ee935465cf336669f1e
 ```
 
 The full suite includes audit schema, path redaction and hashing, malformed-old-
