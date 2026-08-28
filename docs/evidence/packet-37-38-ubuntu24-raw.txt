@@ -335,18 +335,18 @@ audit: type=1400 audit(1787927466.959:15415): apparmor="AUDIT" operation="capabl
 audit: type=1400 audit(1787927466.960:15416): apparmor="AUDIT" operation="mount" class="mount" profile="aspr-bwrap-setup" name="/tmp/" pid=191931 comm="bwrap" fstype="tmpfs" srcname="tmpfs" flags="rw, nosuid, nodev"
 {"audit_serial_baseline": 15407, "normal_audit_records": 8, "normal_setup_capabilities": ["setpcap", "sys_admin"], "normal_setup_operations": ["capable", "mount", "userns_create"], "setup_mount_probe": "passed", "setup_net_admin_negative_probe": "passed", "setup_net_admin_probe": "passed", "setup_net_admin_runtime_dependency": "passed", "setup_profile_restored": "passed", "setup_runtime_capabilities": ["net_admin", "setpcap", "sys_admin"], "setup_userns_probe": "passed"}
 
-PASS packet-37-38 ubuntu24 postdisapproval installed acceptance artifact=3fd1e07ad564d5794d4bd441b0be3fa8d9da1a7c9691ae3df59ed76bccfd1c20 rc=0
+PASS packet-37-38 ubuntu24 postdisapproval installed acceptance artifact=e1fc940dd655b5bad8d395ffaa403c1791c502aec9e1c3bef6758d834b381275 rc=0
 
 --- direct packaged remote SFTP read-only ---
 {"extensions": ["copy-data", "expand-path@openssh.com", "fstatvfs@openssh.com", "fsync@openssh.com", "hardlink@openssh.com", "home-directory", "limits@openssh.com", "lsetstat@openssh.com", "posix-rename@openssh.com", "statvfs@openssh.com", "users-groups-by-id@openssh.com"], "operations": ["INIT", "VERSION", "REALPATH", "STAT", "LSTAT", "OPENDIR", "READDIR", "CLOSE"], "read_write": false, "root": "/project", "root_entries": 3, "version": 3}
 
-PASS SFTP last read-only ubuntu24 package=3fd1e07ad564d5794d4bd441b0be3fa8d9da1a7c9691ae3df59ed76bccfd1c20 rc=0
+PASS SFTP last read-only ubuntu24 package=e1fc940dd655b5bad8d395ffaa403c1791c502aec9e1c3bef6758d834b381275 rc=0
 
 --- direct packaged remote SFTP read-write ---
 {"extensions": ["copy-data", "expand-path@openssh.com", "fstatvfs@openssh.com", "fsync@openssh.com", "hardlink@openssh.com", "home-directory", "limits@openssh.com", "lsetstat@openssh.com", "posix-rename@openssh.com", "statvfs@openssh.com", "users-groups-by-id@openssh.com"], "operations": ["INIT", "VERSION", "REALPATH", "STAT", "LSTAT", "OPENDIR", "READDIR", "CLOSE", "OPEN", "WRITE", "READ", "REMOVE"], "read_write": true, "root": "/project", "root_entries": 3, "version": 3}
 Warning: The unit file, source configuration file or drop-ins of astral-project-broker.service changed on disk. Run 'systemctl daemon-reload' to reload units.
 
-PASS SFTP last read-write ubuntu24 package=3fd1e07ad564d5794d4bd441b0be3fa8d9da1a7c9691ae3df59ed76bccfd1c20 rc=0
+PASS SFTP last read-write ubuntu24 package=e1fc940dd655b5bad8d395ffaa403c1791c502aec9e1c3bef6758d834b381275 rc=0
 
 --- installed doctor and adversarial audit privacy ---
 {"alive":true,"dependencies":{"cbor2":"5.6.2","cryptography":"41.0.7"},"hardening":{"enforced":true,"landlock_abi":4,"landlock_available":true,"reason":"Landlock and process hardening enforced","required":true},"state_version":1}

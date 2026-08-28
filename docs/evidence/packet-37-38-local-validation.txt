@@ -1,10 +1,10 @@
 $ git rev-parse HEAD
-fe9078fe4b7c7f9ea0dab9514a076f4abe30789e
-$ git diff --quiet 32e18095ae01369804fb1178a2a8e715c4da2aeb..HEAD -- src packaging scripts tests .github
+b887bedf6f138920121cff0839315de6b82e47e7
+$ git diff --quiet b887bedf6f138920121cff0839315de6b82e47e7..HEAD -- src packaging scripts tests .github
 PASS source-tree-equivalence
 $ ./scripts/test
-Resolved 25 packages in 0.70ms
-Checked 17 packages in 0.22ms
+Resolved 25 packages in 0.66ms
+Checked 17 packages in 0.32ms
 205 files already formatted
 All checks passed!
 Success: no issues found in 183 source files
@@ -14,7 +14,7 @@ platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0
 rootdir: /home/andrew/code/astral-project
 configfile: pyproject.toml
 testpaths: tests
-collected 827 items
+collected 829 items
 
 tests/integration/test_pinned_mount_capability.py ......                 [  0%]
 tests/integration/test_sandbox_native.py ...                             [  1%]
@@ -56,7 +56,7 @@ tests/unit/test_daemon_lifecycle.py .....                                [ 40%]
 tests/unit/test_daemon_listing.py ..                                     [ 40%]
 tests/unit/test_daemon_protocol.py .......                               [ 41%]
 tests/unit/test_daemon_server.py .......                                 [ 42%]
-tests/unit/test_execution_plan.py ...........                            [ 44%]
+tests/unit/test_execution_plan.py ...........                            [ 43%]
 tests/unit/test_grant_lifecycle.py ..........                            [ 45%]
 tests/unit/test_hardening.py .............                               [ 46%]
 tests/unit/test_homed_composite.py ......                                [ 47%]
@@ -71,7 +71,7 @@ tests/unit/test_host_enrollment.py ............                          [ 61%]
 tests/unit/test_host_probe.py ........                                   [ 62%]
 tests/unit/test_host_records.py ..........                               [ 63%]
 tests/unit/test_mount_lifecycle.py .............                         [ 64%]
-tests/unit/test_namespace_planner.py .............                       [ 66%]
+tests/unit/test_namespace_planner.py ...............                     [ 66%]
 tests/unit/test_native_mount_worker.py ......                            [ 67%]
 tests/unit/test_native_namespace_worker.py ..........                    [ 68%]
 tests/unit/test_package.py .                                             [ 68%]
@@ -111,23 +111,23 @@ tests/unit/test_approval_terminal.py::test_parent_pty_relay_external_approval_an
 tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
 tests/unit/test_approval_terminal.py::test_terminal_controller_forwards_sigcont_after_child_suspend
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=906373) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=908619) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
     pid, fd = os.forkpty()
 
 tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
-  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=906373) is multi-threaded, use of fork() may lead to deadlocks in the child.
+  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=908619) is multi-threaded, use of fork() may lead to deadlocks in the child.
     pid = os.fork()
 
 tests/unit/test_approval_terminal.py::test_controller_does_not_publish_socket_to_child
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=906450) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=908693) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
     pid, fd = os.forkpty()
 
 tests/unit/test_broker_main.py::test_module_entrypoint_calls_main
   <frozen runpy>:128: RuntimeWarning: 'astral_project.broker.main' found in sys.modules after import of package 'astral_project.broker', but prior to execution of 'astral_project.broker.main'; this may result in unpredictable behaviour
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 826 passed, 1 skipped, 9 warnings in 15.58s ==================
+================= 828 passed, 1 skipped, 9 warnings in 15.69s ==================
 ..                    [  4%]
 tests/unit/test_audit.py ......................                          [  7%]
 tests/unit/test_broker_authority.py .....                                [  8%]
@@ -162,7 +162,7 @@ tests/unit/test_daemon_lifecycle.py .....                                [ 40%]
 tests/unit/test_daemon_listing.py ..                                     [ 40%]
 tests/unit/test_daemon_protocol.py .......                               [ 41%]
 tests/unit/test_daemon_server.py .......                                 [ 42%]
-tests/unit/test_execution_plan.py ...........                            [ 44%]
+tests/unit/test_execution_plan.py ...........                            [ 43%]
 tests/unit/test_grant_lifecycle.py ..........                            [ 45%]
 tests/unit/test_hardening.py .............                               [ 46%]
 tests/unit/test_homed_composite.py ......                                [ 47%]
@@ -177,7 +177,7 @@ tests/unit/test_host_enrollment.py ............                          [ 61%]
 tests/unit/test_host_probe.py ........                                   [ 62%]
 tests/unit/test_host_records.py ..........                               [ 63%]
 tests/unit/test_mount_lifecycle.py .............                         [ 64%]
-tests/unit/test_namespace_planner.py .............                       [ 66%]
+tests/unit/test_namespace_planner.py ...............                     [ 66%]
 tests/unit/test_native_mount_worker.py ......                            [ 67%]
 tests/unit/test_native_namespace_worker.py ..........                    [ 68%]
 tests/unit/test_package.py .                                             [ 68%]
@@ -218,19 +218,19 @@ tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transi
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
 tests/unit/test_approval_terminal.py::test_terminal_controller_forwards_sigcont_after_child_suspend
 tests/unit/test_approval_terminal.py::test_controller_does_not_publish_socket_to_child
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=906373) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=908619) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
     pid, fd = os.forkpty()
 
 tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
-  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=906373) is multi-threaded, use of fork() may lead to deadlocks in the child.
+  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=908619) is multi-threaded, use of fork() may lead to deadlocks in the child.
     pid = os.fork()
 
 tests/unit/test_broker_main.py::test_module_entrypoint_calls_main
   <frozen runpy>:128: RuntimeWarning: 'astral_project.broker.main' found in sys.modules after import of package 'astral_project.broker', but prior to execution of 'astral_project.broker.main'; this may result in unpredictable behaviour
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 826 passed, 1 skipped, 9 warnings in 27.42s ==================
+================= 828 passed, 1 skipped, 9 warnings in 27.14s ==================
 Name    Stmts   Miss Branch BrPart  Cover   Missing
 ---------------------------------------------------
 TOTAL   11129      0   3294      0   100%
@@ -240,5 +240,5 @@ $ apparmor_parser -Q -K packaging/apparmor/usr.libexec.astral-project.aspr-bwrap
 $ uv run python scripts/parser_fuzz.py
 PASS parser fuzz cases=5
 $ sha256sum /tmp/packet37-38-final-artifact.deb
-3fd1e07ad564d5794d4bd441b0be3fa8d9da1a7c9691ae3df59ed76bccfd1c20  /tmp/packet37-38-final-artifact.deb
+e1fc940dd655b5bad8d395ffaa403c1791c502aec9e1c3bef6758d834b381275  /tmp/packet37-38-final-artifact.deb
 $ git diff --check
