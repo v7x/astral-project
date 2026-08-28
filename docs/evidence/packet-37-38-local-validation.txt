@@ -1,5 +1,5 @@
 $ git rev-parse HEAD
-75610ebba3b833e918caf378d1a6d7779fb362a6
+7744d9fd8a3d051353409da55481b6df1be4a912
 $ git status --short -- src packaging scripts tests .github docs/evidence
 (clean: no production, test, workflow, or evidence changes)
 $ git diff --quiet HEAD -- src packaging scripts tests .github docs/evidence
@@ -7,7 +7,7 @@ PASS working-tree-clean
 $ git diff --cached --quiet -- src packaging scripts tests .github docs/evidence
 PASS index-clean
 $ git diff --quiet 75610ebba3b833e918caf378d1a6d7779fb362a6..HEAD -- src packaging scripts tests .github
-PASS source-tree-equivalence source-closure=75610ebba3b833e918caf378d1a6d7779fb362a6 validated-head=75610ebba3b833e918caf378d1a6d7779fb362a6
+PASS source-tree-equivalence source-closure=75610ebba3b833e918caf378d1a6d7779fb362a6 validated-head=7744d9fd8a3d051353409da55481b6df1be4a912
 $ uv lock --check
 PASS lockfile
 $ uv run ruff check src tests scripts
@@ -17,7 +17,7 @@ Success: no issues found in 183 source files
 $ ./scripts/test
 845 passed, 1 skipped, 100% coverage
 $ uv run pytest tests/unit/test_audit.py tests/unit/test_hardening.py
-43 passed
+45 passed
 $ apparmor_parser -Q -K packaging/apparmor/usr.libexec.astral-project.aspr-bwrap-launch
 PASS apparmor parser
 $ uv run python scripts/parser_fuzz.py

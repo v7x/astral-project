@@ -21,7 +21,7 @@ source-tree equivalence check from that closure through the final evidence HEAD.
 ./scripts/test                         845 passed, 1 skipped; coverage 100%
 uv run mypy src tests                   passed
 uv run pytest tests/unit/test_audit.py tests/unit/test_hardening.py
-                                        passed
+                                        45 passed
 cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-bwrap-launch.c
                                         passed
 cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-sandbox-entry.c
@@ -34,7 +34,7 @@ python scripts/parser_fuzz.py           passed
 Immutable local validation transcript:
 
 ```text
-packet-37-38-local-validation.txt  fac1a28c0b90563f35a2df1e39b10a3952dc106d0a0377272d668ec269c30176
+packet-37-38-local-validation.txt  7fd9bdf90988221c7ec1b5f9628da5449d271655c30ebf8444cd027e0dfc687a
 ```
 
 The full suite includes audit schema, path redaction and hashing, malformed-old-
