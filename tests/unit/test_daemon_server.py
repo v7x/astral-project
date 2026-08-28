@@ -80,11 +80,122 @@ def test_daemon_applies_hardening_at_trusted_startup(
         assert result["hardening"] == {
             "landlock_abi": 4,
             "landlock_available": True,
+            "landlock_required_abi": 3,
             "required": True,
             "enforced": True,
             "reason": "enforced",
         }
         thread.join(timeout=1)
+    finally:
+        server.close()
+
+
+def test_daemon_remote_audit_export_uses_fixed_authority(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    server = DaemonServer(_paths(tmp_path))
+    server.start()
+    try:
+        assert server._database is not None
+        monkeypatch.setattr(
+            server._database,
+            "host_transport",
+            lambda _host_id: (
+                "testuser",
+                {"address": "remote.example", "identity_file": "/home/testuser/.ssh/key"},
+            ),
+        )
+        observed: dict[str, object] = {}
+
+        class Result:
+            returncode = 0
+            stdout = b'{"version":1,"ok":true,"export":"{\\"path\\":\\"<redacted>\\"}\\n"}'
+            stderr = b""
+
+        def run(argv: object, **kwargs: object) -> Result:
+            observed["argv"] = argv
+            observed["input"] = kwargs["input"]
+            return Result()
+
+        monkeypatch.setattr("astral_project.daemon.server.subprocess.run", run)
+        result = server._response("audit.remote.export", {"host_id": "host-1"})
+        assert result["host_id"] == "host-1"
+        assert result["path_mode"] == "redact"
+        assert result["export"]
+        assert observed["argv"][-1] == "aspr-audit-export-v1"  # type: ignore[index]
+    finally:
+        server.close()
+
+
+def test_daemon_remote_audit_export_rejects_bad_transport_responses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    unstarted = DaemonServer(_paths(tmp_path / "unstarted"))
+    with pytest.raises(AstralError, match="state database"):
+        unstarted._response("audit.remote.export", {})
+    with pytest.raises(AstralError, match="state database"):
+        unstarted._remote_audit_export({"host_id": "h"})
+    server = DaemonServer(_paths(tmp_path))
+    server.start()
+    try:
+        with pytest.raises(AstralError, match="payload"):
+            server._response("audit.remote.export")
+        assert server._database is not None
+        monkeypatch.setattr(
+            server._database,
+            "host_transport",
+            lambda _id: ("user", {"address": "remote.example", "identity_file": "/home/user/key"}),
+        )
+        with pytest.raises(AstralError, match="fields"):
+            server._remote_audit_export({"host_id": 1})
+        with pytest.raises(AstralError, match="path mode"):
+            server._remote_audit_export({"host_id": "h", "path_mode": "raw"})
+        monkeypatch.setattr(
+            server._database, "host_transport", lambda _id: ("user", {"address": 1})
+        )
+        with pytest.raises(AstralError, match="metadata"):
+            server._remote_audit_export({"host_id": "h"})
+        monkeypatch.setattr(
+            server._database,
+            "host_transport",
+            lambda _id: ("user", {"address": "remote.example", "identity_file": "/home/user/key"}),
+        )
+        monkeypatch.setattr(
+            "astral_project.daemon.server.subprocess.run",
+            lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("ssh")),
+        )
+        with pytest.raises(AstralError, match="transport"):
+            server._remote_audit_export({"host_id": "h"})
+
+        class BadResult:
+            returncode = 1
+            stdout = b""
+
+        monkeypatch.setattr(
+            "astral_project.daemon.server.subprocess.run", lambda *_args, **_kwargs: BadResult()
+        )
+        with pytest.raises(AstralError, match="rejected"):
+            server._remote_audit_export({"host_id": "h"})
+
+        class InvalidResult:
+            returncode = 0
+            stdout = b"not-json"
+
+        monkeypatch.setattr(
+            "astral_project.daemon.server.subprocess.run", lambda *_args, **_kwargs: InvalidResult()
+        )
+        with pytest.raises(AstralError, match="response"):
+            server._remote_audit_export({"host_id": "h"})
+
+        class WrongResult:
+            returncode = 0
+            stdout = b'{"version":1,"ok":true,"export":1}'
+
+        monkeypatch.setattr(
+            "astral_project.daemon.server.subprocess.run", lambda *_args, **_kwargs: WrongResult()
+        )
+        with pytest.raises(AstralError, match="response"):
+            server._remote_audit_export({"host_id": "h"})
     finally:
         server.close()
 

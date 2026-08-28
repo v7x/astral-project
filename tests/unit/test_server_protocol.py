@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from io import BytesIO, StringIO
 from pathlib import Path
 
 import pytest
 
-from astral_project.audit import AuditLog
+from astral_project.audit import AuditEvent, AuditLog
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.core.ids import GrantId, HostId, IssuerKeyId, SessionId
 from astral_project.crypto.grants import (
@@ -20,7 +21,15 @@ from astral_project.crypto.grants import (
     SourceIdentity,
 )
 from astral_project.crypto.keys import generate_private_key, public_key_bytes, public_key_from_bytes
-from astral_project.server.entry import SSH_ORIGINAL_COMMAND, ServerTrust, run_ssh_entry
+from astral_project.sandbox.hardening import HardeningError
+from astral_project.server.entry import (
+    SSH_ORIGINAL_AUDIT_COMMAND,
+    SSH_ORIGINAL_COMMAND,
+    ServerTrust,
+    _write_audit_response,
+    run_audit_export_entry,
+    run_ssh_entry,
+)
 from astral_project.server.protocol import (
     MAX_OUTER_SESSION_BYTES,
     fuzz_outer_request,
@@ -100,6 +109,131 @@ def test_unenrolled_issuer_is_rejected() -> None:
             environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_COMMAND},
             trust=rejected_trust,
             now=150,
+        )
+        == 70
+    )
+
+
+def test_remote_audit_export_is_bounded_redacted_and_hashable(tmp_path: Path) -> None:
+    _, trust = signed_request()
+    log = AuditLog(tmp_path / "remote.log")
+    log.append("session.remote.verified", "session", "s1", {"path": "/secret"})
+    for mode, expected in (("redact", "<redacted>"), ("hash", "sha256:")):
+        stdout = BytesIO()
+        assert (
+            run_audit_export_entry(
+                "transport-1",
+                stdin=BytesIO(json.dumps({"version": 1, "path_mode": mode}).encode()),
+                stdout=stdout,
+                stderr=StringIO(),
+                environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_AUDIT_COMMAND},
+                trust=trust,
+                audit_log=log,
+            )
+            == 0
+        )
+        response = json.loads(stdout.getvalue())
+        assert response["ok"] is True
+        assert expected in response["export"]
+    stdout = BytesIO()
+    assert (
+        run_audit_export_entry(
+            "transport-1",
+            stdin=BytesIO(b'{"version":1,"path_mode":"raw"}'),
+            stdout=stdout,
+            stderr=StringIO(),
+            environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_AUDIT_COMMAND},
+            trust=trust,
+            audit_log=log,
+        )
+        == 70
+    )
+    assert json.loads(stdout.getvalue())["ok"] is False
+
+
+def test_remote_audit_export_rejects_bad_requests_and_hardening_failures(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _, trust = signed_request()
+    log = AuditLog(tmp_path / "remote-errors.log")
+    for environment, request in (
+        ({"SSH_ORIGINAL_COMMAND": "wrong"}, b"{}"),
+        ({"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_AUDIT_COMMAND}, b"not-json"),
+        ({"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_AUDIT_COMMAND}, b"x" * 4097),
+    ):
+        stdout = BytesIO()
+        assert (
+            run_audit_export_entry(
+                "transport-1",
+                stdin=BytesIO(request),
+                stdout=stdout,
+                stderr=StringIO(),
+                environment=environment,
+                trust=trust,
+                audit_log=log,
+            )
+            == 70
+        )
+        assert json.loads(stdout.getvalue())["ok"] is False
+    failure = HardeningError(
+        code=ErrorCode.HARDENING_APPLY,
+        message="hardening failed",
+        security_result="rejected",
+        unsafe_reason="mandatory",
+        next_action="repair",
+    )
+    monkeypatch.setattr(
+        "astral_project.server.entry.enforce", lambda _policy: (_ for _ in ()).throw(failure)
+    )
+    stdout = BytesIO()
+    assert (
+        run_audit_export_entry(
+            "transport-1",
+            stdin=BytesIO(b'{"version":1,"path_mode":"redact"}'),
+            stdout=stdout,
+            stderr=StringIO(),
+            environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_AUDIT_COMMAND},
+            trust=trust,
+            audit_log=log,
+        )
+        == 70
+    )
+    assert "hardening.failure" in [event.kind for event in log.read()]
+
+
+def test_remote_audit_export_response_limits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, trust = signed_request()
+    log = AuditLog(tmp_path / "remote-large.log")
+    huge = AuditEvent("huge", 1, "kind", "subject", "id", {"result": "x" * (1024 * 1024 + 1)})
+    monkeypatch.setattr(log, "read", lambda: (huge,))
+    stdout = BytesIO()
+    assert (
+        run_audit_export_entry(
+            "transport-1",
+            stdin=BytesIO(b'{"version":1,"path_mode":"redact"}'),
+            stdout=stdout,
+            stderr=StringIO(),
+            environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_AUDIT_COMMAND},
+            trust=trust,
+            audit_log=log,
+        )
+        == 70
+    )
+    with pytest.raises(OSError, match="too large"):
+        _write_audit_response(BytesIO(), {"export": "x" * (1024 * 1024 + 1)})
+    monkeypatch.setattr(log, "read", lambda: (_ for _ in ()).throw(ValueError("bad")))
+    stdout = BytesIO()
+    assert (
+        run_audit_export_entry(
+            "transport-1",
+            stdin=BytesIO(b'{"version":1,"path_mode":"redact"}'),
+            stdout=stdout,
+            stderr=StringIO(),
+            environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_AUDIT_COMMAND},
+            trust=trust,
+            audit_log=log,
         )
         == 70
     )

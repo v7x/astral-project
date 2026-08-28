@@ -5,10 +5,12 @@ from __future__ import annotations
 import base64
 import fcntl
 import hashlib
+import json
 import os
 import socket
 import stat
 import struct
+import subprocess
 import time
 from collections.abc import Callable, Mapping
 from contextlib import suppress
@@ -35,6 +37,7 @@ from astral_project.sandbox.hardening import (
 )
 from astral_project.session.listing import SessionListingScope
 from astral_project.state.sqlite import ActiveListingSession, StateDatabase
+from astral_project.transport.local import fixed_ssh_audit_argv
 
 if TYPE_CHECKING:
     from astral_project.mounts import MountManager
@@ -333,6 +336,67 @@ class DaemonServer:
             )
         return result
 
+    def _remote_audit_export(self, payload: Mapping[str, object]) -> Mapping[str, object]:
+        if self._database is None:
+            raise _error(ErrorCode.DAEMON_STARTUP, "state database is unavailable")
+        host_id = payload.get("host_id")
+        path_mode = payload.get("path_mode", PathMode.REDACT.value)
+        if not isinstance(host_id, str) or not isinstance(path_mode, str):
+            raise _error(ErrorCode.DAEMON_PROTOCOL, "remote audit export fields are invalid")
+        if path_mode not in {PathMode.REDACT.value, PathMode.HASH.value}:
+            raise _error(ErrorCode.DAEMON_PROTOCOL, "remote audit export path mode is invalid")
+        remote_user, metadata = self._database.host_transport(host_id)
+        address = metadata.get("address")
+        identity = metadata.get("identity_file")
+        port = metadata.get("port", 22)
+        known_hosts = metadata.get("known_hosts")
+        if (
+            not isinstance(address, str)
+            or not isinstance(identity, str)
+            or not isinstance(port, int)
+            or isinstance(port, bool)
+            or (known_hosts is not None and not isinstance(known_hosts, str))
+        ):
+            raise _error(ErrorCode.STATE_CORRUPT, "enrolled host transport metadata is invalid")
+        argv = fixed_ssh_audit_argv(
+            ssh_binary=self._ssh_binary,
+            identity_file=Path(identity),
+            host=address,
+            remote_user=remote_user,
+            port=port,
+            known_hosts=None if known_hosts is None else Path(known_hosts),
+        )
+        try:
+            result = subprocess.run(
+                argv,
+                input=json.dumps({"version": 1, "path_mode": path_mode}).encode(),
+                capture_output=True,
+                timeout=15,
+                check=False,
+                env={"PATH": "/usr/bin:/bin", "HOME": str(Path.home())},
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise _error(
+                ErrorCode.DAEMON_UNAVAILABLE, "remote audit export transport failed"
+            ) from error
+        if result.returncode != 0:
+            raise _error(ErrorCode.DAEMON_UNAVAILABLE, "remote audit export was rejected")
+        try:
+            response = json.loads(result.stdout)
+        except (TypeError, ValueError, json.JSONDecodeError) as error:
+            raise _error(
+                ErrorCode.DAEMON_PROTOCOL, "remote audit export response is invalid"
+            ) from error
+        if (
+            not isinstance(response, dict)
+            or response.get("version") != 1
+            or response.get("ok") is not True
+            or not isinstance(response.get("export"), str)
+            or len(response["export"].encode()) > 1024 * 1024
+        ):
+            raise _error(ErrorCode.DAEMON_PROTOCOL, "remote audit export response is invalid")
+        return {"host_id": host_id, "path_mode": path_mode, "export": response["export"]}
+
     def serve_forever(self) -> None:
         """Serve until process shutdown; trusted entry point owns lifecycle."""
         while True:
@@ -490,6 +554,10 @@ class DaemonServer:
                     grant_id, reason=str(payload.get("reason", "user request"))
                 ),
             }
+        if operation == "audit.remote.export":
+            if payload is None:
+                raise _error(ErrorCode.DAEMON_PROTOCOL, "remote audit export payload is missing")
+            return self._remote_audit_export(payload)
         if operation == "audit.list":
             if self._database is None:
                 raise _error(ErrorCode.DAEMON_STARTUP, "state database is unavailable")

@@ -116,12 +116,37 @@ def test_audit_commands_dispatch_fixed_operations(monkeypatch: pytest.MonkeyPatc
     assert cli.run(["audit", "show", "event-1"], stdout=StringIO(), stderr=StringIO()) == 0
     assert cli.run(["audit", "export"], stdout=StringIO(), stderr=StringIO()) == 0
     assert cli.run(["audit", "export", "--hash"], stdout=StringIO(), stderr=StringIO()) == 0
+    assert (
+        cli.run(["audit", "export", "--remote", "host-1"], stdout=StringIO(), stderr=StringIO())
+        == 0
+    )
+    assert (
+        cli.run(
+            ["audit", "export", "--remote", "host-1", "--hash"],
+            stdout=StringIO(),
+            stderr=StringIO(),
+        )
+        == 0
+    )
     assert calls == [
         ("audit.list", None),
         ("audit.show", {"event_id": "event-1"}),
         ("audit.export", {"path_mode": "redact"}),
         ("audit.export", {"path_mode": "hash"}),
+        ("audit.remote.export", {"host_id": "host-1", "path_mode": "redact"}),
+        ("audit.remote.export", {"host_id": "host-1", "path_mode": "hash"}),
     ]
+
+
+def test_audit_export_rejects_invalid_remote_forms() -> None:
+    for arguments in (
+        ["audit", "export", "--wrong", "host"],
+        ["audit", "export", "--remote", ""],
+        ["audit", "export", "--remote", "host", "--wrong"],
+    ):
+        stderr = StringIO()
+        assert cli.run(arguments, stdout=StringIO(), stderr=stderr) == 2
+        assert "unknown command 'audit export'" in stderr.getvalue()
 
 
 def test_audit_command_handles_daemon_error(monkeypatch: pytest.MonkeyPatch) -> None:

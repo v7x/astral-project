@@ -10,6 +10,7 @@ import resource
 import tempfile
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
 from astral_project.core.errors import AstralError, ErrorCode
@@ -20,11 +21,51 @@ _LANDLOCK_ADD_RULE = 445
 _LANDLOCK_RESTRICT_SELF = 446
 _LANDLOCK_CREATE_RULESET_VERSION = 1
 _LANDLOCK_RULE_TYPE_PATH_BENEATH = 1
+LANDLOCK_MINIMUM_ABI = 3
 _PR_SET_NO_NEW_PRIVS = 38
 _PR_CAPBSET_DROP = 24
 _MAX_CAPABILITY = 63
-_READ_ACCESS = (1 << 2) | (1 << 3) | (1 << 0)
-_WRITE_ACCESS = _READ_ACCESS | (1 << 1) | (1 << 7) | (1 << 8) | (1 << 5) | (1 << 4)
+LANDLOCK_ACCESS_FS_EXECUTE = 1 << 0
+LANDLOCK_ACCESS_FS_WRITE_FILE = 1 << 1
+LANDLOCK_ACCESS_FS_READ_FILE = 1 << 2
+LANDLOCK_ACCESS_FS_READ_DIR = 1 << 3
+LANDLOCK_ACCESS_FS_REMOVE_DIR = 1 << 4
+LANDLOCK_ACCESS_FS_REMOVE_FILE = 1 << 5
+LANDLOCK_ACCESS_FS_MAKE_CHAR = 1 << 6
+LANDLOCK_ACCESS_FS_MAKE_DIR = 1 << 7
+LANDLOCK_ACCESS_FS_MAKE_REG = 1 << 8
+LANDLOCK_ACCESS_FS_MAKE_SOCK = 1 << 9
+LANDLOCK_ACCESS_FS_MAKE_FIFO = 1 << 10
+LANDLOCK_ACCESS_FS_MAKE_BLOCK = 1 << 11
+LANDLOCK_ACCESS_FS_MAKE_SYM = 1 << 12
+LANDLOCK_ACCESS_FS_REFER = 1 << 13
+LANDLOCK_ACCESS_FS_TRUNCATE = 1 << 14
+LANDLOCK_HANDLED_ACCESS_FS = (1 << 15) - 1
+_READ_ACCESS = (
+    LANDLOCK_ACCESS_FS_EXECUTE | LANDLOCK_ACCESS_FS_READ_FILE | LANDLOCK_ACCESS_FS_READ_DIR
+)
+_REGULAR_WRITE_ACCESS = (
+    _READ_ACCESS
+    | LANDLOCK_ACCESS_FS_WRITE_FILE
+    | LANDLOCK_ACCESS_FS_REMOVE_DIR
+    | LANDLOCK_ACCESS_FS_REMOVE_FILE
+    | LANDLOCK_ACCESS_FS_MAKE_DIR
+    | LANDLOCK_ACCESS_FS_MAKE_REG
+    | LANDLOCK_ACCESS_FS_MAKE_SYM
+    | LANDLOCK_ACCESS_FS_REFER
+    | LANDLOCK_ACCESS_FS_TRUNCATE
+)
+_SOCKET_ACCESS = _REGULAR_WRITE_ACCESS | LANDLOCK_ACCESS_FS_MAKE_SOCK
+_DEVICE_ACCESS = _READ_ACCESS | LANDLOCK_ACCESS_FS_WRITE_FILE
+
+
+class RootRole(StrEnum):
+    """Fixed authority classes; callers cannot select individual Landlock bits."""
+
+    READ_ONLY = "read-only"
+    REGULAR_WRITABLE = "regular-writable"
+    SOCKET_RUNTIME = "socket-runtime"
+    DEVICE_RUNTIME = "device-runtime"
 
 
 class HardeningError(AstralError):
@@ -40,11 +81,13 @@ class HardeningStatus:
     required: bool
     enforced: bool
     reason: str
+    required_abi: int = LANDLOCK_MINIMUM_ABI
 
     def to_dict(self) -> dict[str, object]:
         return {
             "landlock_abi": self.abi,
             "landlock_available": self.landlock_available,
+            "landlock_required_abi": self.required_abi,
             "required": self.required,
             "enforced": self.enforced,
             "reason": self.reason,
@@ -56,7 +99,7 @@ class HardeningPolicy:
     """Execution policy for one sandbox child."""
 
     required: bool = True
-    allowed_roots: tuple[tuple[Path, bool], ...] = ()
+    allowed_roots: tuple[tuple[Path, RootRole | bool], ...] = ()
     max_open_files: int = 1024
     max_processes: int = 128
 
@@ -65,28 +108,64 @@ class HardeningPolicy:
             raise ValueError("hardening required flag is invalid")
         if self.max_open_files < 64 or self.max_processes < 1:
             raise ValueError("hardening rlimits are invalid")
-        for path, writable in self.allowed_roots:
+        for path, role in self.allowed_roots:
             if not isinstance(path, Path) or not path.is_absolute() or not path.exists():
                 raise ValueError("hardening root is unavailable")
-            if not isinstance(writable, bool):
-                raise ValueError("hardening root mutability is invalid")
+            if not isinstance(role, (RootRole, bool)):
+                raise ValueError("hardening root role is invalid")
 
     @classmethod
     def for_plan(
-        cls, roots: Sequence[tuple[Path, bool]], *, writable_tmp: bool = True
+        cls, roots: Sequence[tuple[Path, RootRole | bool]], *, writable_tmp: bool = True
     ) -> HardeningPolicy:
         """Build policy with fixed system roots plus exact plan-owned roots."""
         if not isinstance(writable_tmp, bool):
             raise ValueError("hardening temporary-root mutability is invalid")
-        fixed = tuple(
-            (Path(path), path == "/tmp" and writable_tmp)
-            for path in ("/usr", "/dev", "/proc", "/run", "/tmp")
-            if Path(path).exists()
-        )
-        unique: dict[Path, bool] = {path: writable for path, writable in fixed}
-        for path, writable in roots:
-            unique[path] = unique.get(path, False) or writable
+        fixed_roles = {
+            Path("/usr"): RootRole.READ_ONLY,
+            Path("/dev"): RootRole.DEVICE_RUNTIME,
+            Path("/proc"): RootRole.READ_ONLY,
+            Path("/run"): RootRole.READ_ONLY,
+            Path("/tmp"): (RootRole.REGULAR_WRITABLE if writable_tmp else RootRole.READ_ONLY),
+        }
+        unique: dict[Path, RootRole] = {
+            path: role for path, role in fixed_roles.items() if path.exists()
+        }
+        for path, requested_role in roots:
+            role = _root_role(requested_role)
+            if path in fixed_roles:
+                continue
+            current = unique.get(path)
+            unique[path] = role if current is None else _stronger_role(current, role)
         return cls(allowed_roots=tuple(unique.items()))
+
+
+def _root_role(value: RootRole | bool) -> RootRole:
+    if isinstance(value, bool):
+        return RootRole.REGULAR_WRITABLE if value else RootRole.READ_ONLY
+    if not isinstance(value, RootRole):
+        raise ValueError("hardening root role is invalid")
+    return value
+
+
+def _access_for_role(role: RootRole) -> int:
+    return {
+        RootRole.READ_ONLY: _READ_ACCESS,
+        RootRole.REGULAR_WRITABLE: _REGULAR_WRITE_ACCESS,
+        RootRole.SOCKET_RUNTIME: _SOCKET_ACCESS,
+        RootRole.DEVICE_RUNTIME: _DEVICE_ACCESS,
+    }[role]
+
+
+def _stronger_role(first: RootRole, second: RootRole) -> RootRole:
+    """Merge duplicate roots without dropping either fixed authority need."""
+    first_access = _access_for_role(first)
+    second_access = _access_for_role(second)
+    if first_access | second_access == first_access:
+        return first
+    if first_access | second_access == second_access:
+        return second
+    raise ValueError("conflicting hardening root roles")
 
 
 def detect_landlock(syscall: Callable[..., int] | None = None) -> int | None:
@@ -107,10 +186,22 @@ def detect_landlock(syscall: Callable[..., int] | None = None) -> int | None:
 
 
 def require_available(policy: HardeningPolicy) -> int:
-    """Fail before launch when the required Landlock ABI is unavailable."""
-    abi = detect_landlock()
+    """Fail before launch when required Landlock ABI support is unavailable."""
+    try:
+        abi = detect_landlock()
+    except OSError as error:
+        if policy.required:
+            raise _hardening_error(
+                f"Landlock ABI probe failed: {error}", ErrorCode.HARDENING_UNAVAILABLE
+            ) from error
+        return 0
     if abi is None and policy.required:
         raise _hardening_error("Landlock ABI is unavailable")
+    if abi is not None and abi < LANDLOCK_MINIMUM_ABI and policy.required:
+        raise _hardening_error(
+            f"Landlock ABI {abi} is below required ABI {LANDLOCK_MINIMUM_ABI}",
+            ErrorCode.HARDENING_UNAVAILABLE,
+        )
     return 0 if abi is None else abi
 
 
@@ -128,6 +219,19 @@ def enforce(policy: HardeningPolicy) -> HardeningStatus:
         if policy.required:
             raise _hardening_error("Landlock ABI is unavailable")
         return HardeningStatus(False, None, False, False, "Landlock unavailable")
+    if abi < LANDLOCK_MINIMUM_ABI:
+        if policy.required:
+            raise _hardening_error(
+                f"Landlock ABI {abi} is below required ABI {LANDLOCK_MINIMUM_ABI}",
+                ErrorCode.HARDENING_UNAVAILABLE,
+            )
+        return HardeningStatus(
+            True,
+            abi,
+            False,
+            False,
+            f"Landlock ABI {abi} is below required ABI {LANDLOCK_MINIMUM_ABI}",
+        )
     try:
         _set_no_new_privs()
         _set_limits(policy.max_open_files, policy.max_processes)
@@ -151,6 +255,14 @@ def status(*, required: bool = True) -> HardeningStatus:
         return HardeningStatus(False, None, required, False, f"Landlock probe failed: {error}")
     if abi is None:
         return HardeningStatus(False, None, required, False, "Landlock unavailable")
+    if abi < LANDLOCK_MINIMUM_ABI:
+        return HardeningStatus(
+            True,
+            abi,
+            required,
+            False,
+            f"Landlock ABI {abi} is below required ABI {LANDLOCK_MINIMUM_ABI}",
+        )
     return HardeningStatus(True, abi, required, False, "Landlock available but not applied")
 
 
@@ -211,10 +323,10 @@ def _drop_capability_bounding_set() -> None:
             raise OSError(error, os.strerror(error))
 
 
-def _restrict_paths(roots: Sequence[tuple[Path, bool]]) -> None:
+def _restrict_paths(roots: Sequence[tuple[Path, RootRole | bool]]) -> None:
     if not roots:
         raise ValueError("Landlock requires at least one allowed root")
-    handled = _WRITE_ACCESS
+    handled = LANDLOCK_HANDLED_ACCESS_FS
     attr = ctypes.c_uint64(handled)
     ruleset = _libc_syscall()(_LANDLOCK_CREATE_RULESET, ctypes.byref(attr), ctypes.sizeof(attr), 0)
     if ruleset < 0:
@@ -225,9 +337,10 @@ def _restrict_paths(roots: Sequence[tuple[Path, bool]]) -> None:
         for path, writable in roots:
             descriptor = os.open(path, os.O_PATH | os.O_CLOEXEC)
             opened.append(descriptor)
+            role = _root_role(writable)
             rule = _PathBeneath(
                 parent_fd=descriptor,
-                allowed_access=_WRITE_ACCESS if writable else _READ_ACCESS,
+                allowed_access=_access_for_role(role),
             )
             result = _libc_syscall()(
                 _LANDLOCK_ADD_RULE,

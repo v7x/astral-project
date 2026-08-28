@@ -17,7 +17,15 @@ from typing import cast
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-from astral_project.audit.events import AuditEvent, AuditEventError, PathMode, validate_chain
+from astral_project.audit.events import (
+    AUDIT_MAX_EVENT_BYTES,
+    AUDIT_RETENTION_LIMIT,
+    AuditEvent,
+    AuditEventError,
+    AuditRetentionBoundary,
+    PathMode,
+    validate_chain,
+)
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.core.ids import HostId, SessionId
 from astral_project.core.paths import check_private_path, ensure_private_directory
@@ -168,16 +176,29 @@ DEFAULT_MIGRATIONS: tuple[Migration, ...] = (INITIAL_MIGRATION,)
 class StateDatabase:
     """Database owner; one SQLite connection exists only inside each operation."""
 
-    def __init__(self, path: Path, migrations: Sequence[Migration] = DEFAULT_MIGRATIONS) -> None:
+    def __init__(
+        self,
+        path: Path,
+        migrations: Sequence[Migration] = DEFAULT_MIGRATIONS,
+        *,
+        retention_limit: int = AUDIT_RETENTION_LIMIT,
+    ) -> None:
+        if retention_limit < 1:
+            raise ValueError("audit retention must be positive")
         self.path = path
         self.migrations = tuple(migrations)
+        self.retention_limit = retention_limit
         self._validate_migrations()
 
     @classmethod
     def open(
-        cls, path: Path, migrations: Sequence[Migration] = DEFAULT_MIGRATIONS
+        cls,
+        path: Path,
+        migrations: Sequence[Migration] = DEFAULT_MIGRATIONS,
+        *,
+        retention_limit: int = AUDIT_RETENTION_LIMIT,
     ) -> StateDatabase:
-        database = cls(path, migrations)
+        database = cls(path, migrations, retention_limit=retention_limit)
         database._initialize()
         return database
 
@@ -460,6 +481,24 @@ class StateDatabase:
                 ErrorCode.STATE_CORRUPT, "stored issuer key is invalid", error
             ) from error
 
+    def host_transport(self, host_id: str) -> tuple[str, Mapping[str, object]]:
+        """Return enrolled host transport metadata for authorized daemon operations."""
+        with self.transaction() as connection:
+            row = connection.execute(
+                "SELECT remote_user, metadata_json FROM hosts WHERE host_id = ?", (host_id,)
+            ).fetchone()
+        if row is None:
+            raise _state_error(ErrorCode.HOST_RECORD, "enrolled host was not found")
+        try:
+            metadata = json.loads(str(row[1]))
+            if not isinstance(metadata, dict):
+                raise TypeError("host metadata")
+        except (TypeError, ValueError, json.JSONDecodeError) as error:
+            raise _state_error(
+                ErrorCode.STATE_CORRUPT, "enrolled host metadata is invalid", error
+            ) from error
+        return str(row[0]), cast(Mapping[str, object], metadata)
+
     def signed_grant(self, grant_id: str) -> SignedGrant:
         """Load one durable grant by exact identifier."""
         with self.transaction() as connection:
@@ -605,6 +644,9 @@ class StateDatabase:
             "previous_event_id": event.previous_event_id,
             "schema_version": event.schema_version,
         }
+        payload_json = json.dumps(envelope, separators=(",", ":"), sort_keys=True)
+        if len(payload_json.encode()) > AUDIT_MAX_EVENT_BYTES:
+            raise AuditEventError("audit event exceeds serialized size limit")
         connection.execute(
             "INSERT INTO audit_events VALUES (?, ?, ?, ?, ?, ?)",
             (
@@ -613,9 +655,10 @@ class StateDatabase:
                 event.kind,
                 event.subject_type,
                 event.subject_id,
-                json.dumps(envelope, separators=(",", ":"), sort_keys=True),
+                payload_json,
             ),
         )
+        self._apply_audit_retention(connection, limit=self.retention_limit)
 
     def list_audit_events(self) -> tuple[AuditEvent, ...]:
         """Return valid audit events; malformed legacy rows are ignored safely."""
@@ -625,6 +668,7 @@ class StateDatabase:
                 "FROM audit_events ORDER BY rowid"
             ).fetchall()
         events: list[AuditEvent] = []
+        previous_valid: str | None = None
         for row in rows:
             try:
                 raw_payload = json.loads(str(row[5]))
@@ -636,22 +680,22 @@ class StateDatabase:
                     version = raw_payload["schema_version"]
                 else:
                     payload = raw_payload
-                    previous = None
+                    previous = previous_valid
                     version = 1
                 if not isinstance(payload, dict):
                     raise AuditEventError("audit payload is not an object")
-                events.append(
-                    AuditEvent(
-                        event_id=row[0],
-                        occurred_at=row[1],
-                        kind=row[2],
-                        subject_type=row[3],
-                        subject_id=row[4],
-                        payload=payload,
-                        previous_event_id=previous,
-                        schema_version=version,
-                    )
+                event = AuditEvent(
+                    event_id=row[0],
+                    occurred_at=row[1],
+                    kind=row[2],
+                    subject_type=row[3],
+                    subject_id=row[4],
+                    payload=payload,
+                    previous_event_id=previous,
+                    schema_version=version,
                 )
+                events.append(event)
+                previous_valid = event.event_id
             except (AuditEventError, TypeError, ValueError, json.JSONDecodeError):
                 continue
         return tuple(events)
@@ -689,39 +733,87 @@ class StateDatabase:
 
     def audit_chain_errors(self) -> tuple[str, ...]:
         """Return broken event references without exposing payload details."""
-        return validate_chain(self.list_audit_events())
+        with self.transaction() as connection:
+            row = connection.execute(
+                "SELECT schema_version, pruned_through_event_id, first_retained_event_id, digest "
+                "FROM audit_retention_boundary WHERE id = 1"
+            ).fetchone()
+        boundary: AuditRetentionBoundary | None = None
+        if row is not None:
+            try:
+                boundary = AuditRetentionBoundary.from_dict(
+                    {
+                        "schema_version": row[0],
+                        "pruned_through_event_id": row[1],
+                        "first_retained_event_id": row[2],
+                        "digest": row[3],
+                    }
+                )
+            except AuditEventError:
+                return ("retention-boundary",)
+        return validate_chain(self.list_audit_events(), boundary=boundary)
 
-    def rotate_audit(self, *, retain: int = 10_000) -> None:
-        """Retain the newest local events and restart their provenance chain safely."""
+    def rotate_audit(self, *, retain: int = AUDIT_RETENTION_LIMIT) -> None:
+        """Apply shared count retention without rewriting persisted event fields."""
         if retain < 1:
             raise ValueError("audit retention must be positive")
         with self.transaction(write=True) as connection:
-            rows = connection.execute(
-                "SELECT rowid, event_id FROM audit_events ORDER BY rowid"
-            ).fetchall()
-            if len(rows) <= retain:
-                return
-            removed = [int(row[0]) for row in rows[:-retain]]
-            connection.executemany(
-                "DELETE FROM audit_events WHERE rowid = ?", ((row,) for row in removed)
-            )
-            retained = connection.execute(
-                "SELECT event_id, payload_json FROM audit_events ORDER BY rowid"
-            ).fetchall()
-            for first in retained:  # pragma: no branch - retention always leaves one row
-                try:
-                    payload = json.loads(str(first[1]))
-                except (TypeError, ValueError, json.JSONDecodeError):
+            self._apply_audit_retention(connection, limit=retain)
+
+    def _apply_audit_retention(
+        self, connection: sqlite3.Connection, *, limit: int = AUDIT_RETENTION_LIMIT
+    ) -> None:
+        rows = connection.execute(
+            "SELECT rowid, event_id, occurred_at, kind, subject_type, subject_id, payload_json "
+            "FROM audit_events ORDER BY rowid"
+        ).fetchall()
+        valid: list[tuple[int, str]] = []
+        for row in rows:
+            try:
+                raw_payload = json.loads(str(row[6]))
+                if not isinstance(raw_payload, dict):
                     continue
+                if set(raw_payload) == {"payload", "previous_event_id", "schema_version"}:
+                    payload = raw_payload["payload"]
+                    previous = raw_payload["previous_event_id"]
+                    version = raw_payload["schema_version"]
+                else:
+                    payload = raw_payload
+                    previous = None
+                    version = 1
                 if not isinstance(payload, dict):
                     continue
-                if set(payload) == {"payload", "previous_event_id", "schema_version"}:
-                    payload["previous_event_id"] = None
-                    connection.execute(
-                        "UPDATE audit_events SET payload_json = ? WHERE event_id = ?",
-                        (json.dumps(payload, separators=(",", ":"), sort_keys=True), first[0]),
-                    )
-                break
+                AuditEvent(
+                    event_id=row[1],
+                    occurred_at=row[2],
+                    kind=row[3],
+                    subject_type=row[4],
+                    subject_id=row[5],
+                    payload=payload,
+                    previous_event_id=previous,
+                    schema_version=version,
+                )
+                valid.append((int(row[0]), str(row[1])))
+            except (AuditEventError, TypeError, ValueError, json.JSONDecodeError):
+                continue
+        if len(valid) <= limit:
+            return
+        cutoff = valid[-limit - 1]
+        retained_first = valid[-limit]
+        boundary = AuditRetentionBoundary.create(cutoff[1], retained_first[1])
+        removed = [row for row in rows if int(row[0]) <= cutoff[0]]
+        connection.executemany(
+            "DELETE FROM audit_events WHERE rowid = ?", ((int(row[0]),) for row in removed)
+        )
+        connection.execute(
+            "INSERT OR REPLACE INTO audit_retention_boundary VALUES (1, ?, ?, ?, ?)",
+            (
+                boundary.schema_version,
+                boundary.pruned_through_event_id,
+                boundary.first_retained_event_id,
+                boundary.digest,
+            ),
+        )
 
     def retire_expired_sessions(self, *, now: int | None = None) -> int:
         when = int(time.time()) if now is None else now
@@ -989,6 +1081,15 @@ class StateDatabase:
         )
         connection.execute(
             "CREATE INDEX IF NOT EXISTS mount_runtime_grant_idx ON mount_runtime(grant_id)"
+        )
+        connection.execute(
+            """CREATE TABLE IF NOT EXISTS audit_retention_boundary (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                schema_version INTEGER NOT NULL,
+                pruned_through_event_id TEXT NOT NULL,
+                first_retained_event_id TEXT NOT NULL,
+                digest TEXT NOT NULL
+            )"""
         )
 
     def create_mount_runtime(self, record: Mapping[str, object]) -> None:

@@ -14,8 +14,11 @@ import pytest
 from astral_project.core.errors import ErrorCode
 from astral_project.sandbox import hardening
 from astral_project.sandbox.hardening import (
+    LANDLOCK_HANDLED_ACCESS_FS,
+    LANDLOCK_MINIMUM_ABI,
     HardeningPolicy,
     HardeningStatus,
+    RootRole,
     enforce,
     require_available,
 )
@@ -39,13 +42,13 @@ def test_policy_validation_and_plan_roots(tmp_path: Path) -> None:
     root = tmp_path / "root"
     root.mkdir()
     policy = HardeningPolicy.for_plan(((root, True), (root, False)))
-    assert dict(policy.allowed_roots)[root] is True
+    assert dict(policy.allowed_roots)[root] is RootRole.REGULAR_WRITABLE
     readonly_tmp = HardeningPolicy.for_plan(((Path("/tmp"), False),), writable_tmp=False)
-    assert dict(readonly_tmp.allowed_roots)[Path("/tmp")] is False
+    assert dict(readonly_tmp.allowed_roots)[Path("/tmp")] is RootRole.READ_ONLY
     nested_tmp = tmp_path / "nested-tmp"
     nested_tmp.mkdir()
     nested_policy = HardeningPolicy.for_plan(((nested_tmp, False),), writable_tmp=False)
-    assert dict(nested_policy.allowed_roots)[Path("/tmp")] is False
+    assert dict(nested_policy.allowed_roots)[Path("/tmp")] is RootRole.READ_ONLY
     with pytest.raises(ValueError):
         HardeningPolicy.for_plan((), writable_tmp="yes")  # type: ignore[arg-type]
     with pytest.raises(ValueError):
@@ -55,14 +58,57 @@ def test_policy_validation_and_plan_roots(tmp_path: Path) -> None:
     with pytest.raises(ValueError):
         HardeningPolicy(max_processes=0)
     with pytest.raises(ValueError):
-        HardeningPolicy(allowed_roots=((tmp_path / "missing", False),))
+        HardeningPolicy(allowed_roots=((tmp_path / "missing", RootRole.READ_ONLY),))
     with pytest.raises(ValueError):
         HardeningPolicy(allowed_roots=((root, "yes"),))  # type: ignore[arg-type]
+
+
+def test_root_role_rejects_invalid_direct_value() -> None:
+    assert hardening._root_role(RootRole.READ_ONLY) is RootRole.READ_ONLY
+    with pytest.raises(ValueError, match="root role"):
+        hardening._root_role("invalid")  # type: ignore[arg-type]
+
+
+def test_root_role_merge_preserves_strongest_fixed_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert (
+        hardening._stronger_role(RootRole.READ_ONLY, RootRole.REGULAR_WRITABLE)
+        is RootRole.REGULAR_WRITABLE
+    )
+    assert (
+        hardening._stronger_role(RootRole.DEVICE_RUNTIME, RootRole.SOCKET_RUNTIME)
+        is RootRole.SOCKET_RUNTIME
+    )
+    monkeypatch.setattr(
+        hardening,
+        "_access_for_role",
+        lambda role: 1 if role is RootRole.READ_ONLY else 2,
+    )
+    with pytest.raises(ValueError, match="conflicting"):
+        hardening._stronger_role(RootRole.READ_ONLY, RootRole.REGULAR_WRITABLE)
 
 
 def test_require_available_fails_closed_and_reports_abi(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(hardening, "detect_landlock", lambda: 4)
     assert require_available(HardeningPolicy(required=True)) == 4
+    monkeypatch.setattr(hardening, "detect_landlock", lambda: 2)
+    with pytest.raises(hardening.HardeningError, match="below required"):
+        require_available(HardeningPolicy(required=True))
+    assert require_available(HardeningPolicy(required=False)) == 2
+    monkeypatch.setattr(
+        hardening,
+        "detect_landlock",
+        lambda: (_ for _ in ()).throw(OSError("probe")),
+    )
+    assert require_available(HardeningPolicy(required=False)) == 0
+    monkeypatch.setattr(
+        hardening,
+        "detect_landlock",
+        lambda: (_ for _ in ()).throw(OSError("probe")),
+    )
+    with pytest.raises(hardening.HardeningError, match="probe"):
+        require_available(HardeningPolicy(required=True))
     monkeypatch.setattr(hardening, "detect_landlock", lambda: None)
     assert require_available(HardeningPolicy(required=False)) == 0
     with pytest.raises(hardening.HardeningError):
@@ -81,12 +127,61 @@ def test_enforce_converts_probe_failure(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_enforce_fails_closed_or_reports_optional_absence(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(hardening, "detect_landlock", lambda: 2)
+    with pytest.raises(hardening.HardeningError) as error:
+        enforce(HardeningPolicy(required=True))
+    assert error.value.code is ErrorCode.HARDENING_UNAVAILABLE
+    status = enforce(HardeningPolicy(required=False))
+    assert "below required" in status.reason
     monkeypatch.setattr(hardening, "detect_landlock", lambda: None)
     with pytest.raises(hardening.HardeningError) as error:
         enforce(HardeningPolicy(required=True))
     assert error.value.code is ErrorCode.HARDENING_UNAVAILABLE
     status = enforce(HardeningPolicy(required=False))
     assert status == HardeningStatus(False, None, False, False, "Landlock unavailable")
+
+
+def test_python_native_landlock_rights_parity() -> None:
+    native = Path("packaging/native/aspr-hardening.h").read_text(encoding="utf-8")
+    names = (
+        "EXECUTE",
+        "WRITE_FILE",
+        "READ_FILE",
+        "READ_DIR",
+        "REMOVE_DIR",
+        "REMOVE_FILE",
+        "MAKE_CHAR",
+        "MAKE_DIR",
+        "MAKE_REG",
+        "MAKE_SOCK",
+        "MAKE_FIFO",
+        "MAKE_BLOCK",
+        "MAKE_SYM",
+        "REFER",
+        "TRUNCATE",
+    )
+    for bit, name in enumerate(names):
+        assert getattr(hardening, f"LANDLOCK_ACCESS_FS_{name}") == 1 << bit
+        assert f"ASPR_LANDLOCK_ACCESS_FS_{name} (1ULL << {bit})" in native
+    assert f"ASPR_LANDLOCK_MINIMUM_ABI {LANDLOCK_MINIMUM_ABI}" in native
+
+
+def test_landlock_contract_and_root_roles() -> None:
+    assert LANDLOCK_MINIMUM_ABI == 3
+    assert LANDLOCK_HANDLED_ACCESS_FS == (1 << 15) - 1
+    assert hardening._access_for_role(RootRole.READ_ONLY) & ~hardening._READ_ACCESS == 0
+    assert (
+        hardening._access_for_role(RootRole.REGULAR_WRITABLE)
+        & hardening.LANDLOCK_ACCESS_FS_MAKE_SOCK
+        == 0
+    )
+    assert (
+        hardening._access_for_role(RootRole.SOCKET_RUNTIME) & hardening.LANDLOCK_ACCESS_FS_MAKE_SOCK
+    )
+    assert (
+        hardening._access_for_role(RootRole.DEVICE_RUNTIME)
+        & hardening.LANDLOCK_ACCESS_FS_WRITE_FILE
+    )
 
 
 def test_enforce_applies_all_controls(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -105,7 +200,7 @@ def test_enforce_applies_all_controls(monkeypatch: pytest.MonkeyPatch, tmp_path:
 
 
 def test_enforce_converts_application_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(hardening, "detect_landlock", lambda: 1)
+    monkeypatch.setattr(hardening, "detect_landlock", lambda: 3)
 
     def fail_no_new_privs() -> None:
         raise OSError("no")
@@ -207,8 +302,11 @@ def test_non_linux_landlock_probe(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_status_and_dependency_report(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(hardening, "detect_landlock", lambda: 3)
     assert hardening.status(required=False).to_dict()["landlock_abi"] == 3
+    assert hardening.status(required=False).to_dict()["landlock_required_abi"] == 3
     monkeypatch.setattr(hardening, "detect_landlock", lambda: None)
     assert hardening.status().reason == "Landlock unavailable"
+    monkeypatch.setattr(hardening, "detect_landlock", lambda: 2)
+    assert "below required" in hardening.status().reason
     monkeypatch.setattr(
         hardening,
         "detect_landlock",
@@ -230,10 +328,11 @@ def test_secure_temp_directory_is_private(tmp_path: Path) -> None:
 
 
 def test_status_to_dict() -> None:
-    status = HardeningStatus(True, 1, True, False, "available")
+    status = HardeningStatus(True, 3, True, False, "available")
     assert status.to_dict() == {
-        "landlock_abi": 1,
+        "landlock_abi": 3,
         "landlock_available": True,
+        "landlock_required_abi": 3,
         "required": True,
         "enforced": False,
         "reason": "available",

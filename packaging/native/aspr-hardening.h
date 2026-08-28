@@ -11,7 +11,9 @@
 #define ASPR_LANDLOCK_CREATE_RULESET 444
 #define ASPR_LANDLOCK_ADD_RULE 445
 #define ASPR_LANDLOCK_RESTRICT_SELF 446
+#define ASPR_LANDLOCK_CREATE_RULESET_VERSION 1
 #define ASPR_LANDLOCK_RULE_TYPE_PATH_BENEATH 1
+#define ASPR_LANDLOCK_MINIMUM_ABI 3
 #define ASPR_LANDLOCK_ACCESS_FS_EXECUTE (1ULL << 0)
 #define ASPR_LANDLOCK_ACCESS_FS_WRITE_FILE (1ULL << 1)
 #define ASPR_LANDLOCK_ACCESS_FS_READ_FILE (1ULL << 2)
@@ -43,7 +45,16 @@ static void aspr_hardening_fail(const char *message) {
     fail(message);
 }
 
-static void aspr_hardening_add_rule(int ruleset, const char *path, int writable) {
+static void aspr_hardening_require_abi(void) {
+    long abi = syscall(ASPR_LANDLOCK_CREATE_RULESET, NULL, 0,
+                       ASPR_LANDLOCK_CREATE_RULESET_VERSION);
+    if (abi < ASPR_LANDLOCK_MINIMUM_ABI) {
+        aspr_hardening_fail(abi < 0 ? "Landlock ABI is unavailable" :
+                            "Landlock ABI is below required minimum");
+    }
+}
+
+static void aspr_hardening_add_rule(int ruleset, const char *path, int role) {
     int descriptor = open(path, O_PATH | O_CLOEXEC);
     if (descriptor < 0) {
         dprintf(STDERR_FILENO, "ASPR_SANDBOX_ENTRY: hardening root unavailable: %s\\n", path);
@@ -52,15 +63,15 @@ static void aspr_hardening_add_rule(int ruleset, const char *path, int writable)
     const uint64_t read_access = ASPR_LANDLOCK_ACCESS_FS_EXECUTE |
         ASPR_LANDLOCK_ACCESS_FS_READ_FILE | ASPR_LANDLOCK_ACCESS_FS_READ_DIR;
     const uint64_t device_access = read_access | ASPR_LANDLOCK_ACCESS_FS_WRITE_FILE;
-    const uint64_t write_access = read_access | ASPR_LANDLOCK_ACCESS_FS_WRITE_FILE |
+    const uint64_t regular_access = read_access | ASPR_LANDLOCK_ACCESS_FS_WRITE_FILE |
         ASPR_LANDLOCK_ACCESS_FS_REMOVE_DIR | ASPR_LANDLOCK_ACCESS_FS_REMOVE_FILE |
-        ASPR_LANDLOCK_ACCESS_FS_MAKE_CHAR | ASPR_LANDLOCK_ACCESS_FS_MAKE_DIR |
-        ASPR_LANDLOCK_ACCESS_FS_MAKE_REG | ASPR_LANDLOCK_ACCESS_FS_MAKE_SOCK |
-        ASPR_LANDLOCK_ACCESS_FS_MAKE_FIFO | ASPR_LANDLOCK_ACCESS_FS_MAKE_BLOCK |
+        ASPR_LANDLOCK_ACCESS_FS_MAKE_DIR | ASPR_LANDLOCK_ACCESS_FS_MAKE_REG |
         ASPR_LANDLOCK_ACCESS_FS_MAKE_SYM | ASPR_LANDLOCK_ACCESS_FS_REFER |
         ASPR_LANDLOCK_ACCESS_FS_TRUNCATE;
+    const uint64_t socket_access = regular_access | ASPR_LANDLOCK_ACCESS_FS_MAKE_SOCK;
     struct aspr_landlock_path_beneath_attr rule = {
-        .allowed_access = writable == 2 ? device_access : (writable ? write_access : read_access),
+        .allowed_access = role == 3 ? socket_access :
+            (role == 2 ? device_access : (role ? regular_access : read_access)),
         .parent_fd = descriptor,
     };
     if (syscall(ASPR_LANDLOCK_ADD_RULE, ruleset,
@@ -76,6 +87,7 @@ static void aspr_hardening_add_rule(int ruleset, const char *path, int writable)
 static void __attribute__((unused)) aspr_harden_roots(
     const char *const *read_roots, size_t read_count,
     const char *const *write_roots, size_t write_count, const char *device_root) {
+    aspr_hardening_require_abi();
     const uint64_t handled = ASPR_LANDLOCK_ACCESS_FS_EXECUTE |
         ASPR_LANDLOCK_ACCESS_FS_WRITE_FILE | ASPR_LANDLOCK_ACCESS_FS_READ_FILE |
         ASPR_LANDLOCK_ACCESS_FS_READ_DIR | ASPR_LANDLOCK_ACCESS_FS_REMOVE_DIR |
@@ -132,6 +144,7 @@ static void __attribute__((unused)) aspr_harden_roots(
 static void __attribute__((unused)) aspr_harden_payload(
     const char *const *read_roots, size_t read_count,
                                 const char *const *write_roots, size_t write_count) {
+    aspr_hardening_require_abi();
     const uint64_t handled = ASPR_LANDLOCK_ACCESS_FS_EXECUTE |
         ASPR_LANDLOCK_ACCESS_FS_WRITE_FILE | ASPR_LANDLOCK_ACCESS_FS_READ_FILE |
         ASPR_LANDLOCK_ACCESS_FS_READ_DIR |

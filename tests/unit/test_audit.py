@@ -3,16 +3,37 @@
 from __future__ import annotations
 
 import json
+import multiprocessing
 import stat
 from pathlib import Path
+from typing import Protocol
 
 import pytest
 
 import astral_project.audit.events as audit_events
-from astral_project.audit import AuditEvent, AuditEventError, AuditLog, PathMode, validate_chain
+from astral_project.audit import (
+    AuditEvent,
+    AuditEventError,
+    AuditLog,
+    AuditRetentionBoundary,
+    PathMode,
+    validate_chain,
+)
 from astral_project.core.errors import AstralError
 from astral_project.daemon.server import DaemonPaths, DaemonServer
 from astral_project.state.sqlite import StateDatabase
+
+
+class _BarrierLike(Protocol):
+    def wait(self) -> object: ...
+
+
+def _concurrent_append(
+    path: str, barrier: _BarrierLike, index: int, retention: int = 10_000
+) -> None:
+    log = AuditLog(Path(path), retention=retention)
+    barrier.wait()
+    log.append("concurrent", "worker", str(index), {}, occurred_at=index)
 
 
 def test_event_round_trip_and_path_export_modes() -> None:
@@ -116,6 +137,15 @@ def test_audit_log_append_read_diagnostics_and_chain(tmp_path: Path) -> None:
     assert "sha256:" in log.export(path_mode=PathMode.HASH)
 
 
+def test_audit_event_size_limit_applies_to_both_stores(tmp_path: Path) -> None:
+    huge = {"result": "x" * (64 * 1024)}
+    with pytest.raises(AuditEventError, match="size limit"):
+        AuditLog(tmp_path / "huge.log").append("kind", "subject", "id", huge)
+    database = StateDatabase.open(tmp_path / "huge.sqlite3")
+    with pytest.raises(AuditEventError, match="size limit"):
+        database.record_audit("kind", "subject", "id", huge)
+
+
 def test_audit_log_rejects_zero_write(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     log = AuditLog(tmp_path / "audit.log")
     monkeypatch.setattr("astral_project.audit.events.os.write", lambda *_args: 0)
@@ -139,75 +169,6 @@ def test_audit_log_rotation_and_limits(tmp_path: Path) -> None:
     assert stat.S_IMODE((tmp_path / "audit.log.1").stat().st_mode) == 0o600
 
 
-def test_audit_log_rotation_resets_oldest_predecessor(tmp_path: Path) -> None:
-    log = AuditLog(tmp_path / "chain.log", retain=1)
-    log.append("one", "subject", "1", {})
-    log.append("two", "subject", "2", {})
-    log.rotate()
-    assert validate_chain(log.read()) == ()
-    assert log.read()[0].previous_event_id is None
-
-
-def test_audit_log_reset_handles_empty_and_malformed_storage(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    log = AuditLog(tmp_path / "reset.log")
-    log._reset_oldest_predecessor()
-    generation = log.path.with_name("reset.log.1")
-    generation.write_text("[]\n", encoding="utf-8")
-    generation.chmod(0o600)
-    log._reset_oldest_predecessor()
-    first = AuditEvent.create("first", "subject", "1", {}, occurred_at=1)
-    second = AuditEvent.create(
-        "second", "subject", "2", {}, previous_event_id=first.event_id, occurred_at=2
-    )
-    generation.write_text(json.dumps(second.to_dict()) + "\n", encoding="utf-8")
-    generation.chmod(0o600)
-    log._reset_oldest_predecessor()
-    assert (
-        AuditEvent.from_dict(json.loads(generation.read_text().splitlines()[0])).previous_event_id
-        is None
-    )
-    monkeypatch.setattr(
-        audit_events, "_read_private_text", lambda *_args: (_ for _ in ()).throw(OSError("read"))
-    )
-    monkeypatch.setattr(log, "_read_paths", lambda: iter((generation,)))
-    log._reset_oldest_predecessor()
-
-
-def test_audit_log_skips_malformed_oldest_generation(tmp_path: Path) -> None:
-    log = AuditLog(tmp_path / "generations.log", retain=2)
-    oldest = log.path.with_name("generations.log.2")
-    next_generation = log.path.with_name("generations.log.1")
-    oldest.write_text("not-json\n", encoding="utf-8")
-    next_generation.write_text(
-        json.dumps(
-            AuditEvent(
-                "event", 1, "kind", "subject", "id", {}, previous_event_id="deleted"
-            ).to_dict()
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-    oldest.chmod(0o600)
-    next_generation.chmod(0o600)
-    log._reset_oldest_predecessor()
-    assert AuditEvent.from_dict(json.loads(next_generation.read_text())).previous_event_id is None
-
-
-def test_audit_rotation_write_failure_closes_private_temp(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    log = AuditLog(tmp_path / "write-failure.log")
-    generation = log.path.with_name("write-failure.log.1")
-    event = AuditEvent("event", 1, "kind", "subject", "id", {}, previous_event_id="old")
-    generation.write_text(json.dumps(event.to_dict()) + "\n", encoding="utf-8")
-    generation.chmod(0o600)
-    monkeypatch.setattr("astral_project.audit.events.os.write", lambda *_args: 0)
-    with pytest.raises(OSError, match="no progress"):
-        log._reset_oldest_predecessor()
-
-
 def test_audit_payload_schema_rejects_untyped_and_non_path_lists() -> None:
     with pytest.raises(AuditEventError, match="lists"):
         audit_events._validate_payload(["/path"])
@@ -215,6 +176,21 @@ def test_audit_payload_schema_rejects_untyped_and_non_path_lists() -> None:
         audit_events._validate_payload({"revision": object()})
     with pytest.raises(AuditEventError, match="strings"):
         AuditEvent.create("kind", "subject", "id", {"paths": [1]})
+
+
+def test_audit_log_automatic_count_retention_is_immutable(tmp_path: Path) -> None:
+    log = AuditLog(tmp_path / "retained.log", retention=2)
+    log.append("one", "subject", "1", {}, occurred_at=1)
+    log.append("two", "subject", "2", {}, occurred_at=2)
+    second_line = log.path.read_text(encoding="utf-8").splitlines(keepends=True)[1]
+    log.append("three", "subject", "3", {}, occurred_at=3)
+    retained_lines = log.path.read_text(encoding="utf-8").splitlines(keepends=True)
+    assert second_line in retained_lines
+    assert [event.kind for event in log.read()] == ["two", "three"]
+    assert log.chain_errors() == ()
+    assert log.boundary_path.stat().st_mode & 0o777 == 0o600
+    log.boundary_path.write_text("corrupt\\n", encoding="utf-8")
+    assert log.chain_errors() == ("retention-boundary",)
 
 
 def test_audit_log_auto_rotation_and_existing_generations(tmp_path: Path) -> None:
@@ -233,6 +209,91 @@ def test_audit_log_auto_rotation_and_existing_generations(tmp_path: Path) -> Non
     assert (tmp_path / "generations.log.1").exists()
     assert (tmp_path / "generations.log.2").exists()
     assert [event.kind for event in log.read()] == ["current"]
+
+
+def test_audit_log_concurrent_append_is_linear(tmp_path: Path) -> None:
+    path = tmp_path / "concurrent.log"
+    context = multiprocessing.get_context("fork")
+    barrier = context.Barrier(8)
+    workers = [
+        context.Process(target=_concurrent_append, args=(str(path), barrier, i)) for i in range(8)
+    ]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(timeout=5)
+        assert worker.exitcode == 0
+    log = AuditLog(path)
+    events = log.read()
+    assert len(events) == 8
+    assert len({event.event_id for event in events}) == 8
+    assert validate_chain(events) == ()
+    assert log.lock_path.exists()
+    assert stat.S_IMODE(log.lock_path.stat().st_mode) == 0o600
+
+
+def test_retention_boundary_validation_is_strict() -> None:
+    boundary = AuditRetentionBoundary.create("pruned", "first")
+    with pytest.raises(AuditEventError):
+        AuditRetentionBoundary.from_dict({})
+    with pytest.raises(AuditEventError):
+        AuditRetentionBoundary.from_dict({**boundary.to_dict(), "digest": "tampered"})
+    with pytest.raises(AuditEventError):
+        AuditRetentionBoundary.from_dict({**boundary.to_dict(), "digest": 1})
+    event = AuditEvent("other", 1, "kind", "subject", "id", {})
+    assert validate_chain((event,), boundary=boundary) == ("retention-boundary",)
+
+
+def test_audit_log_atomic_retention_failures_and_malformed_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert AuditLog(tmp_path / "no-boundary.log").chain_errors() == ()
+    log = AuditLog(tmp_path / "retention-errors.log", retention=1)
+    log.path.write_text("[]\nnot-json\n", encoding="utf-8")
+    log.path.chmod(0o600)
+    original_read_private_text = audit_events._read_private_text
+    monkeypatch.setattr(
+        audit_events,
+        "_read_private_text",
+        lambda *_args: (_ for _ in ()).throw(OSError("read")),
+    )
+    log._apply_retention_unlocked()
+    monkeypatch.setattr(audit_events, "_read_private_text", original_read_private_text)
+    log._apply_retention_unlocked()
+    log.boundary_path.write_text("[]\n", encoding="utf-8")
+    log.boundary_path.chmod(0o600)
+    assert log.chain_errors() == ("retention-boundary",)
+    log.boundary_path.write_text("{}\n\n", encoding="utf-8")
+    assert log.chain_errors() == ("retention-boundary",)
+    monkeypatch.setattr("astral_project.audit.events.os.write", lambda *_args: 0)
+    with pytest.raises(OSError, match="atomic write"):
+        log._atomic_replace(log.path, b"x")
+
+
+def test_audit_log_concurrent_append_with_retention_is_bounded(tmp_path: Path) -> None:
+    path = tmp_path / "concurrent-retained.log"
+    context = multiprocessing.get_context("fork")
+    barrier = context.Barrier(4)
+    workers = [
+        context.Process(target=_concurrent_append, args=(str(path), barrier, i, 2))
+        for i in range(4)
+    ]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(timeout=5)
+        assert worker.exitcode == 0
+    log = AuditLog(path, retention=2)
+    assert len(log.read()) == 2
+    assert log.chain_errors() == ()
+
+
+def test_audit_log_rejects_symlink_lock(tmp_path: Path) -> None:
+    path = tmp_path / "locked.log"
+    path.parent.mkdir(mode=0o700, exist_ok=True)
+    path.with_name("locked.log.lock").symlink_to(path)
+    with pytest.raises(PermissionError):
+        AuditLog(path)
 
 
 def test_audit_log_read_handles_storage_error(
@@ -285,6 +346,10 @@ def test_chain_detects_duplicate_and_forward_reference() -> None:
     forward = AuditEvent("later", 2, "b", "s", "2", {}, previous_event_id="missing")
     duplicate = AuditEvent("same", 3, "c", "s", "3", {}, previous_event_id="same")
     assert validate_chain((first, forward, duplicate)) == ("later", "same")
+    fork = AuditEvent("fork", 4, "d", "s", "4", {}, previous_event_id="same")
+    assert validate_chain(
+        (first, AuditEvent("a", 2, "b", "s", "2", {}, previous_event_id="same"), fork)
+    ) == ("fork",)
 
 
 def test_state_database_audit_api_reads_legacy_and_new_rows(tmp_path: Path) -> None:
@@ -322,6 +387,48 @@ def test_state_database_audit_api_reads_legacy_and_new_rows(tmp_path: Path) -> N
     assert database.list_audit_events()[-1].previous_event_id == "legacy"
 
 
+def test_state_database_host_transport_rejects_missing_and_bad_records(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="retention"):
+        StateDatabase.open(tmp_path / "invalid.sqlite3", retention_limit=0)
+    database = StateDatabase.open(tmp_path / "host.sqlite3")
+    with pytest.raises(AstralError, match="host"):
+        database.host_transport("missing")
+    with database.transaction(write=True) as connection:
+        connection.execute(
+            "INSERT INTO hosts VALUES (?, ?, ?, ?, ?, ?)",
+            ("bad", "fp", "user", "[]", 1, 1),
+        )
+    with pytest.raises(AstralError, match="metadata"):
+        database.host_transport("bad")
+    with database.transaction(write=True) as connection:
+        connection.execute(
+            "UPDATE hosts SET metadata_json = ? WHERE host_id = ?", ('{"address":"x"}', "bad")
+        )
+    assert database.host_transport("bad")[0] == "user"
+
+
+def test_state_database_automatic_retention_is_immutable(tmp_path: Path) -> None:
+    database = StateDatabase.open(tmp_path / "retained.sqlite3", retention_limit=2)
+    database.record_audit("one", "subject", "1", {}, occurred_at=1)
+    database.record_audit("two", "subject", "2", {}, occurred_at=2)
+    second = database.list_audit_events()[1]
+    with database.transaction() as connection:
+        original = connection.execute(
+            "SELECT payload_json FROM audit_events WHERE event_id = ?", (second.event_id,)
+        ).fetchone()[0]
+    database.record_audit("three", "subject", "3", {}, occurred_at=3)
+    assert [event.kind for event in database.list_audit_events()] == ["two", "three"]
+    assert database.audit_chain_errors() == ()
+    with database.transaction() as connection:
+        retained = connection.execute(
+            "SELECT payload_json FROM audit_events WHERE event_id = ?", (second.event_id,)
+        ).fetchone()[0]
+    assert retained == original
+    with database.transaction(write=True) as connection:
+        connection.execute("DELETE FROM audit_retention_boundary WHERE id = 1")
+    assert database.audit_chain_errors() == (second.event_id,)
+
+
 def test_state_database_audit_rotation_retains_chain(tmp_path: Path) -> None:
     database = StateDatabase.open(tmp_path / "state.sqlite3")
     database.record_audit("one", "subject", "1", {}, occurred_at=1)
@@ -331,8 +438,11 @@ def test_state_database_audit_rotation_retains_chain(tmp_path: Path) -> None:
     database.rotate_audit(retain=2)
     events = database.list_audit_events()
     assert [event.kind for event in events] == ["two", "three"]
-    assert events[0].previous_event_id is None
+    assert events[0].previous_event_id is not None
     assert database.audit_chain_errors() == ()
+    with database.transaction(write=True) as connection:
+        connection.execute("UPDATE audit_retention_boundary SET digest = 'tampered' WHERE id = 1")
+    assert database.audit_chain_errors() == ("retention-boundary",)
     with pytest.raises(ValueError):
         database.rotate_audit(retain=0)
     legacy = StateDatabase.open(tmp_path / "legacy.sqlite3")
@@ -372,7 +482,7 @@ def test_state_database_audit_rotation_retains_chain(tmp_path: Path) -> None:
         )
     combined.rotate_audit(retain=3)
     assert combined.audit_chain_errors() == ()
-    assert combined.list_audit_events()[-1].previous_event_id is None
+    assert combined.list_audit_events()[-1].previous_event_id == "old"
 
 
 def test_state_database_rejects_secret_audit_payload(tmp_path: Path) -> None:

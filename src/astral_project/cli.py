@@ -342,10 +342,23 @@ def _run_audit(arguments: Sequence[str], stdout: TextIO, stderr: TextIO) -> int:
         return _run_json_operation("audit.list", None, stdout, stderr)
     if command == "show" and len(arguments) == 3:
         return _run_json_operation("audit.show", {"event_id": arguments[2]}, stdout, stderr)
-    if command == "export" and len(arguments) in {2, 3}:
+    if command == "export" and len(arguments) in {2, 3, 4, 5}:
         if len(arguments) == 3 and arguments[2] != "--hash":
             return _write_unknown_command("audit export", stderr)
-        mode = "hash" if len(arguments) == 3 else "redact"
+        if len(arguments) in {4, 5} and arguments[2] != "--remote":
+            return _write_unknown_command("audit export", stderr)
+        if len(arguments) in {4, 5} and not arguments[3]:
+            return _write_unknown_command("audit export", stderr)
+        if len(arguments) == 5 and arguments[4] != "--hash":
+            return _write_unknown_command("audit export", stderr)
+        mode = "hash" if arguments[-1] == "--hash" else "redact"
+        if len(arguments) in {4, 5}:
+            return _run_json_operation(
+                "audit.remote.export",
+                {"host_id": arguments[3], "path_mode": mode},
+                stdout,
+                stderr,
+            )
         return _run_json_operation("audit.export", {"path_mode": mode}, stdout, stderr)
     return _write_unknown_command(" ".join(arguments[:2]), stderr)
 

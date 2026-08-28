@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import os
 import sys
 import time
@@ -13,7 +14,7 @@ from typing import BinaryIO, TextIO
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-from astral_project.audit.events import AuditLog
+from astral_project.audit.events import AuditLog, PathMode
 from astral_project.core.config import load_toml_config
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.core.ids import HostId, IssuerKeyId
@@ -38,6 +39,10 @@ from astral_project.session.contracts import (
 )
 
 SSH_ORIGINAL_COMMAND = "aspr-channel-v1"
+SSH_ORIGINAL_AUDIT_COMMAND = "aspr-audit-export-v1"
+MAX_AUDIT_EXPORT_REQUEST = 4096
+MAX_AUDIT_EXPORT_RECORDS = 1000
+MAX_AUDIT_EXPORT_RESPONSE = 1024 * 1024
 _SERVER_CONFIG = Path(".config") / "astral-project" / "server.toml"
 
 
@@ -134,6 +139,84 @@ def run_ssh_entry(
         write_outer_rejection(stdout, RemoteSessionRejectedV1(nonce, error.code.string))
         stderr.write(f"{error.to_text()}\n")
         return 70
+
+
+def run_audit_export_entry(
+    transport_key_id: str,
+    *,
+    stdin: BinaryIO,
+    stdout: BinaryIO,
+    stderr: TextIO,
+    environment: Mapping[str, str],
+    trust: ServerTrust | None = None,
+    audit_log: AuditLog | None = None,
+) -> int:
+    """Serve one bounded, redacted remote audit export over enrolled SSH authority."""
+    log = audit_log if audit_log is not None else _default_audit_log(environment)
+    try:
+        if environment.get("SSH_ORIGINAL_COMMAND") != SSH_ORIGINAL_AUDIT_COMMAND:
+            raise _command_error("SSH original command is not the audit export marker")
+        active_trust = trust if trust is not None else load_server_trust(transport_key_id)
+        _require_transport_key(active_trust, transport_key_id)
+        request = _read_audit_request(stdin)
+        path_mode = PathMode(str(request["path_mode"]))
+        log.append(
+            "audit.remote.export.started",
+            "process",
+            "remote-audit",
+            {"path_mode": path_mode.value},
+        )
+        enforce(HardeningPolicy.for_plan(((log.path.parent, False),)))
+        events = log.read()[-MAX_AUDIT_EXPORT_RECORDS:]
+        exported = "".join(
+            json.dumps(event.to_dict(path_mode=path_mode), separators=(",", ":"), sort_keys=True)
+            + "\n"
+            for event in events
+        )
+        if len(exported.encode()) > MAX_AUDIT_EXPORT_RESPONSE:
+            raise _command_error("remote audit export exceeds response limit")
+        _write_audit_response(stdout, {"version": 1, "ok": True, "export": exported})
+        return 0
+    except (AstralError, OSError, TypeError, ValueError, json.JSONDecodeError) as error:
+        if isinstance(error, HardeningError):
+            log.append(
+                "hardening.failure", "process", "remote-audit", {"error_code": error.code.string}
+            )
+        if isinstance(error, AstralError):
+            code = error.code.string
+            message = error.message
+        else:
+            code = ErrorCode.PROTOCOL_FRAME.string
+            message = "remote audit export request was rejected"
+        _write_audit_response(stdout, {"version": 1, "ok": False, "error_code": code})
+        stderr.write(f"{message}\n")
+        return 70
+
+
+def _read_audit_request(stdin: BinaryIO) -> dict[str, object]:
+    raw = stdin.read(MAX_AUDIT_EXPORT_REQUEST + 1)
+    if len(raw) > MAX_AUDIT_EXPORT_REQUEST:
+        raise _command_error("remote audit export request is too large")
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise _command_error("remote audit export request is invalid") from error
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"version", "path_mode"}
+        or value.get("version") != 1
+        or value.get("path_mode") not in {PathMode.REDACT.value, PathMode.HASH.value}
+    ):
+        raise _command_error("remote audit export request is invalid")
+    return value
+
+
+def _write_audit_response(stdout: BinaryIO, value: Mapping[str, object]) -> None:
+    encoded = json.dumps(value, separators=(",", ":"), sort_keys=True).encode()
+    if len(encoded) > MAX_AUDIT_EXPORT_RESPONSE:
+        raise OSError("remote audit export response is too large")
+    stdout.write(encoded)
+    stdout.flush()
 
 
 def load_server_trust(transport_key_id: str, *, home: Path | None = None) -> ServerTrust:
@@ -250,17 +333,28 @@ def main() -> None:
         transport_key_id = arguments[3]
     else:
         raise SystemExit(70)
-    raise SystemExit(
-        run_ssh_entry(
+    stdin = getattr(sys.stdin.buffer, "raw", sys.stdin.buffer)
+    stdout = getattr(sys.stdout.buffer, "raw", sys.stdout.buffer)
+    if os.environ.get("SSH_ORIGINAL_COMMAND") == SSH_ORIGINAL_AUDIT_COMMAND:
+        result = run_audit_export_entry(
             transport_key_id,
-            stdin=getattr(sys.stdin.buffer, "raw", sys.stdin.buffer),
-            stdout=getattr(sys.stdout.buffer, "raw", sys.stdout.buffer),
+            stdin=stdin,
+            stdout=stdout,
+            stderr=sys.stderr,
+            environment=os.environ,
+            audit_log=_default_audit_log(os.environ),
+        )
+    else:
+        result = run_ssh_entry(
+            transport_key_id,
+            stdin=stdin,
+            stdout=stdout,
             stderr=sys.stderr,
             environment=os.environ,
             broker_dispatch=True,
             audit_log=_default_audit_log(os.environ),
         )
-    )
+    raise SystemExit(result)
 
 
 if __name__ == "__main__":  # pragma: no cover

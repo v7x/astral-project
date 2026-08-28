@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
@@ -11,6 +12,7 @@ import tempfile
 import time
 import uuid
 from collections.abc import Iterator, Mapping
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -19,6 +21,8 @@ from typing import cast
 from astral_project.core.paths import ensure_private_directory, safe_component
 
 SCHEMA_VERSION = 1
+AUDIT_RETENTION_LIMIT = 10_000
+AUDIT_MAX_EVENT_BYTES = 64 * 1024
 _REDACTED = "<redacted>"
 _SECRET_KEY = re.compile(
     r"(?:private|secret|credential|password|token|content|environment|env|identity[_-]?file)",
@@ -121,6 +125,7 @@ _SAFE_PAYLOAD_KEYS = frozenset(
         "kind",
         "landlock_abi",
         "landlock_available",
+        "landlock_required_abi",
         "max_depth",
         "max_exports",
         "maximum_access",
@@ -144,6 +149,7 @@ _SAFE_PAYLOAD_KEYS = frozenset(
         "os",
         "package_version",
         "path",
+        "path_mode",
         "paths",
         "path_component",
         "peer_uid",
@@ -230,6 +236,59 @@ class PathMode(Enum):
 
 class AuditEventError(ValueError):
     """Raised when an event violates the versioned audit envelope."""
+
+
+@dataclass(frozen=True, slots=True)
+class AuditRetentionBoundary:
+    """Immutable metadata linking retained history to intentionally pruned history."""
+
+    pruned_through_event_id: str
+    first_retained_event_id: str
+    digest: str
+    schema_version: int = SCHEMA_VERSION
+
+    @classmethod
+    def create(
+        cls, pruned_through_event_id: str, first_retained_event_id: str
+    ) -> AuditRetentionBoundary:
+        digest = hashlib.sha256(
+            b"astral-project-audit-boundary\0"
+            + pruned_through_event_id.encode()
+            + b"\0"
+            + first_retained_event_id.encode()
+        ).hexdigest()
+        return cls(pruned_through_event_id, first_retained_event_id, digest)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "pruned_through_event_id": self.pruned_through_event_id,
+            "first_retained_event_id": self.first_retained_event_id,
+            "digest": self.digest,
+        }
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, object]) -> AuditRetentionBoundary:
+        if (
+            set(value)
+            != {
+                "schema_version",
+                "pruned_through_event_id",
+                "first_retained_event_id",
+                "digest",
+            }
+            or value.get("schema_version") != SCHEMA_VERSION
+        ):
+            raise AuditEventError("audit retention boundary is invalid")
+        pruned = value.get("pruned_through_event_id")
+        first = value.get("first_retained_event_id")
+        digest = value.get("digest")
+        if not all(isinstance(item, str) and item for item in (pruned, first, digest)):
+            raise AuditEventError("audit retention boundary is invalid")
+        expected = cls.create(cast(str, pruned), cast(str, first))
+        if digest != expected.digest:
+            raise AuditEventError("audit retention boundary digest is invalid")
+        return expected
 
 
 @dataclass(frozen=True, slots=True)
@@ -345,15 +404,35 @@ class AuditEvent:
 class AuditLog:
     """Private JSONL audit store used by local and remote state owners."""
 
-    def __init__(self, path: Path, *, max_bytes: int = 10 * 1024 * 1024, retain: int = 5) -> None:
-        if max_bytes <= 0 or retain < 1:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        max_bytes: int | None = None,
+        retain: int = 5,
+        retention: int = AUDIT_RETENTION_LIMIT,
+    ) -> None:
+        if (max_bytes is not None and max_bytes <= 0) or retain < 1 or retention < 1:
             raise ValueError("audit rotation limits must be positive")
         self.path = path
         self.max_bytes = max_bytes
         self.retain = retain
+        self.retention = retention
         ensure_private_directory(path.parent)
         if path.exists():
             _check_private_file(path)
+        if os.path.lexists(self.lock_path):
+            _check_private_file(self.lock_path)
+        if os.path.lexists(self.boundary_path):
+            _check_private_file(self.boundary_path)
+
+    @property
+    def lock_path(self) -> Path:
+        return self.path.with_name(f"{safe_component(self.path.name)}.lock")
+
+    @property
+    def boundary_path(self) -> Path:
+        return self.path.with_name(f"{safe_component(self.path.name)}.boundary")
 
     def append(
         self,
@@ -364,56 +443,78 @@ class AuditLog:
         *,
         occurred_at: int | None = None,
     ) -> AuditEvent:
-        previous = next(iter(reversed(self.read())), None)
-        event = AuditEvent.create(
-            kind,
-            subject_type,
-            subject_id,
-            payload,
-            previous_event_id=None if previous is None else previous.event_id,
-            occurred_at=occurred_at,
-        )
-        self._rotate_if_needed()
-        descriptor = os.open(
-            self.path,
-            os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW,
-            0o600,
-        )
-        try:
-            os.fchmod(descriptor, 0o600)
-            data = (
-                json.dumps(event.to_dict(), separators=(",", ":"), sort_keys=True) + "\n"
-            ).encode()
-            view = memoryview(data)
-            while view:
-                written = os.write(descriptor, view)
-                if written <= 0:
-                    raise OSError("audit write made no progress")
-                view = view[written:]
-            os.fsync(descriptor)
-        finally:
-            os.close(descriptor)
-        _check_private_file(self.path)
-        return event
+        with self._lock(exclusive=True):
+            previous = next(iter(reversed(self._read_unlocked())), None)
+            event = AuditEvent.create(
+                kind,
+                subject_type,
+                subject_id,
+                payload,
+                previous_event_id=None if previous is None else previous.event_id,
+                occurred_at=occurred_at,
+            )
+            self._rotate_if_needed_unlocked()
+            descriptor = os.open(
+                self.path,
+                os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW,
+                0o600,
+            )
+            try:
+                os.fchmod(descriptor, 0o600)
+                data = (
+                    json.dumps(event.to_dict(), separators=(",", ":"), sort_keys=True) + "\n"
+                ).encode()
+                if len(data) > AUDIT_MAX_EVENT_BYTES:
+                    raise AuditEventError("audit event exceeds serialized size limit")
+                view = memoryview(data)
+                while view:
+                    written = os.write(descriptor, view)
+                    if written <= 0:
+                        raise OSError("audit write made no progress")
+                    view = view[written:]
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+            _check_private_file(self.path)
+            if self.max_bytes is None:
+                self._apply_retention_unlocked()
+            return event
 
     def read(self) -> tuple[AuditEvent, ...]:
         """Read valid rows only; malformed historical rows never crash readers."""
-        return tuple(event for event, _ in self._all_rows() if event is not None)
+        with self._lock(exclusive=False):
+            return self._read_unlocked()
 
     def diagnostics(self) -> tuple[str, ...]:
         """Return safe row diagnostics without exposing malformed contents."""
-        return tuple(message for _, message in self._all_rows() if message is not None)
+        with self._lock(exclusive=False):
+            return tuple(message for _, message in self._all_rows() if message is not None)
 
     def export(self, *, path_mode: PathMode = PathMode.REDACT) -> str:
         """Serialize valid rows with redaction or explicit deterministic hashing."""
+        with self._lock(exclusive=False):
+            events = self._read_unlocked()
         return "".join(
             json.dumps(event.to_dict(path_mode=path_mode), separators=(",", ":"), sort_keys=True)
             + "\n"
-            for event in self.read()
+            for event in events
         )
+
+    def chain_errors(self) -> tuple[str, ...]:
+        """Validate linear provenance against private retention metadata."""
+        with self._lock(exclusive=False):
+            try:
+                boundary = self._read_boundary_unlocked()
+            except (AuditEventError, OSError, json.JSONDecodeError, TypeError, ValueError):
+                return ("retention-boundary",)
+            return validate_chain(self._read_unlocked(), boundary=boundary)
 
     def rotate(self) -> None:
         """Rotate current log and retain only configured private generations."""
+        with self._lock(exclusive=True):
+            self._rotate_unlocked()
+
+    def _rotate_unlocked(self) -> None:
         if self.path.exists():
             _check_private_file(self.path)
         for index in range(self.retain, 0, -1):
@@ -427,61 +528,101 @@ class AuditLog:
         if self.path.exists():
             os.replace(self.path, self._generation(1))
             os.chmod(self._generation(1), 0o600)
-        self._reset_oldest_predecessor()
 
-    def _reset_oldest_predecessor(self) -> None:
-        """Atomically make the first retained valid row a new chain root."""
-        for oldest in self._read_paths():
+    def _apply_retention_unlocked(self) -> None:
+        rows: list[tuple[AuditEvent, str]] = []
+        for path in self._read_paths():
             try:
-                lines = _read_private_text(oldest).splitlines(keepends=True)
+                lines = _read_private_text(path).splitlines(keepends=True)
             except OSError:
                 continue
-            for index, line in enumerate(lines):
+            for line in lines:
                 try:
                     raw = json.loads(line)
                     if not isinstance(raw, dict):
                         continue
-                    event = AuditEvent.from_dict(cast(Mapping[str, object], raw))
+                    rows.append((AuditEvent.from_dict(cast(Mapping[str, object], raw)), line))
                 except (AuditEventError, json.JSONDecodeError, TypeError, ValueError):
                     continue
-                if event.previous_event_id is None:
-                    return
-                replacement_value = event.to_dict()
-                replacement_value["previous_event_id"] = None
-                replacement = (
-                    json.dumps(replacement_value, separators=(",", ":"), sort_keys=True) + "\n"
-                )
-                lines[index] = replacement
-                descriptor, temporary_name = tempfile.mkstemp(
-                    prefix=f".{safe_component(oldest.name)}.", dir=oldest.parent
-                )
-                temporary = Path(temporary_name)
-                try:
-                    os.fchmod(descriptor, 0o600)
-                    data = "".join(lines).encode()
-                    view = memoryview(data)
-                    while view:
-                        written = os.write(descriptor, view)
-                        if written <= 0:
-                            raise OSError("audit rotation write made no progress")
-                        view = view[written:]
-                    os.fsync(descriptor)
-                    os.close(descriptor)
-                    descriptor = -1
-                    os.replace(temporary, oldest)
-                    os.chmod(oldest, 0o600)
-                finally:
-                    if descriptor >= 0:
-                        os.close(descriptor)
-                    temporary.unlink(missing_ok=True)
-                return
+        if len(rows) <= self.retention:
+            return
+        retained = rows[-self.retention :]
+        boundary = AuditRetentionBoundary.create(
+            rows[-self.retention - 1][0].event_id, retained[0][0].event_id
+        )
+        self._atomic_replace(self.path, "".join(line for _, line in retained).encode())
+        for index in range(1, self.retain + 1):
+            self._generation(index).unlink(missing_ok=True)
+        self._atomic_replace(
+            self.boundary_path,
+            (json.dumps(boundary.to_dict(), separators=(",", ":"), sort_keys=True) + "\n").encode(),
+        )
 
-    def _rotate_if_needed(self) -> None:
-        if self.path.exists() and self.path.stat().st_size >= self.max_bytes:
-            self.rotate()
+    def _read_boundary_unlocked(self) -> AuditRetentionBoundary | None:
+        if not os.path.lexists(self.boundary_path):
+            return None
+        _check_private_file(self.boundary_path)
+        lines = _read_private_text(self.boundary_path).splitlines()
+        if len(lines) != 1:
+            raise AuditEventError("audit retention boundary is invalid")
+        raw = json.loads(lines[0])
+        if not isinstance(raw, dict):
+            raise AuditEventError("audit retention boundary is invalid")
+        return AuditRetentionBoundary.from_dict(cast(Mapping[str, object], raw))
+
+    def _atomic_replace(self, path: Path, data: bytes) -> None:
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{safe_component(path.name)}.", dir=path.parent
+        )
+        temporary = Path(temporary_name)
+        try:
+            os.fchmod(descriptor, 0o600)
+            view = memoryview(data)
+            while view:
+                written = os.write(descriptor, view)
+                if written <= 0:
+                    raise OSError("audit atomic write made no progress")
+                view = view[written:]
+            os.fsync(descriptor)
+            os.close(descriptor)
+            descriptor = -1
+            os.replace(temporary, path)
+            os.chmod(path, 0o600)
+        finally:
+            if descriptor >= 0:
+                os.close(descriptor)
+            temporary.unlink(missing_ok=True)
+
+    def _rotate_if_needed_unlocked(self) -> None:
+        if (
+            self.max_bytes is not None
+            and self.path.exists()
+            and self.path.stat().st_size >= self.max_bytes
+        ):
+            self._rotate_unlocked()
+
+    @contextmanager
+    def _lock(self, *, exclusive: bool) -> Iterator[None]:
+        descriptor = os.open(
+            self.lock_path,
+            os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW,
+            0o600,
+        )
+        try:
+            os.fchmod(descriptor, 0o600)
+            _check_private_file(self.lock_path)
+            fcntl.flock(descriptor, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+            yield
+        finally:
+            with suppress(OSError):
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
+            os.close(descriptor)
 
     def _generation(self, index: int) -> Path:
         return self.path.with_name(f"{safe_component(self.path.name)}.{index}")
+
+    def _read_unlocked(self) -> tuple[AuditEvent, ...]:
+        return tuple(event for event, _ in self._all_rows() if event is not None)
 
     def _all_rows(self) -> Iterator[tuple[AuditEvent | None, str | None]]:
         for path in self._read_paths():
@@ -517,16 +658,26 @@ def _read_private_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def validate_chain(events: tuple[AuditEvent, ...]) -> tuple[str, ...]:
-    """Return event IDs whose predecessor reference is not valid and prior."""
+def validate_chain(
+    events: tuple[AuditEvent, ...], *, boundary: AuditRetentionBoundary | None = None
+) -> tuple[str, ...]:
+    """Return event IDs that do not form one linear valid-event chain."""
     known: set[str] = set()
     errors: list[str] = []
-    for event in events:
-        if event.event_id in known:
-            errors.append(event.event_id)
-        if event.previous_event_id is not None and event.previous_event_id not in known:
+    previous: AuditEvent | None = None
+    for index, event in enumerate(events):
+        duplicate = event.event_id in known
+        expected = None if previous is None else previous.event_id
+        if index == 0 and boundary is not None:
+            if event.event_id != boundary.first_retained_event_id:
+                errors.append("retention-boundary")
+            expected = (
+                boundary.pruned_through_event_id if event.previous_event_id is not None else None
+            )
+        if duplicate or event.previous_event_id != expected:
             errors.append(event.event_id)
         known.add(event.event_id)
+        previous = event
     return tuple(errors)
 
 

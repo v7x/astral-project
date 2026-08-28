@@ -245,6 +245,28 @@ def fixed_ssh_argv(
     ]
 
 
+def fixed_ssh_audit_argv(
+    *,
+    ssh_binary: Path,
+    identity_file: Path,
+    host: str,
+    remote_user: str,
+    port: int = 22,
+    known_hosts: Path | None = None,
+) -> list[str]:
+    """Build fixed SSH argv for the authorized remote audit export command."""
+    argv = fixed_ssh_argv(
+        ssh_binary=ssh_binary,
+        identity_file=identity_file,
+        host=host,
+        remote_user=remote_user,
+        port=port,
+        known_hosts=known_hosts,
+    )
+    argv[-1] = "aspr-audit-export-v1"
+    return argv
+
+
 class ProcessStream:
     """Duplex adapter over one fixed SSH subprocess."""
 
