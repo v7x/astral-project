@@ -89,6 +89,8 @@ def test_exact_duplicate_export_is_collapsed() -> None:
         (_export(f"{INTERNAL_STAGING_ROOT}/bad"),),
         (_export("/.astral-project"),),
         (_export("/.astral-project-runtime/child"),),
+        (_export("/dev"),),
+        (_export("/etc/credentials"),),
         (_export("/" + "a" * 4097),),
         (_export("/"),),
     ],

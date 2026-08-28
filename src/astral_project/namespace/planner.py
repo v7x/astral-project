@@ -170,7 +170,10 @@ def _normalized_target(target: str) -> str:
 
 
 def _reserved(target: str) -> bool:
-    return any(_paths_overlap(target, root) for root in (INTERNAL_STAGING_ROOT, RUNTIME_ROOT))
+    return any(
+        _paths_overlap(target, root)
+        for root in (INTERNAL_STAGING_ROOT, RUNTIME_ROOT, "/dev", "/etc")
+    )
 
 
 def _paths_overlap(left: str, right: str) -> bool:
