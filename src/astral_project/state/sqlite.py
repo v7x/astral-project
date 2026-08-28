@@ -520,8 +520,8 @@ class StateDatabase:
         if remote_revoke is not None:
             try:
                 remote_revoke(signed)
-            except Exception as error:
-                remote_state = f"offline: {error}"
+            except Exception:
+                remote_state = "offline:remote-revocation-failed"
             else:
                 remote_state = "confirmed"
         with self.transaction(write=True) as connection:

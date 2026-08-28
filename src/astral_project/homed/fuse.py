@@ -544,8 +544,8 @@ def _mount_operations(  # pragma: no cover - exercised by installed FUSE accepta
         options.add("debug")
     policy = HardeningPolicy.for_plan([(path, True), *hardening_roots], writable_tmp=writable_tmp)
     _pyfuse3.init(operations, os.fspath(path), options)
-    enforce(policy)
     try:
+        enforce(policy)
         trio.run(_pyfuse3.main)
     finally:
         operations.state.close()
