@@ -269,6 +269,7 @@ class AuditRetentionBoundary:
 
     @classmethod
     def from_dict(cls, value: Mapping[str, object]) -> AuditRetentionBoundary:
+        schema_version = value.get("schema_version")
         if (
             set(value)
             != {
@@ -277,7 +278,9 @@ class AuditRetentionBoundary:
                 "first_retained_event_id",
                 "digest",
             }
-            or value.get("schema_version") != SCHEMA_VERSION
+            or not isinstance(schema_version, int)
+            or isinstance(schema_version, bool)
+            or schema_version != SCHEMA_VERSION
         ):
             raise AuditEventError("audit retention boundary is invalid")
         pruned = value.get("pruned_through_event_id")
@@ -515,6 +518,9 @@ class AuditLog:
             self._rotate_unlocked()
 
     def _rotate_unlocked(self) -> None:
+        if self.max_bytes is None:
+            self._apply_retention_unlocked()
+            return
         if self.path.exists():
             _check_private_file(self.path)
         for index in range(self.retain, 0, -1):
