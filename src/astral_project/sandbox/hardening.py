@@ -72,10 +72,14 @@ class HardeningPolicy:
                 raise ValueError("hardening root mutability is invalid")
 
     @classmethod
-    def for_plan(cls, roots: Sequence[tuple[Path, bool]]) -> HardeningPolicy:
+    def for_plan(
+        cls, roots: Sequence[tuple[Path, bool]], *, writable_tmp: bool = True
+    ) -> HardeningPolicy:
         """Build policy with fixed system roots plus exact plan-owned roots."""
+        if not isinstance(writable_tmp, bool):
+            raise ValueError("hardening temporary-root mutability is invalid")
         fixed = tuple(
-            (Path(path), path == "/tmp")
+            (Path(path), path == "/tmp" and writable_tmp)
             for path in ("/usr", "/dev", "/proc", "/run", "/tmp")
             if Path(path).exists()
         )

@@ -528,6 +528,7 @@ def _mount_operations(  # pragma: no cover - exercised by installed FUSE accepta
     *,
     debug: bool = False,
     hardening_roots: Sequence[tuple[Path, bool]] = (),
+    writable_tmp: bool = True,
 ) -> None:
     if _pyfuse3 is None:
         raise FuseUnavailable("pyfuse3 is not installed")
@@ -541,7 +542,7 @@ def _mount_operations(  # pragma: no cover - exercised by installed FUSE accepta
         options.add("ro")
     if debug:
         options.add("debug")
-    policy = HardeningPolicy.for_plan([(path, True), *hardening_roots])
+    policy = HardeningPolicy.for_plan([(path, True), *hardening_roots], writable_tmp=writable_tmp)
     _pyfuse3.init(operations, os.fspath(path), options)
     enforce(policy)
     try:
@@ -656,6 +657,7 @@ def mount_host_readonly(  # pragma: no cover - exercised by installed FUSE accep
         ProjectedHomeOperations(host_view=view),
         debug=debug,
         hardening_roots=((Path(root), False),),
+        writable_tmp=False,
     )
 
 

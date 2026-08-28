@@ -40,6 +40,14 @@ def test_policy_validation_and_plan_roots(tmp_path: Path) -> None:
     root.mkdir()
     policy = HardeningPolicy.for_plan(((root, True), (root, False)))
     assert dict(policy.allowed_roots)[root] is True
+    readonly_tmp = HardeningPolicy.for_plan(((Path("/tmp"), False),), writable_tmp=False)
+    assert dict(readonly_tmp.allowed_roots)[Path("/tmp")] is False
+    nested_tmp = tmp_path / "nested-tmp"
+    nested_tmp.mkdir()
+    nested_policy = HardeningPolicy.for_plan(((nested_tmp, False),), writable_tmp=False)
+    assert dict(nested_policy.allowed_roots)[Path("/tmp")] is False
+    with pytest.raises(ValueError):
+        HardeningPolicy.for_plan((), writable_tmp="yes")  # type: ignore[arg-type]
     with pytest.raises(ValueError):
         HardeningPolicy(required="yes")  # type: ignore[arg-type]
     with pytest.raises(ValueError):
