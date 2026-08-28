@@ -29,7 +29,6 @@ from astral_project.sandbox.hardening import (
     HardeningError,
     HardeningPolicy,
     HardeningStatus,
-    RootRole,
     dependency_versions,
     enforce,
 )
@@ -227,12 +226,9 @@ class DaemonServer:
                 raise _error(ErrorCode.HARDENING_UNAVAILABLE, hardening.reason)
             try:
                 ssh_state = Path.home() / ".ssh"
-                socket_runtime = self.paths.runtime / "sockets"
-                ensure_private_directory(socket_runtime)
-                roots: list[tuple[Path, RootRole | bool]] = [
+                roots: list[tuple[Path, bool]] = [
                     (self.paths.runtime, True),
                     (self.paths.state.parent, True),
-                    (socket_runtime, RootRole.SOCKET_RUNTIME),
                 ]
                 if ssh_state.exists():  # pragma: no branch - optional SSH trust root
                     roots.append((ssh_state, False))

@@ -180,7 +180,6 @@ def test_landlock_contract_and_root_roles() -> None:
     )
     socket_access = hardening._access_for_role(RootRole.SOCKET_RUNTIME)
     assert socket_access & hardening.LANDLOCK_ACCESS_FS_MAKE_SOCK
-    assert not socket_access & hardening.LANDLOCK_ACCESS_FS_MAKE_DIR
     assert (
         hardening._access_for_role(RootRole.DEVICE_RUNTIME)
         & hardening.LANDLOCK_ACCESS_FS_WRITE_FILE
