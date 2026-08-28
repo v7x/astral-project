@@ -207,7 +207,7 @@ apparmor module is loaded.
 4 processes are in enforce mode.
    /usr/sbin/chronyd (1017)
    /usr/sbin/chronyd (1054)
-   /usr/bin/python3.14 (287644) aspr-broker
+   /usr/bin/python3.14 (290666) aspr-broker
    /usr/sbin/rsyslogd (1014) rsyslogd
 0 processes are in complain mode.
 0 processes are in prompt mode.
@@ -223,37 +223,35 @@ $ apparmor_parser --remove /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap
 $ apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
 $ taskset -c 0 unshare -n aa-exec -p aspr-bwrap-setup -- /usr/libexec/astral-project/aspr-apparmor-net-admin-probe
 setup_net_admin_probe_audit=passed
-audit: type=1400 audit(1787923606.920:87553): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=288746 comm="aspr-apparmor-n" capability=12  capname="net_admin"
+audit: type=1400 audit(1787925804.523:88935): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=291427 comm="aspr-apparmor-n" capability=12  capname="net_admin"
 $ apparmor_parser --remove /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
 $ apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
 $ sudo -u testuser env XDG_RUNTIME_DIR=/run/user/1001 /usr/bin/aspr sandbox --network none -- /bin/true
-ASPRB64
-QVNQUlNCMDEBAAAAAQAAAAkvYmluL3RydWUAAAAAAAAAAAAAAQAAADUvcnVuL3VzZXIvMTAwMS9hc3RyYWwtcHJvamVjdC9wcm9qZWN0ZWQtaG9tZS1jeG1hOW9lYgAA
 setup_runtime_capabilities=passed
-audit: type=1400 audit(1787923612.788:87561): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=288762 comm="bwrap" capability=21  capname="sys_admin"
-audit: type=1400 audit(1787923612.788:87563): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=288763 comm="bwrap" capability=8  capname="setpcap"
-audit: type=1400 audit(1787923612.788:87564): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=288763 comm="bwrap" capability=8  capname="setpcap"
-audit: type=1400 audit(1787923612.788:87565): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=288763 comm="bwrap" capability=8  capname="setpcap"
-audit: type=1400 audit(1787923612.788:87566): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=288763 comm="bwrap" capability=8  capname="setpcap"
-audit: type=1400 audit(1787923612.788:87567): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=288763 comm="bwrap" capability=8  capname="setpcap"
+audit: type=1400 audit(1787925810.387:88943): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=291443 comm="bwrap" capability=21  capname="sys_admin"
+audit: type=1400 audit(1787925810.387:88945): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=291444 comm="bwrap" capability=8  capname="setpcap"
+audit: type=1400 audit(1787925810.387:88946): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=291444 comm="bwrap" capability=8  capname="setpcap"
+audit: type=1400 audit(1787925810.387:88947): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=291444 comm="bwrap" capability=8  capname="setpcap"
+audit: type=1400 audit(1787925810.387:88948): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=291444 comm="bwrap" capability=8  capname="setpcap"
+audit: type=1400 audit(1787925810.387:88949): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=291444 comm="bwrap" capability=8  capname="setpcap"
 $ apparmor_parser --remove /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
 $ apparmor_parser --replace /tmp/aspr-bwrap-no-net-admin
 $ taskset -c 0 unshare -n aa-exec -p aspr-bwrap-setup -- /usr/libexec/astral-project/aspr-apparmor-net-admin-probe
 setup_net_admin_negative_probe=passed
-audit: type=1400 audit(1787923633.572:87657): apparmor="DENIED" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=288772 comm="aspr-apparmor-n" capability=12  capname="net_admin"
+audit: type=1400 audit(1787925831.170:89042): apparmor="DENIED" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=291677 comm="aspr-apparmor-n" capability=12  capname="net_admin"
 $ sudo -u testuser env XDG_RUNTIME_DIR=/run/user/1001 /usr/bin/aspr sandbox --network none -- /bin/true
 ASPRB64
-QVNQUlNCMDEBAAAAAQAAAAkvYmluL3RydWUAAAAAAAAAAAAAAQAAADUvcnVuL3VzZXIvMTAwMS9hc3RyYWwtcHJvamVjdC9wcm9qZWN0ZWQtaG9tZS1ycTFpdno0ZgAA
+QVNQUlNCMDEBAAAAAQAAAAkvYmluL3RydWUAAAAAAAAAAAAAAQAAADUvcnVuL3VzZXIvMTAwMS9hc3RyYWwtcHJvamVjdC9wcm9qZWN0ZWQtaG9tZS1teTQ1NmVldwAA
 bwrap: loopback: Failed RTM_NEWADDR: No child processes
 setup_net_admin_runtime_dependency=passed
 $ apparmor_parser --remove /tmp/aspr-bwrap-no-net-admin
 $ apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
 $ taskset -c 0 unshare -n aa-exec -p aspr-bwrap-setup -- /usr/libexec/astral-project/aspr-apparmor-net-admin-probe
 setup_profile_restored_net_admin=passed
-audit: type=1400 audit(1787923639.679:87711): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=288791 comm="aspr-apparmor-n" capability=12  capname="net_admin"
+audit: type=1400 audit(1787925837.267:89101): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=291782 comm="aspr-apparmor-n" capability=12  capname="net_admin"
 $ sudo -u testuser env XDG_RUNTIME_DIR=/run/user/1001 /usr/bin/aspr sandbox --network none -- /bin/true
 ASPRB64
-QVNQUlNCMDEBAAAAAQAAAAkvYmluL3RydWUAAAAAAAAAAAAAAQAAADUvcnVuL3VzZXIvMTAwMS9hc3RyYWwtcHJvamVjdC9wcm9qZWN0ZWQtaG9tZS1rMGdnbjV2agAA
+QVNQUlNCMDEBAAAAAQAAAAkvYmluL3RydWUAAAAAAAAAAAAAAQAAADUvcnVuL3VzZXIvMTAwMS9hc3RyYWwtcHJvamVjdC9wcm9qZWN0ZWQtaG9tZS02NjkxaTY1eQAA
 $ aa-status
 apparmor module is loaded.
 185 profiles are loaded.
@@ -451,7 +449,7 @@ apparmor module is loaded.
 4 processes are in enforce mode.
    /usr/sbin/chronyd (1017)
    /usr/sbin/chronyd (1054)
-   /usr/bin/python3.14 (287644) aspr-broker
+   /usr/bin/python3.14 (290666) aspr-broker
    /usr/sbin/rsyslogd (1014) rsyslogd
 0 processes are in complain mode.
 0 processes are in prompt mode.
@@ -459,34 +457,27 @@ apparmor module is loaded.
 0 processes are unconfined but have a profile defined.
 0 processes are in mixed mode.
 setup_profile_restored=passed
-audit: type=1400 audit(1787923590.237:87358): apparmor="AUDIT" operation="mount" class="mount" profile="aspr-bwrap-setup" name="/tmp/" pid=288674 comm="mount" fstype="tmpfs" srcname="tmpfs" flags="rw, nosuid, nodev"
-audit: type=1400 audit(1787923590.237:87359): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=288674 comm="mount" capability=21  capname="sys_admin"
-audit: type=1400 audit(1787923590.239:87362): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=288675 comm="unshare" capability=21  capname="sys_admin"
-audit: type=1400 audit(1787923590.578:87366): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=288686 comm="bwrap" capability=21  capname="sys_admin"
-{"audit_serial_baseline": 87357, "normal_audit_records": 6, "normal_setup_capabilities": ["sys_admin"], "normal_setup_operations": ["capable", "mount", "userns_create"], "setup_mount_probe": "passed", "setup_net_admin_negative_probe": "passed", "setup_net_admin_probe": "passed", "setup_net_admin_runtime_dependency": "passed", "setup_profile_restored": "passed", "setup_runtime_capabilities": ["setpcap", "sys_admin"], "setup_userns_probe": "passed"}
+audit: type=1400 audit(1787925787.828:88738): apparmor="AUDIT" operation="mount" class="mount" profile="aspr-bwrap-setup" name="/tmp/" pid=291356 comm="mount" fstype="tmpfs" srcname="tmpfs" flags="rw, nosuid, nodev"
+audit: type=1400 audit(1787925787.828:88739): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=291356 comm="mount" capability=21  capname="sys_admin"
+audit: type=1400 audit(1787925787.829:88742): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=291357 comm="unshare" capability=21  capname="sys_admin"
+audit: type=1400 audit(1787925788.170:88746): apparmor="AUDIT" operation="capable" class="cap" profile="aspr-bwrap-setup" pid=291368 comm="bwrap" capability=21  capname="sys_admin"
+{"audit_serial_baseline": 88737, "normal_audit_records": 6, "normal_setup_capabilities": ["sys_admin"], "normal_setup_operations": ["capable", "mount", "userns_create"], "setup_mount_probe": "passed", "setup_net_admin_negative_probe": "passed", "setup_net_admin_probe": "passed", "setup_net_admin_runtime_dependency": "passed", "setup_profile_restored": "passed", "setup_runtime_capabilities": ["setpcap", "sys_admin"], "setup_userns_probe": "passed"}
 
-PASS packet-37-38 ubuntu26 installed acceptance artifact=b033565faad776d2bfd4e887261e14fef70e0a354c75e45e296d11729d058168 rc=0
+PASS packet-37-38 ubuntu26 repaired installed acceptance artifact=bb61e51e89805df623929136b01d0854edafad204f2fb7dd337462e19308bf9f rc=0
 
 --- direct packaged remote SFTP read-only ---
 {"extensions": ["copy-data", "expand-path@openssh.com", "fstatvfs@openssh.com", "fsync@openssh.com", "hardlink@openssh.com", "home-directory", "limits@openssh.com", "lsetstat@openssh.com", "posix-rename@openssh.com", "statvfs@openssh.com", "users-groups-by-id@openssh.com"], "operations": ["INIT", "VERSION", "REALPATH", "STAT", "LSTAT", "OPENDIR", "READDIR", "CLOSE"], "read_write": false, "root": "/project", "root_entries": 3, "version": 3}
 
-PASS SFTP read-only ubuntu26 package=b033565faad776d2bfd4e887261e14fef70e0a354c75e45e296d11729d058168 rc=0
-
---- direct packaged remote SFTP read-write ---
+PASS SFTP repaired read-only ubuntu26 package=bb61e51e89805df623929136b01d0854edafad204f2fb7dd337462e19308bf9f rc=0
 {"extensions": ["copy-data", "expand-path@openssh.com", "fstatvfs@openssh.com", "fsync@openssh.com", "hardlink@openssh.com", "home-directory", "limits@openssh.com", "lsetstat@openssh.com", "posix-rename@openssh.com", "statvfs@openssh.com", "users-groups-by-id@openssh.com"], "operations": ["INIT", "VERSION", "REALPATH", "STAT", "LSTAT", "OPENDIR", "READDIR", "CLOSE", "OPEN", "WRITE", "READ", "REMOVE"], "read_write": true, "root": "/project", "root_entries": 3, "version": 3}
 Warning: The unit file, source configuration file or drop-ins of astral-project-broker.service changed on disk. Run 'systemctl daemon-reload' to reload units.
 
-PASS SFTP read-write ubuntu26 package=b033565faad776d2bfd4e887261e14fef70e0a354c75e45e296d11729d058168 rc=0
+PASS SFTP repaired read-write ubuntu26 package=bb61e51e89805df623929136b01d0854edafad204f2fb7dd337462e19308bf9f rc=0
 
 --- installed doctor and audit privacy ---
-{"alive":true,"dependencies":{"cbor2":"5.8.0","cryptography":"46.0.5"},"hardening":{"enforced":true,"landlock_abi":8,"landlock_available":true,"reason":"Landlock and process hardening enforced","required":true},"state_version":1}
 remote_secret_rejection=passed
 remote_audit_mode=600
-remote_redacted={"event_id":"19b0b500-1efb-4dec-8c35-6029794616be","kind":"server.session","occurred_at":1787923732,"payload":{"path":"<redacted>","result":"accepted"},"previous_event_id":"fc6a0dc3-ead5-49dd-8085-67df74ed1005","schema_version":1,"subject_id":"vm26-final15","subject_type":"session"}
-remote_hashed={"event_id":"19b0b500-1efb-4dec-8c35-6029794616be","kind":"server.session","occurred_at":1787923732,"payload":{"path":"sha256:4ad31b31998673d416d98575bcb234477372b14db707ef2f587514bc5af0ac19","result":"accepted"},"previous_event_id":"fc6a0dc3-ead5-49dd-8085-67df74ed1005","schema_version":1,"subject_id":"vm26-final15","subject_type":"session"}
+redaction={"event_id":"054ffbde-fc44-40b9-a85e-7f0ad91fd2be","kind":"server.session","occurred_at":1787925937,"payload":{"path":"<redacted>","result":"accepted"},"previous_event_id":null,"schema_version":1,"subject_id":"repair26","subject_type":"session"}
+hashing={"event_id":"054ffbde-fc44-40b9-a85e-7f0ad91fd2be","kind":"server.session","occurred_at":1787925937,"payload":{"path":"sha256:4ad31b31998673d416d98575bcb234477372b14db707ef2f587514bc5af0ac19","result":"accepted"},"previous_event_id":null,"schema_version":1,"subject_id":"repair26","subject_type":"session"}
 
-PASS packet-37-38 ubuntu26 audit-doctor-redaction
-
-$ packaged direct namespace-plan digest probe
-effective_export_hash=89d164e985991a680e276b1444171a01c6796c3ffb2491b462c628147ec1e58f
-PASS effective-export-hash ubuntu26
+PASS packet-37-38 ubuntu26 repaired audit-doctor-redaction
