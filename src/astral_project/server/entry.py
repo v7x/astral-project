@@ -21,7 +21,7 @@ from astral_project.core.ids import HostId, IssuerKeyId
 from astral_project.core.paths import check_private_path
 from astral_project.crypto.grants import GrantVerificationContext
 from astral_project.crypto.keys import public_key_from_bytes
-from astral_project.sandbox.hardening import HardeningError, HardeningPolicy, enforce
+from astral_project.sandbox.hardening import HardeningError, HardeningPolicy, RootRole, enforce
 from astral_project.server.broker_bridge import (
     BROKER_SOCKET,
     bridge_sftp_stream,
@@ -106,7 +106,9 @@ def run_ssh_entry(
         if after_verification is not None:
             after_verification(request)
         try:
-            hardening_roots = [(BROKER_SOCKET.parent, False)]
+            hardening_roots: list[tuple[Path, RootRole | bool]] = [
+                (BROKER_SOCKET.parent, RootRole.SOCKET_RUNTIME)
+            ]
             if audit_log is not None:
                 hardening_roots.append((audit_log.path.parent, True))
             enforce(HardeningPolicy.for_plan(tuple(hardening_roots)))
