@@ -161,11 +161,39 @@ def test_remote_entry_applies_final_child_hardening(
             environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_COMMAND},
             trust=trust,
             now=150,
-            apply_hardening=True,
         )
         == 0
     )
     assert len(policies) == 1
+
+
+def test_remote_invalid_hardening_policy_is_audited(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    request, trust = signed_request()
+    audit_log = AuditLog(tmp_path / "policy.log")
+    monkeypatch.setattr(
+        "astral_project.server.entry.HardeningPolicy.for_plan",
+        lambda _roots: (_ for _ in ()).throw(ValueError("missing root")),
+    )
+    assert (
+        run_ssh_entry(
+            "transport-1",
+            stdin=framed(request),
+            stdout=BytesIO(),
+            stderr=StringIO(),
+            environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_COMMAND},
+            trust=trust,
+            now=150,
+            audit_log=audit_log,
+        )
+        == 70
+    )
+    assert [event.kind for event in audit_log.read()] == [
+        "session.remote.verified",
+        "hardening.failure",
+        "session.remote.rejected",
+    ]
 
 
 def test_remote_hardening_failure_is_audited(
@@ -197,7 +225,6 @@ def test_remote_hardening_failure_is_audited(
             environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_COMMAND},
             trust=trust,
             now=150,
-            apply_hardening=True,
             audit_log=audit_log,
         )
         == 70

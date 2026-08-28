@@ -540,7 +540,7 @@ def _run_internal(mode: str, stderr: TextIO) -> int:
     if mode == "daemon":
         daemon = DaemonServer(_daemon_paths())
         try:
-            daemon.start(apply_hardening=True)
+            daemon.start()
             daemon.serve_forever()
         except AstralError as error:
             stderr.write(f"{error.to_text()}\n")

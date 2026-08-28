@@ -190,7 +190,7 @@ class DaemonServer:
         self._mounts: MountManager | None = None
         self._hardening: HardeningStatus | None = None
 
-    def start(self, *, apply_hardening: bool = True) -> None:
+    def start(self) -> None:
         ensure_private_directory(self.paths.runtime)
         self._lock.acquire()
         try:
@@ -201,12 +201,11 @@ class DaemonServer:
             _check_private_socket(self.paths.socket)
             listener.listen()
             listener.settimeout(1.0)
+            self._listener = listener
             from astral_project.mounts import MountManager
 
             self._database = StateDatabase.open(self.paths.state)
             hardening = hardening_status(required=True)
-            if not hardening.landlock_available:
-                raise _error(ErrorCode.HARDENING_UNAVAILABLE, hardening.reason)
             self._hardening = hardening
             self._database.record_audit(
                 "hardening.status",
@@ -214,27 +213,35 @@ class DaemonServer:
                 "local",
                 hardening.to_dict(),
             )
-            if apply_hardening:
-                try:
-                    ssh_state = Path.home() / ".ssh"
-                    roots = [(self.paths.runtime, True), (self.paths.state.parent, True)]
-                    if ssh_state.exists():  # pragma: no branch - optional SSH trust root
-                        roots.append((ssh_state, False))
-                    self._hardening = enforce(HardeningPolicy.for_plan(tuple(roots)))
-                except HardeningError as error:
-                    self._database.record_audit(
-                        "hardening.failure",
-                        "process",
-                        "local-daemon",
-                        {"error_code": error.code.string},
-                    )
-                    raise
+            if not hardening.landlock_available:
                 self._database.record_audit(
-                    "hardening.enforced",
+                    "hardening.failure",
                     "process",
                     "local-daemon",
-                    self._hardening.to_dict(),
+                    {"error_code": ErrorCode.HARDENING_UNAVAILABLE.string},
                 )
+                raise _error(ErrorCode.HARDENING_UNAVAILABLE, hardening.reason)
+            try:
+                ssh_state = Path.home() / ".ssh"
+                roots = [(self.paths.runtime, True), (self.paths.state.parent, True)]
+                if ssh_state.exists():  # pragma: no branch - optional SSH trust root
+                    roots.append((ssh_state, False))
+                enforced = enforce(HardeningPolicy.for_plan(tuple(roots)))
+                self._hardening = enforced
+            except HardeningError as error:
+                self._database.record_audit(
+                    "hardening.failure",
+                    "process",
+                    "local-daemon",
+                    {"error_code": error.code.string},
+                )
+                raise
+            self._database.record_audit(
+                "hardening.enforced",
+                "process",
+                "local-daemon",
+                enforced.to_dict(),
+            )
             self._mounts = MountManager(
                 self._database,
                 self.paths.runtime,
@@ -252,7 +259,6 @@ class DaemonServer:
                         str(grant.grant_id),
                         tuple(export.virtual_target for export in grant.exports),
                     )
-            self._listener = listener
         except Exception:
             self.close()
             raise

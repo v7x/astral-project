@@ -25,7 +25,7 @@ from astral_project.daemon.protocol import Response, encode, parse_request
 from astral_project.daemon.server import DaemonLock, DaemonPaths, DaemonServer
 from astral_project.sandbox.hardening import HardeningStatus
 from astral_project.session.listing import SessionListingScope
-from astral_project.state.sqlite import ActiveListingSession
+from astral_project.state.sqlite import ActiveListingSession, StateDatabase
 
 
 def _error(code: ErrorCode) -> AstralError:
@@ -59,8 +59,8 @@ def test_cli_doctor_and_daemon_mode(monkeypatch: pytest.MonkeyPatch, tmp_path: P
         def __init__(self, value: DaemonPaths) -> None:
             assert value is paths
 
-        def start(self, *, apply_hardening: bool = False) -> None:
-            assert apply_hardening is True
+        def start(self) -> None:
+            pass
 
         def serve_forever(self) -> None:
             raise _error(ErrorCode.DAEMON_STARTUP)
@@ -81,9 +81,11 @@ def test_daemon_start_fails_closed_without_landlock(
     )
     server = DaemonServer(DaemonPaths(tmp_path / "runtime", tmp_path / "state.sqlite3"))
     with pytest.raises(AstralError) as error:
-        server.start(apply_hardening=False)
+        server.start()
     assert error.value.code is ErrorCode.HARDENING_UNAVAILABLE
     assert not server.paths.socket.exists()
+    database = StateDatabase.open(server.paths.state)
+    assert database.list_audit_events()[-1].kind == "hardening.failure"
 
 
 def test_default_daemon_binds_active_grant_to_listing(
@@ -139,7 +141,7 @@ def test_default_daemon_binds_active_grant_to_listing(
         lambda payload, **_kwargs: {"target": payload["target"]},
     )
     server = DaemonServer(DaemonPaths(tmp_path / "runtime", tmp_path / "state.sqlite3"))
-    server.start(apply_hardening=False)
+    server.start()
     try:
         payload = {
             "filters": [],
@@ -329,7 +331,7 @@ def test_server_state_and_socket_failure_branches(
     paths.socket.write_text("not socket")
     paths.socket.chmod(0o600)
     with pytest.raises(AstralError):
-        server.start(apply_hardening=False)
+        server.start()
     server.close()
 
     clean = DaemonServer(DaemonPaths(tmp_path / "second", tmp_path / "second.sqlite3"))
@@ -376,7 +378,7 @@ def test_server_state_and_socket_failure_branches(
     )
     scoped_payload["target"] = "grant:/project"
     assert default_scoped._response("ls", scoped_payload) == {"target": "aspr-session:/project"}
-    default_scoped.start(apply_hardening=False)
+    default_scoped.start()
     default_scoped.close()
     with pytest.raises(AstralError):
         listed._response("ls")

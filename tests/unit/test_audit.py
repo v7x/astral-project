@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+import astral_project.audit.events as audit_events
 from astral_project.audit import AuditEvent, AuditEventError, AuditLog, PathMode, validate_chain
 from astral_project.core.errors import AstralError
 from astral_project.daemon.server import DaemonPaths, DaemonServer
@@ -19,15 +20,15 @@ def test_event_round_trip_and_path_export_modes() -> None:
         "session.started",
         "session",
         "s1",
-        {"path": "/secret/home", "nested": {"root": "/runtime"}, "count": 2},
+        {"path": "/secret/home", "root": "/runtime", "revision": 2},
         occurred_at=4,
     )
     restored = AuditEvent.from_dict(event.to_dict())
     assert restored == event
     assert restored.to_dict(path_mode=PathMode.REDACT)["payload"] == {
         "path": "<redacted>",
-        "nested": {"root": "<redacted>"},
-        "count": 2,
+        "root": "<redacted>",
+        "revision": 2,
     }
     hashed = restored.to_dict(path_mode=PathMode.HASH)
     hashed_payload = hashed["payload"]
@@ -108,7 +109,66 @@ def test_audit_log_rotation_and_limits(tmp_path: Path) -> None:
     log.append("two", "x", "2", {})
     assert (tmp_path / "audit.log.1").exists()
     assert [event.kind for event in log.read()] == ["one", "two"]
+    assert validate_chain(log.read()) == ()
     assert stat.S_IMODE((tmp_path / "audit.log.1").stat().st_mode) == 0o600
+
+
+def test_audit_log_rotation_resets_oldest_predecessor(tmp_path: Path) -> None:
+    log = AuditLog(tmp_path / "chain.log", retain=1)
+    log.append("one", "subject", "1", {})
+    log.append("two", "subject", "2", {})
+    log.rotate()
+    assert validate_chain(log.read()) == ()
+    assert log.read()[0].previous_event_id is None
+
+
+def test_audit_log_reset_handles_empty_and_malformed_storage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    log = AuditLog(tmp_path / "reset.log")
+    log._reset_oldest_predecessor()
+    generation = log.path.with_name("reset.log.1")
+    generation.write_text("[]\n", encoding="utf-8")
+    generation.chmod(0o600)
+    log._reset_oldest_predecessor()
+    first = AuditEvent.create("first", "subject", "1", {}, occurred_at=1)
+    second = AuditEvent.create(
+        "second", "subject", "2", {}, previous_event_id=first.event_id, occurred_at=2
+    )
+    generation.write_text(json.dumps(second.to_dict()) + "\n", encoding="utf-8")
+    generation.chmod(0o600)
+    log._reset_oldest_predecessor()
+    assert (
+        AuditEvent.from_dict(json.loads(generation.read_text().splitlines()[0])).previous_event_id
+        is None
+    )
+    monkeypatch.setattr(
+        audit_events, "_read_private_text", lambda *_args: (_ for _ in ()).throw(OSError("read"))
+    )
+    monkeypatch.setattr(log, "_read_paths", lambda: iter((generation,)))
+    log._reset_oldest_predecessor()
+
+
+def test_audit_rotation_write_failure_closes_private_temp(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    log = AuditLog(tmp_path / "write-failure.log")
+    generation = log.path.with_name("write-failure.log.1")
+    event = AuditEvent("event", 1, "kind", "subject", "id", {}, previous_event_id="old")
+    generation.write_text(json.dumps(event.to_dict()) + "\n", encoding="utf-8")
+    generation.chmod(0o600)
+    monkeypatch.setattr("astral_project.audit.events.os.write", lambda *_args: 0)
+    with pytest.raises(OSError, match="no progress"):
+        log._reset_oldest_predecessor()
+
+
+def test_audit_payload_schema_rejects_untyped_and_non_path_lists() -> None:
+    with pytest.raises(AuditEventError, match="lists"):
+        audit_events._validate_payload(["/path"])
+    with pytest.raises(AuditEventError, match="JSON-safe"):
+        audit_events._validate_payload({"revision": object()})
+    with pytest.raises(AuditEventError, match="strings"):
+        AuditEvent.create("kind", "subject", "id", {"paths": [1]})
 
 
 def test_audit_log_auto_rotation_and_existing_generations(tmp_path: Path) -> None:
@@ -154,13 +214,21 @@ def test_audit_log_rejects_unsafe_existing_file(tmp_path: Path) -> None:
 def test_payload_lists_and_invalid_keys_are_rejected() -> None:
     with pytest.raises(AuditEventError, match="payload key"):
         AuditEvent.create("kind", "subject", "id", {"bad\x00key": "x"})
-    with pytest.raises(AuditEventError, match="JSON-safe"):
+    with pytest.raises(AuditEventError, match="schema"):
         AuditEvent.create("kind", "subject", "id", {"items": [object()]})
-    event = AuditEvent.create("kind", "subject", "id", {"items": ["x"], "note": "ok"})
+    event = AuditEvent.create("kind", "subject", "id", {"paths": ["/one", "/two"], "revision": 1})
     assert event.to_dict(path_mode=PathMode.REDACT)["payload"] == {
-        "items": ["x"],
-        "note": "ok",
+        "paths": ["<redacted>", "<redacted>"],
+        "revision": 1,
     }
+    with pytest.raises(AuditEventError, match="secret-bearing audit value"):
+        AuditEvent.create(
+            "kind", "subject", "id", {"reason": "-----BEGIN PRIVATE KEY-----\\nsecret"}
+        )
+    with pytest.raises(AuditEventError, match="schema"):
+        AuditEvent.create("kind", "subject", "id", {"output": "file contents"})
+    with pytest.raises(AuditEventError, match="reason"):
+        AuditEvent.create("kind", "subject", "id", {"reason": "untrusted file contents"})
 
 
 def test_chain_detects_duplicate_and_forward_reference() -> None:
@@ -228,6 +296,34 @@ def test_state_database_audit_rotation_retains_chain(tmp_path: Path) -> None:
             )
     legacy.rotate_audit(retain=3)
     assert legacy.audit_chain_errors() == ()
+    combined = StateDatabase.open(tmp_path / "combined.sqlite3")
+    with combined.transaction(write=True) as connection:
+        connection.executemany(
+            "INSERT INTO audit_events VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                (
+                    "old",
+                    1,
+                    "kind",
+                    "subject",
+                    "old",
+                    '{"payload":{},"previous_event_id":null,"schema_version":1}',
+                ),
+                ("list", 2, "kind", "subject", "list", "[]"),
+                ("bad", 3, "kind", "subject", "bad", "not-json"),
+                (
+                    "new",
+                    4,
+                    "kind",
+                    "subject",
+                    "new",
+                    '{"payload":{},"previous_event_id":"old","schema_version":1}',
+                ),
+            ),
+        )
+    combined.rotate_audit(retain=3)
+    assert combined.audit_chain_errors() == ()
+    assert combined.list_audit_events()[-1].previous_event_id is None
 
 
 def test_state_database_rejects_secret_audit_payload(tmp_path: Path) -> None:
@@ -249,7 +345,7 @@ def test_daemon_audit_operations_require_started_database(tmp_path: Path) -> Non
 
 def test_daemon_audit_operations_use_redaction_and_hashing(tmp_path: Path) -> None:
     server = DaemonServer(DaemonPaths(tmp_path / "runtime", tmp_path / "state.sqlite3"))
-    server.start(apply_hardening=False)
+    server.start()
     try:
         assert server._database is not None
         with server._database.transaction(write=True) as connection:

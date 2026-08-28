@@ -24,7 +24,7 @@ from astral_project.mounts.lifecycle import MountState, RemoteMount
 def test_daemon_grant_and_session_operations(tmp_path: Path) -> None:
     paths = DaemonPaths(tmp_path / "runtime", tmp_path / "state" / "state.sqlite3")
     server = DaemonServer(paths)
-    server.start(apply_hardening=False)
+    server.start()
     assert server._database is not None
     base = sample_grant()
     now = int(time.time())
@@ -122,7 +122,7 @@ def test_daemon_grant_and_session_operations(tmp_path: Path) -> None:
 
 def test_daemon_lifecycle_missing_payloads_fail_closed(tmp_path: Path) -> None:
     server = DaemonServer(DaemonPaths(tmp_path / "runtime", tmp_path / "state" / "state.sqlite3"))
-    server.start(apply_hardening=False)
+    server.start()
     for operation in (
         "grant.show",
         "grant.import",
@@ -181,7 +181,7 @@ def test_daemon_mount_open_uses_active_host_binding(
 ) -> None:
     paths = DaemonPaths(tmp_path / "runtime", tmp_path / "state" / "state.sqlite3")
     server = DaemonServer(paths)
-    server.start(apply_hardening=False)
+    server.start()
     assert server._database is not None and server._mounts is not None
     now = int(time.time())
     grant = replace(sample_grant(), issued_at=now, not_before=now, expires_at=now + 3600)
@@ -277,7 +277,7 @@ def test_daemon_mount_open_uses_active_host_binding(
 def test_daemon_mount_response_shapes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     paths = DaemonPaths(tmp_path / "runtime", tmp_path / "state" / "state.sqlite3")
     server = DaemonServer(paths)
-    server.start(apply_hardening=False)
+    server.start()
     assert server._mounts is not None
     mount = RemoteMount(
         "mount",

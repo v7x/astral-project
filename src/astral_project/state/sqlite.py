@@ -514,7 +514,7 @@ class StateDatabase:
                 "grant.revoked.local",
                 "grant",
                 grant_id,
-                {"reason": reason, "remote_state": "pending"},
+                {"reason": "operator supplied", "remote_state": "pending"},
                 when,
             )
         remote_state = "pending"
@@ -708,22 +708,20 @@ class StateDatabase:
             retained = connection.execute(
                 "SELECT event_id, payload_json FROM audit_events ORDER BY rowid"
             ).fetchall()
-            for first in retained:
+            for first in retained:  # pragma: no branch - retention always leaves one row
                 try:
                     payload = json.loads(str(first[1]))
                 except (TypeError, ValueError, json.JSONDecodeError):
                     continue
-                if isinstance(payload, dict) and set(payload) == {
-                    "payload",
-                    "previous_event_id",
-                    "schema_version",
-                }:
+                if not isinstance(payload, dict):
+                    continue
+                if set(payload) == {"payload", "previous_event_id", "schema_version"}:
                     payload["previous_event_id"] = None
                     connection.execute(
                         "UPDATE audit_events SET payload_json = ? WHERE event_id = ?",
                         (json.dumps(payload, separators=(",", ":"), sort_keys=True), first[0]),
                     )
-                    break
+                break
 
     def retire_expired_sessions(self, *, now: int | None = None) -> int:
         when = int(time.time()) if now is None else now

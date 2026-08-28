@@ -20,7 +20,7 @@ from astral_project.core.ids import HostId, IssuerKeyId
 from astral_project.core.paths import check_private_path
 from astral_project.crypto.grants import GrantVerificationContext
 from astral_project.crypto.keys import public_key_from_bytes
-from astral_project.sandbox.hardening import HardeningPolicy, enforce
+from astral_project.sandbox.hardening import HardeningError, HardeningPolicy, enforce
 from astral_project.server.broker_bridge import (
     BROKER_SOCKET,
     bridge_sftp_stream,
@@ -63,7 +63,6 @@ def run_ssh_entry(
     now: int | None = None,
     after_verification: Callable[[RemoteSessionRequestV1], None] | None = None,
     broker_dispatch: bool = False,
-    apply_hardening: bool = False,
     audit_log: AuditLog | None = None,
 ) -> int:
     """Serve one outer session frame; `Ready` is final frame before raw SFTP."""
@@ -97,8 +96,16 @@ def run_ssh_entry(
             )
         if after_verification is not None:
             after_verification(request)
-        if apply_hardening:
+        try:
             enforce(HardeningPolicy.for_plan(((BROKER_SOCKET.parent, False),)))
+        except ValueError as error:
+            raise HardeningError(
+                code=ErrorCode.HARDENING_APPLY,
+                message="remote hardening policy is invalid",
+                security_result="remote process was rejected",
+                unsafe_reason="second-wall hardening policy could not be constructed",
+                next_action="repair remote runtime roots and retry",
+            ) from error
         stream = open_broker_sftp_stream(request) if broker_dispatch else None
         write_outer_ready(stdout, RemoteSessionReadyV1(request.session_id, request.session_nonce))
         if stream is not None:
@@ -251,7 +258,6 @@ def main() -> None:
             stderr=sys.stderr,
             environment=os.environ,
             broker_dispatch=True,
-            apply_hardening=True,
             audit_log=_default_audit_log(os.environ),
         )
     )
