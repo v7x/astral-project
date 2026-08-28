@@ -6,12 +6,12 @@ Final installed candidate artifact:
 
 ```text
 artifact: astral-project_0.1.0_amd64.deb
-sha256: d4f6917b95e37fa86fb594936e44721a643404edcd8fd5c4bcc1a5a0fac0a042
+sha256: fb2b5996f7fbd5849b3e50f79445d0c0f72f882ab6109a13068deb0697bf02f2
 ```
 
 The artifact was rebuilt from the closure source tree after the final Landlock,
 process-entrypoint, audit-protocol, and profile-audit-sink changes. The final
-source closure commit is `e5e2fa0252709250d7c581210b7723513dec5d5f`.
+source closure commit is `1739b68ade8b79d36374957554f297c265dadbfc`.
 
 ## Local verification
 
@@ -49,8 +49,8 @@ end with an explicit PASS marker:
 Raw transcript SHA-256 values:
 
 ```text
-packet-37-38-ubuntu24-raw.txt  17ddc026ea7fd326abb5d21380466286647f8637ffc720675c7dbc0cd7fb4f2a
-packet-37-38-ubuntu26-raw.txt  e2faadbb24f9d854ccb874f50928c585987c0ac5930babf9e1c0efa30414b993
+packet-37-38-ubuntu24-raw.txt  7633ff535894d5e8329c2c56b350052744c0e917cddb9b0e566b00682fec3342
+packet-37-38-ubuntu26-raw.txt  db9455345b7371e4a0673e6bb68f500d6a762662251f0bc330f13b80251b2030
 ```
 
 Both installed runs passed the existing mount-namespace/AppArmor capability
