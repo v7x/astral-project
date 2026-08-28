@@ -38,6 +38,32 @@ def test_event_round_trip_and_path_export_modes() -> None:
     assert hashed_payload["path"] == restored_hashed.payload["path"]
 
 
+def test_path_bearing_schema_fields_are_redacted_and_hashed() -> None:
+    event = AuditEvent.create(
+        "mediation.requested",
+        "session",
+        "s1",
+        {
+            "path_component": ".private",
+            "remote_home": "/home/alice/private",
+            "device": "/dev/null",
+            "destination": "/srv/secret-name",
+        },
+    )
+
+    redacted = event.to_dict(path_mode=PathMode.REDACT)["payload"]
+    assert redacted == {
+        "path_component": "<redacted>",
+        "remote_home": "<redacted>",
+        "device": "<redacted>",
+        "destination": "<redacted>",
+    }
+    hashed = event.to_dict(path_mode=PathMode.HASH)["payload"]
+    assert isinstance(hashed, dict)
+    assert all(str(value).startswith("sha256:") for value in hashed.values())
+    assert hashed == event.to_dict(path_mode=PathMode.HASH)["payload"]
+
+
 def test_event_rejects_bad_payload_shape_and_previous_type() -> None:
     event = AuditEvent.create("kind", "subject", "id", {})
     raw = event.to_dict()

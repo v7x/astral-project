@@ -28,6 +28,14 @@ _PATH_KEY = re.compile(
     r"(?:^|_)(?:path|paths|source|sources|target|targets|root|roots|directory|directories|dir|dirs|manifest)$",
     re.IGNORECASE,
 )
+_PATH_FIELD_NAMES = frozenset({"destination", "device", "path_component", "remote_home"})
+
+
+def _is_path_field(key: str) -> bool:
+    """Recognize schema fields whose values identify filesystem paths."""
+    return key in _PATH_FIELD_NAMES or _PATH_KEY.search(key) is not None
+
+
 _SECRET_VALUE = re.compile(
     r"(?:-----BEGIN[ -]+(?:OPENSSH[ -]+)?PRIVATE[ -]+KEY-----|"
     r"(?:password|passphrase|secret|private[_ -]?key|token|credential)\s*[:=])",
@@ -546,7 +554,7 @@ def _validate_payload(value: object, *, key: str | None = None) -> None:
                 raise AuditEventError("audit payload key is invalid")
             _validate_payload(item_value, key=item_key)
     elif isinstance(value, list):
-        if key is None or not _PATH_KEY.search(key):
+        if key is None or not _is_path_field(key):
             raise AuditEventError("audit payload lists are restricted to path fields")
         for item in value:
             if not isinstance(item, str):
@@ -571,7 +579,7 @@ def _transform_paths(value: object, mode: PathMode, *, key: str | None = None) -
         }
     if isinstance(value, list):
         return [_transform_paths(item, mode, key=key) for item in value]
-    if key is not None and _PATH_KEY.search(key) and isinstance(value, str):
+    if key is not None and _is_path_field(key) and isinstance(value, str):
         if mode is PathMode.REDACT:
             return _REDACTED
         digest = hashlib.sha256(b"astral-project-audit-path\0" + value.encode()).hexdigest()
