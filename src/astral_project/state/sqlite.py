@@ -26,6 +26,7 @@ from astral_project.crypto.grants import (
     GrantVerificationContext,
     SignedGrant,
 )
+from astral_project.namespace.planner import build_namespace_plan
 from astral_project.session.listing import SessionListingScope
 
 
@@ -788,7 +789,9 @@ class StateDatabase:
                 session_id,
                 {
                     "grant_id": grant_id,
-                    "effective_export_hash": hashlib.sha256(signed.to_cbor()).hexdigest(),
+                    "effective_export_hash": hashlib.sha256(
+                        build_namespace_plan(signed.grant).canonical_bytes()
+                    ).hexdigest(),
                 },
                 when,
             )

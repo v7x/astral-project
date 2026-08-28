@@ -70,8 +70,9 @@ static void aspr_hardening_add_rule(int ruleset, const char *path, int writable)
     close(descriptor);
 }
 
-static void __attribute__((unused)) aspr_harden_minimal(
-    const char *read_root, const char *write_root) {
+static void __attribute__((unused)) aspr_harden_roots(
+    const char *const *read_roots, size_t read_count,
+    const char *const *write_roots, size_t write_count) {
     const uint64_t handled = ASPR_LANDLOCK_ACCESS_FS_EXECUTE |
         ASPR_LANDLOCK_ACCESS_FS_WRITE_FILE | ASPR_LANDLOCK_ACCESS_FS_READ_FILE |
         ASPR_LANDLOCK_ACCESS_FS_READ_DIR | ASPR_LANDLOCK_ACCESS_FS_REMOVE_DIR |
@@ -83,8 +84,12 @@ static void __attribute__((unused)) aspr_harden_minimal(
     struct aspr_landlock_ruleset_attr attr = {.handled_access_fs = handled};
     int ruleset = syscall(ASPR_LANDLOCK_CREATE_RULESET, &attr, sizeof(attr), 0);
     if (ruleset < 0) aspr_hardening_fail("Landlock ABI is unavailable");
-    aspr_hardening_add_rule(ruleset, read_root, 0);
-    aspr_hardening_add_rule(ruleset, write_root, 1);
+    for (size_t index = 0; index < read_count; ++index) {
+        aspr_hardening_add_rule(ruleset, read_roots[index], 0);
+    }
+    for (size_t index = 0; index < write_count; ++index) {
+        aspr_hardening_add_rule(ruleset, write_roots[index], 1);
+    }
     if (syscall(SYS_prctl, ASPR_PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) {
         close(ruleset);
         aspr_hardening_fail("no_new_privs could not be enabled");
@@ -118,6 +123,13 @@ static void __attribute__((unused)) aspr_harden_minimal(
         aspr_hardening_fail("Landlock restrictions could not be enabled");
     }
     close(ruleset);
+}
+
+static void __attribute__((unused)) aspr_harden_minimal(
+    const char *read_root, const char *write_root) {
+    const char *read_roots[] = {read_root};
+    const char *write_roots[] = {write_root};
+    aspr_harden_roots(read_roots, 1, write_roots, 1);
 }
 
 static void __attribute__((unused)) aspr_harden_payload(

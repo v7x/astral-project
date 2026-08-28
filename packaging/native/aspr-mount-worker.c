@@ -172,6 +172,10 @@ int main(int argc,char **argv) {
  /* CWD still names covered host leaf; resolve new tmpfs via its parent mount. */
  if(chdir(reenter)) die("reenter staging tmpfs");
  o=HEADER; memset(seen,0,MAX_ENTRIES);
+ const char *read_roots[MAX_ENTRIES+2] = {"/.astral-project-runtime", "/etc"};
+ const char *write_roots[MAX_ENTRIES+1];
+ char granted_targets[MAX_ENTRIES][MAX_TARGET+1];
+ size_t read_root_count=2, write_root_count=0;
  for(i=0;i<count;i++) { uint32_t slot; unsigned char access,kind; uint16_t len; char target[STAGING_MAX+MAX_TARGET+1];
   if(o+ENTRY>n) bad("plan truncated");
   slot=u32(p+o);access=p[o+4];kind=p[o+5];len=u16(p+o+32);
@@ -179,6 +183,10 @@ int main(int argc,char **argv) {
   seen[slot]=1;
   if(strlen(staging)+len>=sizeof(target)) bad("target too long");
   memcpy(target,staging,strlen(staging)); memcpy(target+strlen(staging),p+o+ENTRY,len); target[strlen(staging)+len]=0;
+  memcpy(granted_targets[slot],p+o+ENTRY,len); granted_targets[slot][len]=0;
+  if(access==1) read_roots[read_root_count++]=granted_targets[slot];
+  else if(access==2) write_roots[write_root_count++]=granted_targets[slot];
+  else bad("access invalid");
   make_target(target,kind); mount_one(SOURCE_BASE+slot,target,access,1); o+=ENTRY+len;
  }
  if(o!=n) bad("plan trailing data");
@@ -192,7 +200,8 @@ int main(int argc,char **argv) {
  discard_setup_authority();
  enter_apparmor_profile(apparmor_control);
  set_no_new_privs();
- aspr_harden_minimal("/.astral-project-runtime", "/dev/null");
+ write_roots[write_root_count++]="/dev/null";
+ aspr_harden_roots(read_roots, read_root_count, write_roots, write_root_count);
  run_fixed_sftp();
  return 111;
 }

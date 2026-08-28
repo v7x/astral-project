@@ -58,6 +58,10 @@ def test_mount_worker_uses_only_fixed_fd_abi_and_descriptor_syscalls() -> None:
         '"/.astral-project-runtime/ld.so"',
         '"--library-path"',
         '"/.astral-project-runtime/sftp-server"',
+        "aspr_harden_roots",
+        '"/.astral-project-runtime", "/etc"',
+        '"/dev/null"',
+        "granted_targets",
     ):
         assert required in source
     assert "system(" not in source

@@ -22,6 +22,7 @@ from astral_project.core.paths import ensure_private_directory
 from astral_project.crypto.grants import AccessMode, SignedGrant
 from astral_project.crypto.keys import public_key_from_bytes
 from astral_project.daemon.protocol import encode, make_response, parse_request, receive
+from astral_project.namespace.planner import build_namespace_plan
 from astral_project.sandbox.hardening import (
     HardeningError,
     HardeningPolicy,
@@ -320,7 +321,7 @@ class DaemonServer:
                 session.session_id,
                 {
                     "effective_export_hash": hashlib.sha256(
-                        session.signed_grant.to_cbor()
+                        build_namespace_plan(session.signed_grant.grant).canonical_bytes()
                     ).hexdigest()
                 },
             )
