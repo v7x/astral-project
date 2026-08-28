@@ -6,19 +6,19 @@ Final installed candidate artifact:
 
 ```text
 artifact: astral-project_0.1.0_amd64.deb
-sha256: 49868be3e34bd1ff9eb9d5cb2271e5b4fc8c9bd3c16723fdcbd0b13e39d1242d
+sha256: 6dfbd36133ab067479dcdce8d407d2ed83f38ae628f52e328b7f41f03ceb651c
 ```
 
 The artifact was rebuilt from the closure source tree after the final Landlock,
 process-entrypoint, audit-protocol, and profile-audit-sink changes. The final
-source closure commit is `8c47f2fbd3e67508975be9fdab186110a4745cb3`. Later
+source closure commit is `03be6a931c813a55b42024e6ee6f599fe2081c66`. Later
 commits are evidence-only; `packet-37-38-local-validation.txt` records the
 source-tree equivalence check from that closure through the final evidence HEAD.
 
 ## Local verification
 
 ```text
-./scripts/test                         852 passed, 1 skipped; coverage 100%
+./scripts/test                         853 passed, 1 skipped; coverage 100%
 uv run mypy src tests                   passed
 uv run pytest tests/unit/test_audit.py tests/unit/test_hardening.py
                                         83 passed
@@ -36,7 +36,7 @@ python scripts/parser_fuzz.py           passed
 Immutable local validation transcript:
 
 ```text
-packet-37-38-local-validation.txt  4522e096ab724dfe408cebcbd930d9797cef42f83789fe2cf5de7fd6a5836530
+packet-37-38-local-validation.txt  92afa8d9ae349200a5e5900107a32eef18c0da9ff1298fb39591587e9e4d6df0
 ```
 
 The full suite includes audit schema, path redaction and hashing, malformed-old-
@@ -59,8 +59,8 @@ end with an explicit PASS marker:
 Raw transcript SHA-256 values:
 
 ```text
-packet-37-38-ubuntu24-raw.txt  e248b436484ba31c21b391fe5c6af5251d79ce6ef3ab7131cb9f83d2a5b5a561
-packet-37-38-ubuntu26-raw.txt  e9e496951db912c03cab9c57b1bfe9a0b73aa8652c18cbcdb52465eb95a68d86
+packet-37-38-ubuntu24-raw.txt  a6587eb3f94dd732e4878bf6d3d99310158e5a5c9fb81581b94ad9c21cb9b7f2
+packet-37-38-ubuntu26-raw.txt  a1937806295d2783f4d61a06a0e545e8f377ba0d16a4f2b63fd574808719a347
 ```
 
 Both installed runs passed the existing mount-namespace/AppArmor capability
@@ -91,7 +91,9 @@ subjects, four boundary segments, and private mode 0600. Authorized
 remote audit export is exposed through
 the local daemon `audit.remote.export` operation and fixed SSH marker; raw mode
 is rejected, while server-side redaction/hash is covered by focused protocol
-acceptance.
+acceptance. The wire-level `DaemonClient` test proves the allowlisted
+`audit.remote.export` operation reaches enrolled-host authorization and rejects
+an unenrolled host.
 
 ## Boundary statement
 
