@@ -70,7 +70,58 @@ static void aspr_hardening_add_rule(int ruleset, const char *path, int writable)
     close(descriptor);
 }
 
-static void aspr_harden_payload(const char *const *read_roots, size_t read_count,
+static void __attribute__((unused)) aspr_harden_minimal(
+    const char *read_root, const char *write_root) {
+    const uint64_t handled = ASPR_LANDLOCK_ACCESS_FS_EXECUTE |
+        ASPR_LANDLOCK_ACCESS_FS_WRITE_FILE | ASPR_LANDLOCK_ACCESS_FS_READ_FILE |
+        ASPR_LANDLOCK_ACCESS_FS_READ_DIR | ASPR_LANDLOCK_ACCESS_FS_REMOVE_DIR |
+        ASPR_LANDLOCK_ACCESS_FS_REMOVE_FILE | ASPR_LANDLOCK_ACCESS_FS_MAKE_CHAR |
+        ASPR_LANDLOCK_ACCESS_FS_MAKE_DIR | ASPR_LANDLOCK_ACCESS_FS_MAKE_REG |
+        ASPR_LANDLOCK_ACCESS_FS_MAKE_SOCK | ASPR_LANDLOCK_ACCESS_FS_MAKE_FIFO |
+        ASPR_LANDLOCK_ACCESS_FS_MAKE_BLOCK | ASPR_LANDLOCK_ACCESS_FS_MAKE_SYM |
+        ASPR_LANDLOCK_ACCESS_FS_REFER | ASPR_LANDLOCK_ACCESS_FS_TRUNCATE;
+    struct aspr_landlock_ruleset_attr attr = {.handled_access_fs = handled};
+    int ruleset = syscall(ASPR_LANDLOCK_CREATE_RULESET, &attr, sizeof(attr), 0);
+    if (ruleset < 0) aspr_hardening_fail("Landlock ABI is unavailable");
+    aspr_hardening_add_rule(ruleset, read_root, 0);
+    aspr_hardening_add_rule(ruleset, write_root, 1);
+    if (syscall(SYS_prctl, ASPR_PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) {
+        close(ruleset);
+        aspr_hardening_fail("no_new_privs could not be enabled");
+    }
+    struct rlimit limit = {.rlim_cur = 0, .rlim_max = 0};
+    if (setrlimit(RLIMIT_CORE, &limit) != 0) {
+        close(ruleset);
+        aspr_hardening_fail("core dumps could not be disabled");
+    }
+    limit.rlim_cur = 1024;
+    limit.rlim_max = 1024;
+    if (setrlimit(RLIMIT_NOFILE, &limit) != 0) {
+        close(ruleset);
+        aspr_hardening_fail("file descriptor limit could not be set");
+    }
+    limit.rlim_cur = 128;
+    limit.rlim_max = 128;
+    if (setrlimit(RLIMIT_NPROC, &limit) != 0) {
+        close(ruleset);
+        aspr_hardening_fail("process limit could not be set");
+    }
+    for (int capability = 0; capability < 64; ++capability) {
+        if (syscall(SYS_prctl, ASPR_PR_CAPBSET_DROP, capability, 0, 0, 0) != 0 &&
+            errno != EPERM && errno != EINVAL) {
+            close(ruleset);
+            aspr_hardening_fail("capability bounding set could not be dropped");
+        }
+    }
+    if (syscall(ASPR_LANDLOCK_RESTRICT_SELF, ruleset, 0) != 0) {
+        close(ruleset);
+        aspr_hardening_fail("Landlock restrictions could not be enabled");
+    }
+    close(ruleset);
+}
+
+static void __attribute__((unused)) aspr_harden_payload(
+    const char *const *read_roots, size_t read_count,
                                 const char *const *write_roots, size_t write_count) {
     const uint64_t handled = ASPR_LANDLOCK_ACCESS_FS_EXECUTE |
         ASPR_LANDLOCK_ACCESS_FS_WRITE_FILE | ASPR_LANDLOCK_ACCESS_FS_READ_FILE |

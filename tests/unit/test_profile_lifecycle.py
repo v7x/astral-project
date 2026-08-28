@@ -46,7 +46,12 @@ def test_profile_store_supports_database_audit_sink(tmp_path: Path) -> None:
         audit_sink=lambda *values: events.append(values),
     )
     store.create("profile")
+    store.audit_event("sandbox.launch", "sandbox", "sandbox-1", {"result": "accepted"})
     assert events[0][:3] == ("profile.created", "profile", "profile")
+    assert events[1][:3] == ("sandbox.launch", "sandbox", "sandbox-1")
+    empty = ProfileStore(tmp_path / "empty")
+    empty.audit_event("profile.note", "profile", "profile-2", {"result": "ignored"})
+    empty.audit_event("sandbox.launch", "sandbox", "sandbox-2", {"result": "ignored"})
     with pytest.raises(ValueError, match="one sink"):
         ProfileStore(
             tmp_path / "other",
@@ -59,12 +64,14 @@ def test_profile_store_emits_audit_lifecycle_events(tmp_path: Path) -> None:
     log = AuditLog(tmp_path / "audit" / "events.jsonl")
     store = ProfileStore(tmp_path / "config", audit_log=log)
     store.create("profile")
+    store.audit_event("sandbox.launch", "sandbox", "sandbox-1", {"result": "accepted"})
     store.commit_learning("profile", (_rule(),))
     store.seal("profile")
     store.unseal("profile")
     store.archive_profile("profile")
     assert [event.kind for event in log.read()] == [
         "profile.created",
+        "sandbox.launch",
         "profile.edited",
         "profile.learned",
         "profile.edited",

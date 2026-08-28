@@ -41,6 +41,8 @@ static char staging[STAGING_MAX];
 #define MAX_TARGET 4096
 static void die(const char *s) { perror(s); _exit(111); }
 static void bad(const char *s) { fputs(s, stderr); fputc('\n', stderr); _exit(112); }
+static void fail(const char *s) { bad(s); }
+#include "aspr-hardening.h"
 static uint16_t u16(const unsigned char *p) { return (uint16_t)p[0]|((uint16_t)p[1]<<8); }
 static uint32_t u32(const unsigned char *p) { return (uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24); }
 static uint64_t u64(const unsigned char *p) { uint64_t v=0; unsigned int i; for(i=0;i<8;i++) v|=(uint64_t)p[i]<<(8*i); return v; }
@@ -190,6 +192,7 @@ int main(int argc,char **argv) {
  discard_setup_authority();
  enter_apparmor_profile(apparmor_control);
  set_no_new_privs();
+ aspr_harden_minimal("/.astral-project-runtime", "/dev");
  run_fixed_sftp();
  return 111;
 }

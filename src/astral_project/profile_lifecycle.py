@@ -240,6 +240,18 @@ class ProfileStore:
             self._audit("profile.archived", profile_id, {"revision": profile.revision})
             return destination
 
+    def audit_event(
+        self, kind: str, subject_type: str, subject_id: str, payload: Mapping[str, object]
+    ) -> None:
+        """Forward child lifecycle events through the configured durable sink."""
+        if subject_type != "profile":
+            if self.audit_sink is not None:
+                self.audit_sink(kind, subject_type, subject_id, payload)
+            elif self.audit_log is not None:
+                self.audit_log.append(kind, subject_type, subject_id, payload)
+            return
+        self._audit(kind, subject_id, dict(payload))
+
     def _audit(self, kind: str, profile_id: str, payload: dict[str, object]) -> None:
         if self.audit_sink is not None:
             self.audit_sink(kind, "profile", profile_id, payload)
