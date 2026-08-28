@@ -602,6 +602,7 @@ def mount_overlay(  # pragma: no cover - exercised by installed FUSE acceptance
             ProjectedHomeOperations(overlay_view=view),
             debug=debug,
             hardening_roots=((Path(lower_root), False), (Path(upper_root), True)),
+            writable_tmp=False,
         )
     finally:
         view.close()
@@ -635,6 +636,7 @@ def mount_composite(  # pragma: no cover - exercised by installed FUSE acceptanc
             ),
             debug=debug,
             hardening_roots=roots,
+            writable_tmp=False,
         )
     finally:
         # Composite owns all non-null backends once construction succeeds; these
