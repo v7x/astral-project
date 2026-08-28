@@ -166,7 +166,7 @@ def test_python_native_landlock_rights_parity() -> None:
 
 def test_landlock_contract_and_root_roles() -> None:
     fixed = dict(HardeningPolicy.for_plan((), writable_tmp=True).allowed_roots)
-    assert fixed[Path("/dev")] is RootRole.READ_ONLY
+    assert fixed[Path("/dev")] is RootRole.DEVICE_RUNTIME
     assert fixed[Path("/run")] is RootRole.SOCKET_RUNTIME
     assert LANDLOCK_MINIMUM_ABI == 3
     assert LANDLOCK_HANDLED_ACCESS_FS == (1 << 15) - 1

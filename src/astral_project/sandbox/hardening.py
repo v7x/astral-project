@@ -123,7 +123,7 @@ class HardeningPolicy:
             raise ValueError("hardening temporary-root mutability is invalid")
         fixed_roles = {
             Path("/usr"): RootRole.READ_ONLY,
-            Path("/dev"): RootRole.READ_ONLY,
+            Path("/dev"): RootRole.DEVICE_RUNTIME,
             Path("/proc"): RootRole.READ_ONLY,
             Path("/run"): RootRole.SOCKET_RUNTIME,
             Path("/tmp"): (RootRole.REGULAR_WRITABLE if writable_tmp else RootRole.READ_ONLY),
