@@ -122,6 +122,10 @@ def _error(code: ErrorCode, message: str) -> AstralError:
     )
 
 
+def _socket_runtime_path(runtime: Path) -> Path:
+    return runtime.with_name(f"{runtime.name}-sockets")
+
+
 def _check_private_socket(path: Path) -> None:
     details = path.lstat()
     if (
@@ -281,7 +285,7 @@ class DaemonServer:
                 raise _error(ErrorCode.HARDENING_UNAVAILABLE, hardening.reason)
             try:
                 ssh_state = Path.home() / ".ssh"
-                socket_runtime = self.paths.runtime / "sockets"
+                socket_runtime = _socket_runtime_path(self.paths.runtime)
                 ensure_private_directory(socket_runtime)
                 roots: list[tuple[Path, RootRole | bool]] = [
                     (self.paths.runtime, True),
@@ -312,6 +316,7 @@ class DaemonServer:
                 rclone_binary=self._rclone_binary,
                 transport_program=self._transport_program,
                 readiness_timeout=30.0,
+                socket_runtime=socket_runtime,
             )
             if hasattr(self._database, "list_mount_runtime"):
                 self._mounts.recover()
@@ -366,6 +371,7 @@ class DaemonServer:
                 port=port,
                 binary=self._rclone_binary,
                 runtime=self.paths.runtime,
+                socket_runtime=_socket_runtime_path(self.paths.runtime),
                 transport_program=self._transport_program,
                 ssh_binary=self._ssh_binary,
             )

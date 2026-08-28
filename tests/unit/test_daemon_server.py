@@ -14,7 +14,12 @@ from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.daemon.client import DaemonClient
 from astral_project.daemon.protocol import encode, receive
 from astral_project.daemon.server import DaemonPaths, DaemonServer
-from astral_project.sandbox.hardening import HardeningError, HardeningStatus
+from astral_project.sandbox.hardening import (
+    HardeningError,
+    HardeningPolicy,
+    HardeningStatus,
+    RootRole,
+)
 from astral_project.state.sqlite import StateDatabase
 
 
@@ -76,6 +81,13 @@ def test_daemon_applies_hardening_at_trusted_startup(
     server.start()
     try:
         assert len(observed) == 1
+        policy = observed[0]
+        assert isinstance(policy, HardeningPolicy)
+        roots = dict(policy.allowed_roots)
+        socket_root = paths.runtime.with_name(f"{paths.runtime.name}-sockets")
+        assert roots[paths.runtime] is RootRole.REGULAR_WRITABLE
+        assert roots[socket_root] is RootRole.SOCKET_RUNTIME
+        assert socket_root.parent == paths.runtime.parent
         thread = _serve(server)
         result = DaemonClient(paths.socket).request(
             request_id="status-hardening", cancellation_id="cancel-hardening", operation="status"

@@ -379,6 +379,8 @@ def test_mount_rejections_and_argv_helpers(tmp_path: Path, monkeypatch: pytest.M
         MountManager(database, tmp_path / "runtime2", rclone_binary=Path("relative"))
     with pytest.raises(AstralError, match="timeout"):
         MountManager(database, tmp_path / "runtime2", readiness_timeout=0)
+    with pytest.raises(AstralError, match="socket runtime"):
+        MountManager(database, tmp_path / "runtime2", socket_runtime=Path("relative"))
 
 
 def test_vfs_upload_status_waits_for_queue_and_rejects_bad_status(

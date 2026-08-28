@@ -344,6 +344,7 @@ def daemon_bound_listing_handler(
     binary: Path,
     runtime: Path,
     transport_program: Path,
+    socket_runtime: Path | None = None,
     ssh_binary: Path = Path("/usr/bin/ssh"),
     runner: Runner = run_rclone,
 ) -> Mapping[str, object]:
@@ -367,7 +368,9 @@ def daemon_bound_listing_handler(
         )
     except (OSError, ValueError, AstralError) as error:
         raise _error("active remote session is invalid") from error
-    capability = TransportCapability.create(runtime / "transport")
+    capability = TransportCapability.create(
+        runtime / "transport" if socket_runtime is None else socket_runtime
+    )
     server = PrivateTransportServer(
         capability,
         lambda: open_remote_sftp_stream(

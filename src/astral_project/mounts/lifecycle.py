@@ -62,6 +62,7 @@ class MountManager:
         ssh_binary: Path = Path("/usr/bin/ssh"),
         readiness_timeout: float = 30.0,
         clock: Callable[[], float] = time.time,
+        socket_runtime: Path | None = None,
     ) -> None:
         if not rclone_binary.is_absolute() or not transport_program.is_absolute():
             raise _error("mount executable paths must be absolute")
@@ -69,6 +70,9 @@ class MountManager:
             raise _error("mount readiness timeout must be positive")
         self.database = database
         self.runtime = runtime
+        self.socket_runtime = runtime / "sockets" if socket_runtime is None else socket_runtime
+        if not self.socket_runtime.is_absolute():
+            raise _error("mount socket runtime must be absolute")
         self.rclone_binary = rclone_binary
         self.transport_program = transport_program
         self.fusermount_binary = fusermount_binary
@@ -165,7 +169,7 @@ class MountManager:
             self.database.record_audit(
                 "mount.requested", "mount", mount_id, {"grant_id": str(grant.grant_id)}
             )
-            capability = TransportCapability.create(self.runtime / "sockets")
+            capability = TransportCapability.create(self.socket_runtime)
             stream_lock = threading.Lock()
 
             def open_stream() -> ProcessStream:
@@ -186,7 +190,7 @@ class MountManager:
             transport_thread = threading.Thread(target=transport_server.serve_forever, daemon=True)
             transport_thread.start()
             self._transports[mount_id] = (transport_server, transport_thread)
-            rc_socket = self.runtime / "sockets" / f"rc-{mount_id}.sock"
+            rc_socket = self.socket_runtime / f"rc-{mount_id}.sock"
             argv = self._argv(
                 config_path, cache_path, virtual_target, mount_path, requested_mode, rc_socket
             )
@@ -243,7 +247,7 @@ class MountManager:
             mount_id, state=MountState.DRAINING.value, updated_at=int(self.clock())
         )
         self.database.record_audit("mount.unmount.requested", "mount", mount_id, {})
-        rc_socket = self.runtime / "sockets" / f"rc-{mount_id}.sock"
+        rc_socket = self.socket_runtime / f"rc-{mount_id}.sock"
         try:
             self._wait_for_vfs_uploads(rc_socket, flush_timeout)
             self._unmount(record.mount_path, flush_timeout)
@@ -511,7 +515,7 @@ class MountManager:
             _terminate(process, 1.0)
         self._processes.pop(mount_id, None)
         self._close_transport(mount_id)
-        _unlink_private(self.runtime / "sockets" / f"rc-{mount_id}.sock")
+        _unlink_private(self.socket_runtime / f"rc-{mount_id}.sock")
         with suppress(AstralError):
             self.database.update_mount_runtime(
                 mount_id,
