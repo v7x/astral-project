@@ -106,7 +106,10 @@ def run_ssh_entry(
         if after_verification is not None:
             after_verification(request)
         try:
-            enforce(HardeningPolicy.for_plan(((BROKER_SOCKET.parent, False),)))
+            hardening_roots = [(BROKER_SOCKET.parent, False)]
+            if audit_log is not None:
+                hardening_roots.append((audit_log.path.parent, True))
+            enforce(HardeningPolicy.for_plan(tuple(hardening_roots)))
         except ValueError as error:
             raise HardeningError(
                 code=ErrorCode.HARDENING_APPLY,
