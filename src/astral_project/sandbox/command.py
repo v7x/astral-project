@@ -158,6 +158,19 @@ def parse_arguments(arguments: Sequence[str]) -> SandboxArguments:
     )
 
 
+def _clear_projected_home_capabilities(projected: ProjectedHomeProcess | None) -> None:
+    if projected is None:
+        return
+    try:
+        clear_process_capabilities()
+    except OSError as error:
+        projected.close()
+        raise _error(
+            f"projected-home capability cleanup failed: {error}",
+            ErrorCode.HARDENING_APPLY,
+        ) from error
+
+
 def _host_rx_target(profile: Profile | None, command: tuple[str, ...]) -> str | None:
     """Admit a projected-HOME executable only through an explicit host-rx rule."""
     target = command[0]
@@ -298,15 +311,7 @@ def run_sandbox(
                 private_root=parsed.private_root,
                 overlay_root=parsed.overlay_root,
             )
-            if projected is not None:
-                try:
-                    clear_process_capabilities()
-                except OSError as error:
-                    projected.close()
-                    raise _error(
-                        f"projected-home capability cleanup failed: {error}",
-                        ErrorCode.HARDENING_APPLY,
-                    ) from error
+            _clear_projected_home_capabilities(projected)
             host_rx_manifest, host_rx_directory = _write_host_rx_manifest(runtime, host_rx_target)
             plan = LocalSandboxPlan(
                 parsed.command,
@@ -374,6 +379,7 @@ def run_sandbox(
             private_root=parsed.private_root,
             overlay_root=parsed.overlay_root,
         )
+        _clear_projected_home_capabilities(projected)
         host_rx_manifest, host_rx_directory = _write_host_rx_manifest(runtime, host_rx_target)
         for index, remote in enumerate(parsed.remotes):
             _export, virtual_target = _select_export(grant, remote.source)

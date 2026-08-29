@@ -25,12 +25,12 @@
       {"id": "R20", "attack": "forced-command shell attempt", "test": "tests/unit/test_server_protocol.py::test_outer_command_and_fuzz_fail_closed", "class": "unit"}
     ],
     "40": [
-      {"id": "L01", "attack": "hidden home read", "test": "scripts/sandbox_enforce_acceptance.py", "class": "installed"},
-      {"id": "L02", "attack": "host /proc inspection", "test": "scripts/sandbox_enforce_acceptance.py", "class": "installed"},
+      {"id": "L01", "attack": "hidden home read", "test": "scripts/sandbox_enforce_acceptance.py::main", "class": "installed"},
+      {"id": "L02", "attack": "host /proc inspection", "test": "scripts/sandbox_enforce_acceptance.py::main", "class": "installed"},
       {"id": "L03", "attack": "same-UID daemon signal/ptrace", "test": "tests/unit/test_sandbox.py::test_sandbox_private_helpers_and_rejections", "class": "unit"},
-      {"id": "L04", "attack": "main socket discovery", "test": "scripts/sandbox_enforce_acceptance.py", "class": "installed"},
+      {"id": "L04", "attack": "main socket discovery", "test": "scripts/sandbox_enforce_acceptance.py::main", "class": "installed"},
       {"id": "L05", "attack": "abstract socket discovery", "test": "tests/unit/test_sandbox_resources.py::test_resource_policy_denies_dangerous_abstract_and_wrong_paths", "class": "unit"},
-      {"id": "L06", "attack": "SSH key search", "test": "scripts/sandbox_enforce_acceptance.py", "class": "installed"},
+      {"id": "L06", "attack": "SSH key search", "test": "scripts/sandbox_enforce_acceptance.py::main", "class": "installed"},
       {"id": "L07", "attack": "SSH agent use", "test": "tests/unit/test_sandbox_resources.py::test_environment_policy_removes_secrets_and_invisible_path", "class": "unit"},
       {"id": "L08", "attack": "Docker socket use", "test": "tests/unit/test_sandbox_resources.py::test_resource_policy_denies_dangerous_abstract_and_wrong_paths", "class": "unit"},
       {"id": "L09", "attack": "inherited FD", "test": "tests/unit/test_sandbox_resources.py::test_close_unlisted_fds_ignores_close_races", "class": "unit"},
