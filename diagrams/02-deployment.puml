@@ -1,80 +1,93 @@
 @startuml
-skinparam backgroundColor white
-title Astral Project — Target Deployment
+title Astral Project — Deployment and Trust Boundaries
 skinparam shadowing false
+
+legend right
+  |= Color |= Status |
+  |<#DDF2DD> | Implemented |
+  |<#FFF2CC> | Partial or integration pending |
+  |<#E7E7E7> | Target architecture; not implemented |
+endlegend
 
 node "Local Linux host" as Local {
   node "Trusted user domain" as Trusted {
-    artifact "Fixed Python 3.12+ runtime\n-I, sanitized PYTHON*" as LocalRuntime
-    component "asprd" as Daemon
-    component "rclone" as Rclone
-    component "aspr-transport" as Transport
-    component "aspr-homed" as Homed
-    database "XDG state\nSQLite, profiles, audit" as State
-    folder "Host HOME" as HostHome
-    folder "Verified rclone mounts" as Mounts
-    component "main.sock" as MainSocket
-    component "private transport.sock" as PrivateSocket
+    artifact "/usr/bin/python3\n-I + installed application package" as LocalRuntime #FFF2CC
+    component "asprd\nstatus/liveness only" as Daemon #FFF2CC
+    database "XDG SQLite state" as State #FFF2CC
+    component "rclone + aspr-transport" as LocalRemote #E7E7E7
+    component "aspr-homed" as Homed #E7E7E7
   }
-
-  node "Local bubblewrap sandbox" as Sandbox #FFE0E0 {
+  node "Local bubblewrap sandbox — target" as Sandbox #E7E7E7 {
     component "Agent harness" as Agent
-    folder "/home/<user>\nprojected FUSE view" as Projected
-    folder "Declared project mounts" as Projects
-    folder "Pre-mounted remote views" as SandboxMounts
-    component "/run/astral-project/session.sock\nlimited to one grant + expiry" as SessionSocket
+    folder "Projected HOME" as Projected
+    folder "Declared projects +\npre-mounted remote views" as Mounts
+    component "Grant-bound session socket" as SessionSocket
   }
 }
 
-cloud "Network" as Net
+cloud "OpenSSH" as Net #FFF2CC
 
 node "Enrolled remote Linux host" as Remote {
-  component "OpenSSH server\nrestricted key + forced command" as SSHD
-  artifact "Verified remote runtime bundle" as RemoteRuntime
-  component "aspr-server supervisor" as Server
-  folder "Descriptor-pinned staging tree" as Staging
-  node "Root broker + namespace/mount worker" as RemoteSandbox #E2F4E2 {
-    component "private synthetic root" as SyntheticRoot
-    component "fixed confined sftp_v1" as SFTP
-    folder "/exports/<export-id>" as Exports
+  node "Enrolled remote-user domain" as UserDomain {
+    component "sshd restricted key +\nforced command" as SSHD #DDF2DD
+    component "aspr-server" as Server #DDF2DD
+    component "stdio / Unix socketpair\nSFTP bridge" as Bridge #DDF2DD
   }
-  folder "Selected host files/directories" as Sources
+
+  node "Root-owned broker domain" as RootDomain {
+    component "/run/astral-project/broker.sock\nsystemd activation, mode 0660" as BrokerSocket #DDF2DD
+    component "aspr-broker\nSO_PEERCRED + authority validation" as Broker #DDF2DD
+    database "Root-owned issuer keys +\nper-root ceiling" as Policy #DDF2DD
+    component "Descriptor resolver" as Resolver #DDF2DD
+    artifact "Sealed ExecutionPlanV1 memfd" as Plan #DDF2DD
+    artifact "Verified sftp_v1\nruntime closure" as Runtime #DDF2DD
+    component "Native mount worker" as Worker #DDF2DD
+    component "Expiry and worker\nreaping registry" as Registry #DDF2DD
+  }
+
+  node "Synthetic SFTP namespace" as RemoteSandbox #DDF2DD {
+    component "AppArmor profile\naspr-sftp-v1" as AppArmor
+    component "Fixed loader + sftp-server" as SFTP
+    folder "/.astral-project-runtime" as RuntimeMount
+    folder "Planned export targets" as Exports
+  }
+  folder "Configured source roots" as Sources #DDF2DD
 }
 
 LocalRuntime -- Daemon
 Daemon -- State
-Daemon -- MainSocket
-Daemon -- Rclone
-Rclone -- Transport
-Transport -- PrivateSocket
-PrivateSocket -- Daemon
-Homed -- HostHome
-Homed -- Projected
-Daemon -- Homed
-Daemon -- Mounts
-Mounts -- SandboxMounts
-Daemon -- SessionSocket
-Agent -- Projected
-Agent -- Projects
-Agent -- SandboxMounts
-Agent -- SessionSocket
+Daemon .. LocalRemote
+Daemon .. Homed
+Homed .. Projected
+LocalRemote .. Mounts
+Agent .. Projected
+Agent .. Mounts
+Agent .. SessionSocket
 
-Daemon --> Net : OpenSSH client; exact\naspr-channel-v1 command
+Daemon ..> Net : target OpenSSH client
 Net --> SSHD
-SSHD --> Server : forced command
-RemoteRuntime -- Server
-Server --> RemoteSandbox : broker request
-RemoteSandbox --> Staging : target-user DAC; pinned descriptors; sealed plan
-Sources --> Staging : descriptor-pinned sources
-Staging --> SyntheticRoot
-SyntheticRoot --> SFTP : fixed runtime; authority removed
-SFTP --> Exports
-Server --> SFTP : supervise expiry/revocation
+SSHD --> Server : exact aspr-channel-v1
+Server --> Bridge
+Bridge --> BrokerSocket : CBOR request + SCM_RIGHTS\nstream descriptor
+BrokerSocket --> Broker
+Broker --> Policy
+Broker --> Resolver
+Sources --> Resolver : opened beneath ceiling roots
+Resolver --> Plan : pinned descriptors only
+Plan --> Worker : FD 5; source FDs 10–73
+Runtime --> Worker : verified directory FD 74
+Bridge --> Worker : SFTP stream FD 6
+Broker --> Worker : fixed launch; map target UID/GID
+Worker --> RuntimeMount : read-only attachment
+Worker --> Exports : detached descriptor mounts
+Worker --> AppArmor : fixed exec transition
+AppArmor --> SFTP
+Broker --> Registry : expiry and worker supervision
 
-note right of Sandbox
-The sandbox receives neither MainSocket
-nor PrivateSocket. Remote mounts are
-constructed before sandbox launch.
+note right of Worker
+The worker creates user and mount namespaces,
+marks propagation private, builds a tmpfs staging root,
+pivots into it, drops capabilities, sets no_new_privs,
+and executes one fixed workload. It does not use bubblewrap.
 end note
 @enduml
-

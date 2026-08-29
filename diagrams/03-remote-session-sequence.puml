@@ -1,50 +1,63 @@
 @startuml
-skinparam backgroundColor white
-title Astral Project — Packet 15 Remote Session
+title Astral Project — Implemented Remote SFTP Session Path
 skinparam shadowing false
 
-participant "rclone" as RC
-participant "aspr-transport" as T
-participant "asprd" as D
-participant "OpenSSH" as SSH
-participant "aspr-server" as RS
-participant "root-owned broker" as B
-participant "target-user DAC resolver" as DAC
-participant "pinned descriptors + sealed plan" as Plan
-participant "mapped namespace/mount worker" as W
-participant "private synthetic root" as Root
-participant "fixed confined sftp_v1" as SF
+participant "Local session client\n(target integration pending)" as LC
+participant "OpenSSH / sshd" as SSH
+participant "aspr-server\n(enrolled user)" as RS
+participant "Broker bridge" as BB
+participant "systemd-activated\nroot broker" as RB
+participant "Safe resolver" as SR
+participant "Native mount worker" as NW
+participant "AppArmor-confined\nsftp-server" as SF
 database "Granted objects" as FS
 
-RC -> T : exec external SSH command: -s sftp
-T -> T : reject host, user, options, forwarding,\nor non-SFTP command
-T -> D : OpenSftpStream(environment-bound capability)
-D -> D : authorize session; load signed grant
-D -> SSH : exact command aspr-channel-v1
-SSH -> RS : restricted key starts forced command
-D -> RS : bounded preface + signed grant
-RS -> B : broker request
-B -> B : SO_PEERCRED authentication
-B -> B : independent grant and server-ceiling validation
-B -> DAC : resolve sources under target-user DAC
-DAC -> Plan : pin source descriptors and identities
-B -> Plan : seal bounded internal execution plan
-Plan -> W : inherited descriptors + sealed plan
-W -> W : mapped namespace and mount construction
-W -> Root : build private synthetic root
-Root -> W : attach verified fixed runtime
-W -> W : remove setup authority; fixed transition
-W -> SF : exec confined OpenSSH sftp-server
-RS --> D : ready response
-D --> T : connected byte stream
-T --> RC : transparent SFTP stream
+LC -> SSH : exact command aspr-channel-v1
+SSH -> RS : restricted key starts forced entry
+LC -> RS : uint32 length + canonical CBOR\nRemoteSessionRequestV1
 
-loop Until expiry, revocation, cancellation, or failure
-  RC -> SF : SFTP request
-  SF -> FS : kernel-enforced granted operation
-  FS --> SF : data/status
-  SF --> RC : SFTP response
+group Enrolled-user validation before privileged dispatch
+  RS -> RS : require exact command and transport key
+  RS -> RS : decode exact fields; verify grant signature,\nhost ID, host-key fingerprint, user, and time
 end
 
-B -> W : terminate and reap supervised worker
+RS -> BB : open broker SFTP stream
+BB -> BB : create AF_UNIX socketpair
+BB -> RB : CreateNamespaceV1 + one stream FD\nvia SCM_RIGHTS
+
+group Root broker authority gate
+  RB -> RB : authenticate peer UID/GID with SO_PEERCRED
+  RB -> RB : reverify signed grant and server identity
+  RB -> RB : require every export within the per-root ceiling
+  RB -> SR : resolve beneath configured trusted roots
+  SR -> SR : open descriptor-relative; verify signed\ndevice, inode, mount ID, filesystem type, and kind
+end
+
+SR --> RB : ordered pinned source descriptors
+RB -> RB : create and seal ExecutionPlanV1 memfd
+RB -> RB : verify content-addressed runtime closure
+RB -> NW : fixed FD launch: synchronization, plan,\nstream, log, sources, and runtime only
+NW -> NW : unshare user + mount namespaces
+RB <-> NW : install UID/GID maps; continue
+NW -> NW : private mounts; tmpfs staging root
+NW -> NW : open_tree + mount_setattr + move_mount
+NW -> NW : attach runtime; pivot_root; drop capabilities
+NW -> SF : fixed AppArmor transition and execve
+RB --> BB : NamespaceReadyV1
+BB --> RS : connected byte stream
+RS --> LC : RemoteSessionReadyV1; raw SFTP follows
+
+loop Until EOF, expiry, or worker failure
+  LC -> SF : SFTP request through SSH and bridge
+  SF -> FS : kernel-enforced granted operation
+  FS --> SF : data/status
+  SF --> LC : SFTP response through bridge and SSH
+end
+
+RB -> NW : terminate and reap on expiry
+
+note over LC,RS
+The rclone/aspr-transport producer of the local SFTP stream
+belongs to the target architecture and is not yet integrated.
+end note
 @enduml

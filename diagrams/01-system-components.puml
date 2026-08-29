@@ -1,77 +1,95 @@
 @startuml
-skinparam backgroundColor white
-title Astral Project — Target Component Architecture
+title Astral Project — Components and Implementation Status
 left to right direction
 skinparam componentStyle rectangle
 skinparam packageStyle rectangle
 skinparam shadowing false
 
+legend right
+  |= Color |= Status |
+  |<#DDF2DD> | Implemented |
+  |<#FFF2CC> | Partial or integration pending |
+  |<#E7E7E7> | Target architecture; not implemented |
+endlegend
+
 actor "Trusted human" as Human
 
-package "Local trusted boundary" #DDEBFF {
-  component "aspr CLI" as CLI
-  component "asprd\nlocal authority daemon" as Daemon
-  database "SQLite state\nand audit" as State
-  component "rclone" as Rclone
-  component "aspr-transport" as Transport
-  component "aspr-homed\nFUSE policy filesystem" as Homed
-  component "Local bubblewrap\npolicy compiler/launcher" as LocalBwrap
-  collections "Signing key +\nSSH transport key" as Keys
+package "Local trusted boundary" {
+  component "aspr CLI\nversion + host probe" as CLI #DDF2DD
+  component "asprd\nstatus/liveness daemon" as Daemon #FFF2CC
+  database "SQLite state\nand audit schema" as State #FFF2CC
+  component "rclone" as Rclone #E7E7E7
+  component "aspr-transport" as Transport #E7E7E7
+  component "aspr-homed\nFUSE policy filesystem" as Homed #E7E7E7
+  component "Local bubblewrap\npolicy compiler/launcher" as LocalBwrap #E7E7E7
+  collections "Signing key +\nSSH transport key" as Keys #FFF2CC
 }
 
-package "Local untrusted boundary" #FFE0E0 {
+package "Local untrusted boundary — target" #E7E7E7 {
   component "Agent harness\nand descendants" as Agent
   component "Sandbox aspr client" as SandboxCLI
-  interface "Narrow session API\nDescribeSession, RunLs,\nGetRemoteMounts, GetExpiry,\nCloseOwnSession" as SessionAPI
+  interface "Narrow session API" as SessionAPI
   folder "Projected HOME" as ProjectedHome
-  folder "Pre-mounted\nremote views" as RemoteViews
+  folder "Pre-mounted remote views" as RemoteViews
 }
 
-cloud "OpenSSH authenticated channel" as SSH
+cloud "OpenSSH authenticated channel" as SSH #FFF2CC
 
-package "Remote trusted boundary" #E2F4E2 {
-  component "aspr-server\nforced-command request" as Server
-  component "Root-owned broker\npeer/grant/ceiling authority" as Broker
-  component "Target-user DAC\nsource resolver" as Resolver
-  folder "Pinned descriptors +\nsealed bounded plan" as Staging
-  component "Mapped namespace/mount\nworker + synthetic root" as RemoteWorker
-  component "Fixed confined\nsftp_v1" as SFTP
-  folder "Explicitly granted\nremote objects" as Granted
-  collections "Issuer keys +\nserver policy ceiling" as Ceiling
+package "Remote enrolled-user boundary" {
+  component "aspr-server\nforced-command entry" as Server #DDF2DD
+  component "Broker bridge\nsocketpair + SCM_RIGHTS" as Bridge #DDF2DD
+}
+
+package "Remote privileged boundary" {
+  component "systemd socket" as Systemd #DDF2DD
+  component "Root broker\nSO_PEERCRED + grant/ceiling validation" as Broker #DDF2DD
+  component "Safe resolver +\ndescriptor pinning" as Resolver #DDF2DD
+  component "Execution-plan builder\nsealed memfd + fixed FD ABI" as Plan #DDF2DD
+  component "Native mount worker\nuser/mount namespaces" as Worker #DDF2DD
+  database "Issuer keys + per-root\nserver ceiling" as Ceiling #DDF2DD
+  folder "Content-addressed\nSFTP runtime closure" as Runtime #DDF2DD
+  component "Expiry and worker\nreaping registry" as Registry #DDF2DD
+}
+
+package "Remote confined workload" {
+  folder "Synthetic root +\ndescriptor-pinned exports" as Synthetic #DDF2DD
+  component "AppArmor-confined\nsftp-server" as SFTP #DDF2DD
+  folder "Explicitly granted\nremote objects" as Granted #DDF2DD
 }
 
 Human --> CLI
-CLI --> Daemon : main control API
+CLI ..> Daemon : future control surface
 Daemon --> State
-Daemon --> Keys
-Daemon --> Rclone : supervise
-Rclone --> Transport : external SSH\n"-s sftp" only
-Transport --> Daemon : private OpenSftpStream API
-Daemon --> SSH : fixed command\naspr-channel-v1
-SSH --> Server : framed preface + signed grant
-Server --> Broker : request signed grant
-Broker --> Ceiling : validate issuer, host, user,\ntime, replay, revocation, ceiling
-Broker --> Resolver : target-user DAC resolution
-Resolver --> Staging : pin source descriptors
-Broker --> Staging : seal bounded plan
-Staging --> RemoteWorker : inherited descriptors + plan
-RemoteWorker --> SFTP : synthetic root; fixed runtime; authority removed
+Daemon ..> Keys
+Daemon ..> Rclone : future supervision
+Rclone ..> Transport : future external SSH
+Daemon ..> SSH : target session control
+SSH --> Server : aspr-channel-v1
+Server --> Bridge : authenticated request
+Bridge --> Systemd : CreateNamespaceV1 +\npassed stream FD
+Systemd --> Broker
+Broker --> Ceiling : revalidate authority
+Broker --> Resolver : open under configured roots
+Resolver --> Plan : pinned source FDs
+Plan --> Worker : sealed plan + fixed FDs
+Runtime --> Worker : verified runtime FD
+Worker --> Synthetic : open_tree, mount_setattr,\nmove_mount, pivot_root
+Worker --> SFTP : drop authority; fixed exec\nwith AppArmor transition
 SFTP --> Granted : kernel-enforced RO/RW access
+Broker --> Registry : retain termination authority
 
-Daemon --> Homed : supervise + session policy
-Homed --> ProjectedHome : FUSE mount
-Daemon --> LocalBwrap : compile fixed policy
-LocalBwrap --> Agent : launch
-Agent --> ProjectedHome : ordinary filesystem calls
-Daemon --> RemoteViews : rclone mounts before launch
-Agent --> RemoteViews : ordinary filesystem calls
-SandboxCLI --> SessionAPI
-SessionAPI --> Daemon : grant-bound bearer capability
+Daemon ..> Homed : future supervision
+Homed ..> ProjectedHome
+Daemon ..> LocalBwrap : future policy launch
+LocalBwrap ..> Agent
+Agent ..> ProjectedHome
+Agent ..> RemoteViews
+SandboxCLI ..> SessionAPI
+SessionAPI ..> Daemon
 
 note bottom of Agent
-No SSH keys, /dev/fuse, raw rclone config,
-main daemon socket, private transport socket,
-generic mount authority, or profile approval power.
+Future local sandbox contract: no SSH keys, /dev/fuse,
+raw rclone configuration, privileged sockets,
+generic mount authority, or profile-approval power.
 end note
 @enduml
-

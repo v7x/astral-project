@@ -1,0 +1,7 @@
+Remaining work
+
+Packets 41–42: Compatibility/support matrix
+
+            --- Support Matrix Gate ---
+
+Packets 43–44: Packaging + operations

@@ -1,7 +1,11 @@
 @startuml
-skinparam backgroundColor white
-title Astral Project — Projected-HOME Learning and Approval
+title Astral Project — Future Projected-HOME Learning and Approval
 skinparam shadowing false
+
+note across
+Target architecture only. The present code does not implement aspr-homed,
+the projected HOME filesystem, observation, prompting, or profile approval.
+end note
 
 participant "Agent harness\n(untrusted)" as A
 participant "Optional observer\n(diagnostic only)" as O
