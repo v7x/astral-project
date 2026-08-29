@@ -2,7 +2,6 @@ $ source closure (source paths)
 3f7d7f09132f684e549773d9420041a33011642e
 $ git diff --quiet 3f7d7f09132f684e549773d9420041a33011642e -- src packaging scripts tests .github
 PASS source-tree-equivalence
-$ git diff --check
 $ uv run ruff check src tests scripts
 All checks passed!
 $ uv run mypy src tests
@@ -11,8 +10,8 @@ $ uv run pytest -q tests/adversarial
 ............................................................             [100%]
 60 passed in 0.25s
 $ ./scripts/test
-Resolved 25 packages in 0.68ms
-Checked 17 packages in 0.21ms
+Resolved 25 packages in 0.76ms
+Checked 17 packages in 0.24ms
 216 files already formatted
 All checks passed!
 Success: no issues found in 187 source files
@@ -46,7 +45,7 @@ tests/unit/test_broker_mapping.py ..                                     [ 19%]
 tests/unit/test_broker_mapping_extra.py ............................     [ 22%]
 tests/unit/test_broker_registry.py ..                                    [ 22%]
 tests/unit/test_broker_registry_extra.py .......                         [ 23%]
-tests/unit/test_broker_server.py ..................F......               [ 26%]
+tests/unit/test_broker_server.py .........................               [ 26%]
 tests/unit/test_broker_socket_activation_extra.py ...                    [ 26%]
 tests/unit/test_broker_sources.py .......                                [ 27%]
 tests/unit/test_broker_sources_extra.py ...........                      [ 28%]
@@ -117,151 +116,29 @@ tests/unit/test_transport_local.py .......                               [ 99%]
 tests/unit/test_transport_main.py .                                      [ 99%]
 tests/unit/test_ubuntu_matrix_records.py ...                             [100%]
 
-=================================== FAILURES ===================================
-__ test_replayed_grant_and_client_nonce_pair_is_rejected_before_second_worker __
-
-socket_path = PosixPath('/tmp/pytest-of-andrew/pytest-1229/test_replayed_grant_and_client0/broker.sock')
-request = CreateNamespaceV1(request_id=b'rrrrrrrrrrrrrrrr', session_id=b'\x00\x00\x00\x00\x00\x00@\x00\x80\x00\x00\x00\x00\x00\x...xa9\xda\xf7E;\x00", client_nonce=b'ssssssssssssssssssssssssssssssss', requested_workload='sftp_v1', protocol_version=1)
-
-    def request_namespace(
-        socket_path: Path, request: CreateNamespaceV1, *, stream_descriptor: int
-    ) -> NamespaceReadyV1 | NamespaceRejectedV1:
-        """Send canonical request and exactly one local stream socket by SCM_RIGHTS."""
-        if stream_descriptor < 0:
-            raise _error("broker stream descriptor is invalid")
-        payload = request.canonical_bytes()
-        frame = _FRAME_HEADER.pack(len(payload)) + payload
-        connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM | socket.SOCK_CLOEXEC)
-        try:
-            connection.connect(str(socket_path))
-            sent = connection.sendmsg(
-                [frame],
-                [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [stream_descriptor]))],
-            )
-            if sent <= 0:
-                raise _error("broker request made no progress")
->           connection.sendall(frame[sent:])
-E           BrokenPipeError: [Errno 32] Broken pipe
-
-src/astral_project/broker/client.py:34: BrokenPipeError
-
-The above exception was the direct cause of the following exception:
-
-tmp_path = PosixPath('/tmp/pytest-of-andrew/pytest-1229/test_replayed_grant_and_client0')
-monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7493dfe07fe0>
-
-    def test_replayed_grant_and_client_nonce_pair_is_rejected_before_second_worker(
-        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        authority, signed = _authority()
-
-        class Active:
-            effective_exports_digest = b"e" * 32
-            runtime_manifest_digest = b"m" * 32
-
-        class Executor:
-            calls = 0
-            descriptors: ClassVar[list[int]] = []
-
-            def start(self, grant: object, *, stream_descriptor: int, **_: object) -> Active:
-                self.calls += 1
-                self.descriptors.append(stream_descriptor)
-                return Active()
-
-        executor = Executor()
-        server = BrokerServer(
-            BrokerPaths(tmp_path / "broker.sock"),
-            authority,
-            executor=cast(BrokerSessionExecutor, executor),
-            active_session_sink=lambda *_: None,
-            clock=lambda: 150,
-        )
-        monkeypatch.setattr("astral_project.broker.server.os.geteuid", lambda: 0)
-        monkeypatch.setattr(
-            "astral_project.broker.server._peer_credentials",
-            lambda connection: PeerCredentials(pid=1, uid=1000, gid=1000),
-        )
-        server.start()
-        streams = [socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM) for _ in range(2)]
-        try:
-            first_thread = _serve(server)
-            first = request_namespace(
-                tmp_path / "broker.sock", _request(signed), stream_descriptor=streams[0][1].fileno()
-            )
-            first_thread.join(timeout=1)
-            assert first.__class__.__name__ == "NamespaceReadyV1"
-
-            second_thread = _serve(server)
->           second = request_namespace(
-                tmp_path / "broker.sock", _request(signed), stream_descriptor=streams[1][1].fileno()
-            )
-
-tests/unit/test_broker_server.py:634:
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-
-socket_path = PosixPath('/tmp/pytest-of-andrew/pytest-1229/test_replayed_grant_and_client0/broker.sock')
-request = CreateNamespaceV1(request_id=b'rrrrrrrrrrrrrrrr', session_id=b'\x00\x00\x00\x00\x00\x00@\x00\x80\x00\x00\x00\x00\x00\x...xa9\xda\xf7E;\x00", client_nonce=b'ssssssssssssssssssssssssssssssss', requested_workload='sftp_v1', protocol_version=1)
-
-    def request_namespace(
-        socket_path: Path, request: CreateNamespaceV1, *, stream_descriptor: int
-    ) -> NamespaceReadyV1 | NamespaceRejectedV1:
-        """Send canonical request and exactly one local stream socket by SCM_RIGHTS."""
-        if stream_descriptor < 0:
-            raise _error("broker stream descriptor is invalid")
-        payload = request.canonical_bytes()
-        frame = _FRAME_HEADER.pack(len(payload)) + payload
-        connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM | socket.SOCK_CLOEXEC)
-        try:
-            connection.connect(str(socket_path))
-            sent = connection.sendmsg(
-                [frame],
-                [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [stream_descriptor]))],
-            )
-            if sent <= 0:
-                raise _error("broker request made no progress")
-            connection.sendall(frame[sent:])
-            header = _read_exact(connection, _FRAME_HEADER.size)
-            (length,) = _FRAME_HEADER.unpack(header)
-            if not 0 < length <= _MAX_RESPONSE_BYTES:
-                raise _error("broker response length is invalid")
-            response = _read_exact(connection, length)
-            try:
-                return NamespaceReadyV1.from_cbor(response)
-            except AstralError:
-                return NamespaceRejectedV1.from_cbor(response)
-        except OSError as error:
->           raise _error("broker control connection failed") from error
-E           astral_project.core.errors.AstralError: ASPR_DAEMON_AUTH [8002]: broker control connection failed
-E           Security result: broker control request was rejected
-E           Why: outer session may transfer only one local SFTP stream descriptor
-E           Fix: use enrolled remote session through installed broker
-
-src/astral_project/broker/client.py:45: AstralError
 =============================== warnings summary ===============================
 tests/unit/test_approval_terminal.py::test_parent_pty_relay_starts_and_closes_mediation_server
 tests/unit/test_approval_terminal.py::test_parent_pty_relay_external_approval_and_buffered_output
 tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
 tests/unit/test_approval_terminal.py::test_terminal_controller_forwards_sigcont_after_child_suspend
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1029626) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1031170) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
     pid, fd = os.forkpty()
 
 tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
-  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=1029626) is multi-threaded, use of fork() may lead to deadlocks in the child.
+  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=1031170) is multi-threaded, use of fork() may lead to deadlocks in the child.
     pid = os.fork()
 
 tests/unit/test_approval_terminal.py::test_controller_does_not_publish_socket_to_child
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1029713) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1031256) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
     pid, fd = os.forkpty()
 
 tests/unit/test_broker_main.py::test_module_entrypoint_calls_main
   <frozen runpy>:128: RuntimeWarning: 'astral_project.broker.main' found in sys.modules after import of package 'astral_project.broker', but prior to execution of 'astral_project.broker.main'; this may result in unpredictable behaviour
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-=========================== short test summary info ============================
-FAILED tests/unit/test_broker_server.py::test_replayed_grant_and_client_nonce_pair_is_rejected_before_second_worker
-============ 1 failed, 930 passed, 2 skipped, 9 warnings in 16.90s =============
+================= 931 passed, 2 skipped, 9 warnings in 16.84s ==================
 ..                    [ 10%]
 tests/unit/test_audit.py .......................................         [ 15%]
 tests/unit/test_broker_authority.py .....                                [ 15%]
@@ -352,19 +229,19 @@ tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transi
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
 tests/unit/test_approval_terminal.py::test_terminal_controller_forwards_sigcont_after_child_suspend
 tests/unit/test_approval_terminal.py::test_controller_does_not_publish_socket_to_child
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1029626) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1031170) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
     pid, fd = os.forkpty()
 
 tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
-  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=1029626) is multi-threaded, use of fork() may lead to deadlocks in the child.
+  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=1031170) is multi-threaded, use of fork() may lead to deadlocks in the child.
     pid = os.fork()
 
 tests/unit/test_broker_main.py::test_module_entrypoint_calls_main
   <frozen runpy>:128: RuntimeWarning: 'astral_project.broker.main' found in sys.modules after import of package 'astral_project.broker', but prior to execution of 'astral_project.broker.main'; this may result in unpredictable behaviour
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 931 passed, 2 skipped, 9 warnings in 29.27s ==================
+================= 931 passed, 2 skipped, 9 warnings in 29.16s ==================
 Name    Stmts   Miss Branch BrPart  Cover   Missing
 ---------------------------------------------------
 TOTAL   11715      0   3496      0   100%
@@ -392,3 +269,4 @@ sudo: preserving the entire environment is not supported, '-E' is ignored
 PASS installed Packet 40 adversarial sandbox acceptance with empty CapBnd transition 000001ffffffffff->0
 {"chain_errors": [], "export_ok": true, "exported_path": "<redacted>", "failure_order": ["probe.started", "hardening.failure"], "retained_remote_events": ["audit.remote.export.started", "audit.remote.export.completed"]}
 {"error_code": "ASPR_HARDENING_UNAVAILABLE", "event_order": ["hardening.failure"], "workload_started": false}
+$ git diff --check
