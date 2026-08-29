@@ -1158,6 +1158,14 @@ def test_overlay_copy_up_concurrent_and_unsupported_features(tmp_path: Path) -> 
         with pytest.raises(OverlayStateError) as error:
             backend.mmap()
         assert error.value.errno == errno.ENOTSUP
-        with pytest.raises(OverlayStateError) as error:
-            backend.link("same", "link")
-        assert error.value.errno == errno.EOPNOTSUPP
+
+        def alias_attempt(_: int) -> int:
+            try:
+                backend.link("same", "link")
+            except OverlayStateError as error:
+                return error.errno or errno.EIO
+            return 0
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            assert list(pool.map(alias_attempt, range(16))) == [errno.EOPNOTSUPP] * 16
+        assert not (tmp_path / "upper" / "link").exists()
