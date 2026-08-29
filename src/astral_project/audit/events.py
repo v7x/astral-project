@@ -585,7 +585,11 @@ class AuditLog:
                 self._generation(index).unlink(missing_ok=True)
 
     def _apply_retention_with_descriptors_unlocked(
-        self, active_descriptor: int, boundary_descriptor: int | None
+        self,
+        active_descriptor: int,
+        boundary_descriptor: int | None,
+        *,
+        allow_empty_boundary: bool = False,
     ) -> None:
         rows = self._retention_rows_unlocked()
         if len(rows) <= self.retention:
@@ -606,7 +610,11 @@ class AuditLog:
         os.fsync(active_descriptor)
         if boundary_descriptor is None:
             raise OSError("audit retention boundary descriptor is unavailable")
-        self._append_boundary_unlocked(boundary, descriptor=boundary_descriptor, allow_empty=True)
+        self._append_boundary_unlocked(
+            boundary,
+            descriptor=boundary_descriptor,
+            allow_empty=allow_empty_boundary,
+        )
 
     def _read_boundaries_unlocked(
         self, *, allow_empty: bool = False
@@ -785,21 +793,23 @@ class AuditFailureRecorder:
         self._lock_descriptor = -1
         self._append_descriptor = -1
         self._boundary_descriptor = -1
+        self._allow_empty_boundary = False
         try:
             self._lock_descriptor = os.open(log.lock_path, os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC)
             fcntl.flock(self._lock_descriptor, fcntl.LOCK_EX)
             log._prepare_failure_storage_unlocked()
             self._append_descriptor = os.open(log.path, os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC)
-            if (
-                os.path.lexists(log.boundary_path)
-                or len(log._retention_rows_unlocked()) >= log.retention
-            ):
+            boundary_exists = os.path.lexists(log.boundary_path)
+            if boundary_exists:
+                log._read_boundaries_unlocked()
+            if boundary_exists or len(log._retention_rows_unlocked()) >= log.retention:
                 self._boundary_descriptor = os.open(
                     log.boundary_path,
                     os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC,
                     0o600,
                 )
                 os.fchmod(self._boundary_descriptor, 0o600)
+                self._allow_empty_boundary = not boundary_exists
             _check_private_file(log.lock_path)
             _check_private_file(log.path)
             if self._boundary_descriptor >= 0:
@@ -843,6 +853,7 @@ class AuditFailureRecorder:
         self._log._apply_retention_with_descriptors_unlocked(
             self._append_descriptor,
             None if self._boundary_descriptor < 0 else self._boundary_descriptor,
+            allow_empty_boundary=self._allow_empty_boundary,
         )
         return event
 
