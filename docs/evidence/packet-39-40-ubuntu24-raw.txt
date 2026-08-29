@@ -1,0 +1,15 @@
+Packet 39-40 installed raw transcript — Ubuntu 24.04
+
+$ sha256sum /tmp/astral-project-39-40-final3.deb
+51c603734a86400b1926e323bed75f8a2704ee1f1fd73e3822bf0ebfecb36367  /tmp/astral-project-39-40-final3.deb
+$ sudo dpkg-query -W -f='${Status} ${Version}\n' astral-project
+install ok installed 0.1.0
+$ sudo apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
+PASS profile load
+$ sudo -E SUDO_USER=aspr-admin python3 sandbox_adversarial_installed_acceptance.py
+{"all_capability_sets_zero": "passed", "all_network_socket_tables_empty": "passed", "all_non_loopback_interfaces_absent": "passed", "credentials_and_sockets_absent": "passed", "dns_absent": "passed", "entrypoint": "/usr/libexec/astral-project/aspr-sandbox-entry", "host_proc_and_same_uid_targets_absent": "passed", "launcher": "/usr/libexec/astral-project/aspr-bwrap-launch", "native_negative_controls": "passed", "network_inherit": "passed", "network_none": "passed", "runtime": "/run/user/1001", "ssh_agent_and_docker_socket_absent": "passed"}
+PASS installed Packet 40 adversarial sandbox acceptance with empty CapBnd
+$ sudo env PYTHONPATH=/usr/lib/astral-project/python HOME=/root python3 /tmp/aspr-audit-landlock-probe7.py
+PASS installed root real-kernel remote audit export, retention, and preopened failure recording ubuntu24
+$ PYTHONPATH=/usr/lib/astral-project/python python3 /tmp/aspr-hardening-failure-probe8-24.py
+PASS installed production run_plan records failure before workload ubuntu24
