@@ -43,10 +43,16 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="aspr-enforce-state-") as state:
         env = os.environ.copy()
         env["XDG_STATE_HOME"] = state
+        home_root = Path(state) / "host-home"
+        home_root.mkdir(mode=0o700)
+        profile = Path(state) / "profile.toml"
+        profile.write_text('version = 1\nid = "packet40"\nname = "packet40"\n', encoding="utf-8")
+        home_options = ("--profile", str(profile), "--home-root", str(home_root))
         inherit = run(
             [
                 ASPR,
                 "sandbox",
+                *home_options,
                 "--network",
                 "inherit",
                 "--",
@@ -61,6 +67,7 @@ def main() -> int:
             [
                 ASPR,
                 "sandbox",
+                *home_options,
                 "--network",
                 "none",
                 "--",

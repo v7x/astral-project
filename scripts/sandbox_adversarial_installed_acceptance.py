@@ -22,6 +22,13 @@ class _CapabilityData(ctypes.Structure):
     ]
 
 
+def _capability_bounding_mask() -> int:
+    for line in Path("/proc/self/status").read_text(encoding="utf-8").splitlines():
+        if line.startswith("CapBnd:"):
+            return int(line.split()[1], 16)
+    raise RuntimeError("CapBnd is missing")
+
+
 def _set_capabilities(libc: ctypes.CDLL, mask: int) -> None:
     header = _CapabilityHeader(0x20080522, 0)
     data = (_CapabilityData * 2)()
@@ -60,6 +67,7 @@ def main() -> int:
     if "aspr-bwrap-setup" not in status.stdout or "aspr-sandbox-payload" not in status.stdout:
         raise SystemExit("installed AppArmor profiles are not loaded")
     script = Path(__file__).with_name("sandbox_enforce_acceptance.py")
+    before_bounding = _capability_bounding_mask()
     libc = ctypes.CDLL(None, use_errno=True)
     if libc.prctl(8, 1, 0, 0, 0) != 0:
         raise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()))
@@ -71,6 +79,12 @@ def main() -> int:
         raise OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()))
     _drop_bounding_set(libc)
     _set_capabilities(libc, 1 << 21)
+    after_bounding = _capability_bounding_mask()
+    if before_bounding == 0 or after_bounding != 0:
+        raise SystemExit(
+            f"capability bounding transition was not proven: "
+            f"{before_bounding:016x}->{after_bounding:016x}"
+        )
     child_environment = os.environ | {"XDG_RUNTIME_DIR": str(runtime)}
     result = subprocess.run(
         ["python3", str(script)],
@@ -84,7 +98,10 @@ def main() -> int:
     print(result.stderr, end="")
     if result.returncode:
         raise SystemExit(result.returncode)
-    print("PASS installed Packet 40 adversarial sandbox acceptance with empty CapBnd")
+    print(
+        "PASS installed Packet 40 adversarial sandbox acceptance with empty CapBnd "
+        f"transition {before_bounding:016x}->0"
+    )
     return 0
 
 

@@ -23,7 +23,7 @@ def _assert_executable(row: dict[str, str]) -> None:
     assert target.is_file(), f"{row['id']} target missing: {target}"
     if not separator:
         assert target.suffix == ".py", f"{row['id']} script target must be Python: {target}"
-        return
+        function_name = "main"
     tree = ast.parse(target.read_text(encoding="utf-8"), filename=str(target))
     functions = {
         node.name

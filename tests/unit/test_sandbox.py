@@ -622,6 +622,14 @@ def test_sandbox_remote_orchestration_closes_owned_resources(
         "astral_project.sandbox.command._start_projected_home",
         lambda *_args, **_kwargs: projected,
     )
+    capability_cleanups: list[str] = []
+
+    def clear_capabilities() -> None:
+        capability_cleanups.append("cleared")
+
+    monkeypatch.setattr(
+        "astral_project.sandbox.command.clear_process_capabilities", clear_capabilities
+    )
     monkeypatch.setattr("astral_project.sandbox.command.run_plan", lambda *args, **kwargs: 0)
     assert (
         run_sandbox(
@@ -648,6 +656,7 @@ def test_sandbox_remote_orchestration_closes_owned_resources(
     assert [name for name, _ in calls].count("mount.close") == 1
     assert [name for name, _ in calls].count("session.close") == 1
     assert projected.closed
+    assert capability_cleanups
 
     calls.clear()
     assert (
