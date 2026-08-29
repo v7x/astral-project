@@ -999,7 +999,7 @@ PASS 4d97 installed session relay Ubuntu26 package=c985e3cc0cfcd7e67dfdf3d2b9f94
 
 --- final blocker closure: installed audit path fields ---
 $ sha256sum /tmp/astral-project-37-38-final.deb
-d2e7f849eb8b7a30c0c01513eb0b04055a0116f5525fe212912caf8e294323b2  /tmp/astral-project-37-38-final.deb
+d48f15f9d8267510bebebc886ec5e907e05f6329d0bb176f9803114c861ba5d5  /tmp/astral-project-37-38-final.deb
 $ PYTHONPATH=/usr/lib/astral-project/python python3 installed-path-fields-probe.py
 redacted={"destination":"<redacted>","device":"<redacted>","path_component":"<redacted>","remote_home":"<redacted>"}
 hashed={"destination":"sha256:c0e702cc18c73ec080d263e34a9aa307b3b7ecd29050a4fc1379690298ceef2c","device":"sha256:5022f5bbbdcdd229517b1cd2fda018ebb59ba3f574fc37b966e84225aa1794bd","path_component":"sha256:b2be01796cdbe555fb1edeafc770b43022585092c28fc52493e8b159be837ad4","remote_home":"sha256:1ca180d525ce762c59a4a1a4edcff97b8b90eff4d106a3ead7e5ce62801e163c"}
@@ -1010,31 +1010,39 @@ PASS installed Ubuntu 26.04 final blocker closure
 
 --- final socket-isolation package acceptance ---
 $ sha256sum /tmp/astral-project-37-38-final2.deb
- d2e7f849eb8b7a30c0c01513eb0b04055a0116f5525fe212912caf8e294323b2  /tmp/astral-project-37-38-final2.deb
+ d48f15f9d8267510bebebc886ec5e907e05f6329d0bb176f9803114c861ba5d5  /tmp/astral-project-37-38-final2.deb
 $ sudo env ASPR_PACKAGE=/tmp/astral-project-37-38-final2.deb SUDO_USER=testuser python3 /tmp/aspr-accept-37-38/scripts/sandbox_installed_acceptance.py
 installed acceptance rc=0
 PASS Ubuntu 26.04 final socket-isolation package
 
 --- final daemon protocol acceptance ---
 $ dpkg -i /tmp/astral-project-37-38-final3.deb
-installed package sha256=d2e7f849eb8b7a30c0c01513eb0b04055a0116f5525fe212912caf8e294323b2
+installed package sha256=d48f15f9d8267510bebebc886ec5e907e05f6329d0bb176f9803114c861ba5d5
 $ PYTHONPATH=/usr/lib/astral-project/python python3 installed-daemon-protocol-probe.py
 PASS installed daemon protocol audit.remote.export ubuntu26
 
 --- final wire protocol package acceptance ---
 $ sha256sum /tmp/astral-project-37-38-final4.deb
-d2e7f849eb8b7a30c0c01513eb0b04055a0116f5525fe212912caf8e294323b2  /tmp/astral-project-37-38-final4.deb
+d48f15f9d8267510bebebc886ec5e907e05f6329d0bb176f9803114c861ba5d5  /tmp/astral-project-37-38-final4.deb
 $ PYTHONPATH=/usr/lib/astral-project/python python3 installed-daemon-protocol-probe.py
 PASS installed daemon protocol audit.remote.export ubuntu26
 
 --- final real-kernel remote audit wall regression ---
 $ sha256sum /tmp/astral-project-37-38-final5.deb
-d2e7f849eb8b7a30c0c01513eb0b04055a0116f5525fe212912caf8e294323b2  /tmp/astral-project-37-38-final5.deb
+d48f15f9d8267510bebebc886ec5e907e05f6329d0bb176f9803114c861ba5d5  /tmp/astral-project-37-38-final5.deb
 $ PYTHONPATH=/usr/lib/astral-project/python python3 /tmp/aspr-audit-landlock-probe.py
 PASS installed real-kernel remote audit export and preopened failure recording ubuntu26
 
 --- final retention-serialized real-kernel remote audit regression ---
 $ sha256sum /tmp/astral-project-37-38-final6.deb
-d2e7f849eb8b7a30c0c01513eb0b04055a0116f5525fe212912caf8e294323b2  /tmp/astral-project-37-38-final6.deb
+d48f15f9d8267510bebebc886ec5e907e05f6329d0bb176f9803114c861ba5d5  /tmp/astral-project-37-38-final6.deb
 $ PYTHONPATH=/usr/lib/astral-project/python python3 /tmp/aspr-audit-landlock-probe6.py
 PASS installed real-kernel remote audit export, retention, and preopened failure recording ubuntu26
+
+--- final fail-closed capability and audit evidence acceptance ---
+$ sha256sum /tmp/astral-project-37-38-final8.deb
+d48f15f9d8267510bebebc886ec5e907e05f6329d0bb176f9803114c861ba5d5  /tmp/astral-project-37-38-final8.deb
+$ sudo env PYTHONPATH=/usr/lib/astral-project/python HOME=/root python3 /tmp/aspr-audit-landlock-probe8-26.py
+PASS installed root real-kernel remote audit export, retention, and preopened failure recording ubuntu26
+$ PYTHONPATH=/usr/lib/astral-project/python python3 /tmp/aspr-hardening-failure-probe7.py
+PASS installed production run_plan records failure before workload ubuntu26

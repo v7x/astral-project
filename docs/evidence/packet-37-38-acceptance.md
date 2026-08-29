@@ -6,22 +6,22 @@ Final installed candidate artifact:
 
 ```text
 artifact: astral-project_0.1.0_amd64.deb
-sha256: d2e7f849eb8b7a30c0c01513eb0b04055a0116f5525fe212912caf8e294323b2
+sha256: d48f15f9d8267510bebebc886ec5e907e05f6329d0bb176f9803114c861ba5d5
 ```
 
 The artifact was rebuilt from the closure source tree after the final Landlock,
 process-entrypoint, audit-protocol, and profile-audit-sink changes. The final
-source closure commit is `17c9538e370e93123a8814b97e62c16c789de896`. Later
+source closure commit is `a78229342e333dfd5fd063de2ae1f974646227ac`. Later
 commits are evidence-only; `packet-37-38-local-validation.txt` records the
 source-tree equivalence check from that closure through the final evidence HEAD.
 
 ## Local verification
 
 ```text
-./scripts/test                         864 passed, 1 skipped; coverage 100%
+./scripts/test                         868 passed, 2 skipped; coverage 100%
 uv run mypy src tests                   passed
 uv run pytest tests/unit/test_audit.py tests/unit/test_hardening.py
-                                        91 passed
+                                        94 passed
 uv run pytest tests/unit/test_server_protocol.py::test_local_and_remote_audit_events_share_session_correlation
                                         1 passed
 cc -std=c11 -O2 -Wall -Wextra -Werror packaging/native/aspr-bwrap-launch.c
@@ -36,7 +36,7 @@ python scripts/parser_fuzz.py           passed
 Immutable local validation transcript:
 
 ```text
-packet-37-38-local-validation.txt  ae8f4933117478dff0099bc411d320612398349a2ce770dac8eee2981aa11c77
+packet-37-38-local-validation.txt  762b90f1ae03c24505b8aa2a1b36a3927e89398df54724923d2e8df80d8b8d3a
 ```
 
 The full suite includes audit schema, path redaction and hashing, malformed-old-
@@ -59,8 +59,8 @@ end with an explicit PASS marker:
 Raw transcript SHA-256 values:
 
 ```text
-packet-37-38-ubuntu24-raw.txt  4e3488682f70b094f2d97aa891b42307bd922c02c171cbf1d38af74a77b344ba
-packet-37-38-ubuntu26-raw.txt  cdbee37fbbd222b1a3ed08a9b9d072c96a94b444476e2f04be3c7fd7fefad1cf
+packet-37-38-ubuntu24-raw.txt  0e80903225262306edd10840b115aa85f44f82681a0d4decbc90e35010aed289
+packet-37-38-ubuntu26-raw.txt  82569666a4927ef16bcda9ab8ed07611a376023598fe0917fa92d6a5cfed4180
 ```
 
 Both installed runs passed the existing mount-namespace/AppArmor capability
@@ -96,7 +96,9 @@ acceptance. The wire-level `DaemonClient` test proves the allowlisted
 an unenrolled host. The installed real-kernel remote-export regression also passed on
 both targets: post-hardening read succeeded through an `O_RDONLY` lock, and a
 pre-opened private recorder appended failure evidence without writable Landlock
-authority.
+authority. Capability-boundary failures now fail closed unless `PR_CAPBSET_READ`
+proves the capability absent; the installed production `run_plan` failure probe
+recorded bounded `hardening.failure` evidence before workload launch on both targets.
 
 ## Boundary statement
 
