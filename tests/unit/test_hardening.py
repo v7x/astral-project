@@ -319,6 +319,15 @@ def test_clear_process_capabilities_handles_success_and_failures(
     with pytest.raises(OSError, match="Input/output error"):
         hardening.clear_process_capabilities()
 
+    def unsupported_ambient(*args: object) -> int:
+        if args[1] == hardening._PR_CAP_AMBIENT:
+            ctypes.set_errno(errno.EINVAL)
+            return -1
+        return 0
+
+    monkeypatch.setattr(hardening, "_libc_syscall", lambda: unsupported_ambient)
+    hardening.clear_process_capabilities()
+
     def capset_failure(*args: object) -> int:
         if args[0] == hardening._SYS_CAPSET:
             ctypes.set_errno(errno.EIO)

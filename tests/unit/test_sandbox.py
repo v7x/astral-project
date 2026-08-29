@@ -734,6 +734,35 @@ def test_sandbox_remote_orchestration_closes_owned_resources(
         )
 
 
+def test_projected_home_capability_cleanup_fails_closed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    class Projected:
+        mountpoint = tmp_path / "projected"
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    projected = Projected()
+    projected.mountpoint.mkdir()
+    monkeypatch.setattr(
+        "astral_project.sandbox.command._start_projected_home",
+        lambda *_args, **_kwargs: projected,
+    )
+    monkeypatch.setattr(
+        "astral_project.sandbox.command.clear_process_capabilities",
+        lambda: (_ for _ in ()).throw(OSError("capability cleanup")),
+    )
+    with pytest.raises(AstralError, match="capability cleanup"):
+        run_sandbox(
+            ["sandbox", "--network", "inherit", "--", "/bin/true"],
+            daemon_request=lambda *_args: {},
+            runtime=tmp_path,
+        )
+    assert projected.closed
+
+
 def test_sandbox_private_helpers_and_rejections(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
