@@ -23,6 +23,7 @@ _LANDLOCK_CREATE_RULESET_VERSION = 1
 _LANDLOCK_RULE_TYPE_PATH_BENEATH = 1
 LANDLOCK_MINIMUM_ABI = 3
 _PR_SET_NO_NEW_PRIVS = 38
+_PR_CAPBSET_READ = 23
 _PR_CAPBSET_DROP = 24
 _MAX_CAPABILITY = 63
 LANDLOCK_ACCESS_FS_EXECUTE = 1 << 0
@@ -315,12 +316,26 @@ def _disable_core_dumps() -> None:
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 
 
+def _capability_bounding_state(call: Callable[..., int], capability: int) -> int:
+    result = call(157, _PR_CAPBSET_READ, capability, 0, 0, 0)
+    if result in (0, 1):
+        return int(result)
+    error = ctypes.get_errno()
+    if error == errno.EINVAL:
+        return 0
+    raise OSError(error, os.strerror(error))
+
+
 def _drop_capability_bounding_set() -> None:
     call = _libc_syscall()
     for capability in range(_MAX_CAPABILITY + 1):
+        if _capability_bounding_state(call, capability) == 0:
+            continue
         result = call(157, _PR_CAPBSET_DROP, capability, 0, 0, 0)
-        if result != 0 and ctypes.get_errno() not in {errno.EPERM, errno.EINVAL}:
-            error = ctypes.get_errno()
+        if result == 0:
+            continue
+        error = ctypes.get_errno()
+        if error != errno.EPERM or _capability_bounding_state(call, capability) != 0:
             raise OSError(error, os.strerror(error))
 
 

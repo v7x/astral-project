@@ -405,6 +405,16 @@ def test_failure_recorder_retention_write_failures_are_bounded(
     recorder.close()
 
 
+def test_failure_recorder_rejects_existing_empty_boundary(tmp_path: Path) -> None:
+    log = AuditLog(tmp_path / "tampered.log", retention=1)
+    log.append("one", "process", "probe", {})
+    log.boundary_path.write_text("", encoding="utf-8")
+    log.boundary_path.chmod(0o600)
+    with pytest.raises(AuditEventError, match="boundary"):
+        log.prepare_failure_recorder()
+    assert log.chain_errors() == ("retention-boundary",)
+
+
 def test_failure_recorder_rejects_missing_boundary_descriptor(tmp_path: Path) -> None:
     log = AuditLog(tmp_path / "missing-boundary.log", retention=1)
     log.append("one", "process", "probe", {})

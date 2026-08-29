@@ -30,6 +30,7 @@
 #define ASPR_LANDLOCK_ACCESS_FS_REFER (1ULL << 13)
 #define ASPR_LANDLOCK_ACCESS_FS_TRUNCATE (1ULL << 14)
 #define ASPR_PR_SET_NO_NEW_PRIVS 38
+#define ASPR_PR_CAPBSET_READ 23
 #define ASPR_PR_CAPBSET_DROP 24
 
 struct aspr_landlock_ruleset_attr {
@@ -84,6 +85,26 @@ static void aspr_hardening_add_rule(int ruleset, const char *path, int role) {
     close(descriptor);
 }
 
+static int aspr_capability_bounding_state(int capability) {
+    errno = 0;
+    long state = syscall(SYS_prctl, ASPR_PR_CAPBSET_READ, capability, 0, 0, 0);
+    if (state == 0 || state == 1) return (int)state;
+    if (errno == EINVAL) return 0;
+    aspr_hardening_fail("capability bounding set could not be inspected");
+    return -1;
+}
+
+static void aspr_drop_capability_bounding_set(void) {
+    for (int capability = 0; capability < 64; ++capability) {
+        if (aspr_capability_bounding_state(capability) == 0) continue;
+        errno = 0;
+        if (syscall(SYS_prctl, ASPR_PR_CAPBSET_DROP, capability, 0, 0, 0) == 0) continue;
+        int drop_errno = errno;
+        if (drop_errno == EPERM && aspr_capability_bounding_state(capability) == 0) continue;
+        aspr_hardening_fail("capability bounding set could not be dropped");
+    }
+}
+
 static void __attribute__((unused)) aspr_harden_roots(
     const char *const *read_roots, size_t read_count,
     const char *const *write_roots, size_t write_count, const char *device_root) {
@@ -127,13 +148,7 @@ static void __attribute__((unused)) aspr_harden_roots(
         close(ruleset);
         aspr_hardening_fail("process limit could not be set");
     }
-    for (int capability = 0; capability < 64; ++capability) {
-        if (syscall(SYS_prctl, ASPR_PR_CAPBSET_DROP, capability, 0, 0, 0) != 0 &&
-            errno != EPERM && errno != EINVAL) {
-            close(ruleset);
-            aspr_hardening_fail("capability bounding set could not be dropped");
-        }
-    }
+    aspr_drop_capability_bounding_set();
     if (syscall(ASPR_LANDLOCK_RESTRICT_SELF, ruleset, 0) != 0) {
         close(ruleset);
         aspr_hardening_fail("Landlock restrictions could not be enabled");
@@ -193,13 +208,7 @@ static void __attribute__((unused)) aspr_harden_payload(
         close(ruleset);
         aspr_hardening_fail("process limit could not be set");
     }
-    for (int capability = 0; capability < 64; ++capability) {
-        if (syscall(SYS_prctl, ASPR_PR_CAPBSET_DROP, capability, 0, 0, 0) != 0 &&
-            errno != EPERM && errno != EINVAL) {
-            close(ruleset);
-            aspr_hardening_fail("capability bounding set could not be dropped");
-        }
-    }
+    aspr_drop_capability_bounding_set();
     if (syscall(ASPR_LANDLOCK_RESTRICT_SELF, ruleset, 0) != 0) {
         close(ruleset);
         aspr_hardening_fail("Landlock restrictions could not be enabled");

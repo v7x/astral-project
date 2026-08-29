@@ -162,6 +162,8 @@ def test_python_native_landlock_rights_parity() -> None:
         assert getattr(hardening, f"LANDLOCK_ACCESS_FS_{name}") == 1 << bit
         assert f"ASPR_LANDLOCK_ACCESS_FS_{name} (1ULL << {bit})" in native
     assert f"ASPR_LANDLOCK_MINIMUM_ABI {LANDLOCK_MINIMUM_ABI}" in native
+    assert "ASPR_PR_CAPBSET_READ 23" in native
+    assert "aspr_capability_bounding_state" in native
 
 
 def test_landlock_contract_and_root_roles() -> None:
@@ -225,6 +227,14 @@ def test_enforce_converts_application_failure(monkeypatch: pytest.MonkeyPatch) -
     assert error.value.code is ErrorCode.HARDENING_APPLY
 
 
+def test_capability_bounding_state_handles_unsupported_rights() -> None:
+    def unsupported(*_args: object) -> int:
+        ctypes.set_errno(errno.EINVAL)
+        return -1
+
+    assert hardening._capability_bounding_state(unsupported, 63) == 0
+
+
 def test_process_controls_and_landlock_failures(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[tuple[object, ...]] = []
 
@@ -243,6 +253,12 @@ def test_process_controls_and_landlock_failures(monkeypatch: pytest.MonkeyPatch)
     hardening._drop_capability_bounding_set()
     assert len(calls) >= 67
 
+    def drop_success(*args: object) -> int:
+        return 1 if args[1] == hardening._PR_CAPBSET_READ and args[2] == 0 else 0
+
+    monkeypatch.setattr(hardening, "_libc_syscall", lambda: drop_success)
+    hardening._drop_capability_bounding_set()
+
     def failing_call(*_args: object) -> int:
         ctypes.set_errno(errno.EIO)
         return -1
@@ -251,6 +267,33 @@ def test_process_controls_and_landlock_failures(monkeypatch: pytest.MonkeyPatch)
     with pytest.raises(OSError):
         hardening._set_no_new_privs()
     with pytest.raises(OSError):
+        hardening._drop_capability_bounding_set()
+
+
+def test_capability_drop_accepts_only_proven_absence(monkeypatch: pytest.MonkeyPatch) -> None:
+    states = {0: [1, 0]}
+
+    def denied_call(_syscall: int, operation: int, capability: int, *_args: object) -> int:
+        if operation == hardening._PR_CAPBSET_READ:
+            if capability == 0:
+                return states[0].pop(0)
+            return 0
+        if operation == hardening._PR_CAPBSET_DROP:
+            ctypes.set_errno(errno.EPERM)
+            return -1
+        raise AssertionError(operation)
+
+    monkeypatch.setattr(hardening, "_libc_syscall", lambda: denied_call)
+    hardening._drop_capability_bounding_set()
+
+    def still_present(_syscall: int, operation: int, capability: int, *_args: object) -> int:
+        if operation == hardening._PR_CAPBSET_READ:
+            return 1 if capability == 0 else 0
+        ctypes.set_errno(errno.EPERM)
+        return -1
+
+    monkeypatch.setattr(hardening, "_libc_syscall", lambda: still_present)
+    with pytest.raises(OSError, match="Operation not permitted"):
         hardening._drop_capability_bounding_set()
 
 

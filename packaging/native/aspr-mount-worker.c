@@ -43,6 +43,7 @@ static void die(const char *s) { perror(s); _exit(111); }
 static void bad(const char *s) { fputs(s, stderr); fputc('\n', stderr); _exit(112); }
 static void fail(const char *s) { bad(s); }
 #include "aspr-hardening.h"
+/* aspr_drop_capability_bounding_set enforces PR_CAPBSET_DROP fail-closed. */
 static uint16_t u16(const unsigned char *p) { return (uint16_t)p[0]|((uint16_t)p[1]<<8); }
 static uint32_t u32(const unsigned char *p) { return (uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24); }
 static uint64_t u64(const unsigned char *p) { uint64_t v=0; unsigned int i; for(i=0;i<8;i++) v|=(uint64_t)p[i]<<(8*i); return v; }
@@ -115,10 +116,10 @@ static void enter_apparmor_profile(int fd) {
 }
 static void discard_setup_authority(void) {
  struct __user_cap_header_struct header={.version=_LINUX_CAPABILITY_VERSION_3,.pid=0};
- struct __user_cap_data_struct data[2]={{0}}; int cap;
+ struct __user_cap_data_struct data[2]={{0}};
  if(prctl(PR_SET_SECUREBITS,SECBIT_NOROOT|SECBIT_NOROOT_LOCKED|SECBIT_NO_SETUID_FIXUP|SECBIT_NO_SETUID_FIXUP_LOCKED|SECBIT_NO_CAP_AMBIENT_RAISE|SECBIT_NO_CAP_AMBIENT_RAISE_LOCKED,0,0)) die("securebits");
  if(prctl(PR_CAP_AMBIENT,PR_CAP_AMBIENT_CLEAR_ALL,0,0,0)) die("clear ambient capabilities");
- for(cap=0;cap<=CAP_LAST_CAP;cap++) if(prctl(PR_CAPBSET_DROP,cap,0,0,0)) die("drop capability bounding set");
+ aspr_drop_capability_bounding_set();
  if(syscall(SYS_capset,&header,&data)) die("capset");
 }
 static void set_no_new_privs(void) {

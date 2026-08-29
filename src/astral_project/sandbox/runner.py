@@ -37,7 +37,11 @@ def run_plan(
     if poll_seconds <= 0:
         raise _error("sandbox health interval must be positive")
     if hardening is not None:
-        require_available(hardening)
+        try:
+            require_available(hardening)
+        except AstralError as error:
+            _audit_hardening_failure(audit_sink, plan, error.code.string)
+            raise
     if audit_sink is not None:
         audit_sink(
             "sandbox.launch",
@@ -55,13 +59,16 @@ def run_plan(
         if not isinstance(approval, ApprovalController):
             raise _error("sandbox approval controller has invalid type")
         try:
-            return approval.run(
+            result = approval.run(
                 plan.launcher_argv(),
                 env=_sandbox_environment(environment_policy, visible_paths=_visible_paths(plan)),
                 preface=plan.plan_bytes(),
                 health_check=health_check,
                 preexec_fn=None,
             )
+            if result == 70:
+                _audit_hardening_failure(audit_sink, plan, ErrorCode.HARDENING_APPLY.string)
+            return result
         except TerminalControllerError as error:
             raise _error(str(error), ErrorCode.DAEMON_UNAVAILABLE) from error
     try:
@@ -95,7 +102,10 @@ def run_plan(
                 "daemon remote view was lost; sandbox terminated", ErrorCode.DAEMON_UNAVAILABLE
             )
         time.sleep(poll_seconds)
-    return int(process.returncode or 0)
+    result = int(process.returncode or 0)
+    if result == 70:
+        _audit_hardening_failure(audit_sink, plan, ErrorCode.HARDENING_APPLY.string)
+    return result
 
 
 def _enforce_policy(policy: HardeningPolicy) -> None:
@@ -147,6 +157,20 @@ def _terminate(process: subprocess.Popen[bytes]) -> None:
         except ProcessLookupError:
             return
         process.wait(timeout=2.0)
+
+
+def _audit_hardening_failure(
+    audit_sink: Callable[[str, str, str, dict[str, object]], None] | None,
+    plan: LocalSandboxPlan,
+    error_code: str,
+) -> None:
+    if audit_sink is not None:
+        audit_sink(
+            "hardening.failure",
+            "process",
+            plan.session_id or "local",
+            {"error_code": error_code},
+        )
 
 
 def _error(message: str, code: ErrorCode = ErrorCode.DAEMON_PROTOCOL) -> AstralError:

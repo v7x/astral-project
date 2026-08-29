@@ -52,7 +52,7 @@ from astral_project.sandbox.command import (
     run_sandbox,
 )
 from astral_project.sandbox.environment import EnvironmentPolicy
-from astral_project.sandbox.hardening import HardeningPolicy
+from astral_project.sandbox.hardening import HardeningError, HardeningPolicy
 from astral_project.sandbox.plan import LocalSandboxPlan, NetworkMode, RemoteBinding
 from astral_project.sandbox.runner import _enforce_policy, _terminate, run_plan
 from astral_project.sandbox.session_api import SessionApiClient, SessionApiServer, _read_line
@@ -892,6 +892,10 @@ def test_run_plan_approval_controller_paths(
     controller = ApprovalController(session_id="s", mediator=UnknownPathMediator())
     monkeypatch.setattr(controller, "run", lambda *_args, **_kwargs: 4)
     assert run_plan(plan, approval=controller) == 4
+    events: list[tuple[str, str, str, dict[str, object]]] = []
+    monkeypatch.setattr(controller, "run", lambda *_args, **_kwargs: 70)
+    assert run_plan(plan, approval=controller, audit_sink=lambda *event: events.append(event)) == 70
+    assert events[-1][0] == "hardening.failure"
     with pytest.raises(AstralError):
         run_plan(plan, approval=object())
 
@@ -1389,6 +1393,75 @@ def test_runner_checks_hardening_before_child_start(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr("astral_project.sandbox.runner.enforce", lambda value: called.append(value))
     _enforce_policy(policy)
     assert called == [policy, policy]
+
+
+def test_runner_audits_unavailable_hardening_before_child_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = LocalSandboxPlan(("/bin/true",), NetworkMode.INHERIT)
+    failure = HardeningError(
+        code=ErrorCode.HARDENING_UNAVAILABLE,
+        message="Landlock unavailable",
+        security_result="rejected",
+        unsafe_reason="mandatory",
+        next_action="repair",
+    )
+    monkeypatch.setattr(
+        "astral_project.sandbox.runner.require_available",
+        lambda _policy: (_ for _ in ()).throw(failure),
+    )
+    events: list[tuple[str, str, str, dict[str, object]]] = []
+    with pytest.raises(HardeningError):
+        run_plan(
+            plan,
+            hardening=HardeningPolicy(allowed_roots=((Path("/usr"), False),)),
+            audit_sink=lambda *event: events.append(event),
+            popen=lambda *_args, **_kwargs: pytest.fail("child started"),
+        )
+    assert events == [
+        ("hardening.failure", "process", "local", {"error_code": "ASPR_HARDENING_UNAVAILABLE"})
+    ]
+
+
+def test_runner_audits_native_hardening_exit(monkeypatch: pytest.MonkeyPatch) -> None:
+    plan = LocalSandboxPlan(("/bin/true",), NetworkMode.INHERIT)
+    events: list[tuple[str, str, str, dict[str, object]]] = []
+
+    class Started:
+        pid = 1
+        returncode = 70
+        stdin: Started
+
+        def __init__(self) -> None:
+            self.stdin = self
+
+        def write(self, _value: bytes) -> None:
+            return None
+
+        def close(self) -> None:
+            return None
+
+        def poll(self) -> int:
+            return 70
+
+    assert (
+        run_plan(
+            plan,
+            popen=lambda *_args, **_kwargs: Started(),  # type: ignore[arg-type]
+            audit_sink=lambda *event: events.append(event),
+        )
+        == 70
+    )
+    assert events == [
+        (
+            "sandbox.launch",
+            "sandbox",
+            "local",
+            {"path": "/bin/true", "network": "inherit", "remote_count": 0},
+        ),
+        ("hardening.failure", "process", "local", {"error_code": "ASPR_HARDENING_APPLY"}),
+    ]
+    assert run_plan(plan, popen=lambda *_args, **_kwargs: Started()) == 70  # type: ignore[arg-type]
 
 
 def test_runner_error_and_kill_paths(monkeypatch: pytest.MonkeyPatch) -> None:

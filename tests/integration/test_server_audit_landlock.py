@@ -68,6 +68,25 @@ def test_remote_audit_export_survives_real_read_only_landlock_wall() -> None:
         pytest.skip(f"Landlock probe unavailable: {error}")
     if abi is None or abi < 3:
         pytest.skip(f"Landlock ABI {abi!r} is below the required ABI")
+    capability_status = Path("/proc/self/status").read_text(encoding="ascii")
+    cap_eff = int(
+        next(
+            line.split(":", 1)[1]
+            for line in capability_status.splitlines()
+            if line.startswith("CapEff:")
+        ),
+        16,
+    )
+    cap_bnd = int(
+        next(
+            line.split(":", 1)[1]
+            for line in capability_status.splitlines()
+            if line.startswith("CapBnd:")
+        ),
+        16,
+    )
+    if cap_bnd and not (cap_eff & (1 << 8)):
+        pytest.skip("CAP_SETPCAP is unavailable while the capability bounding set is non-empty")
 
     # /tmp is intentionally writable in the fixed policy; use the projected-home
     # class of root that the remote server actually hardens read-only.
