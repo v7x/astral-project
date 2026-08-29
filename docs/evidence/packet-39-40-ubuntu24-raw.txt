@@ -1,7 +1,7 @@
 Packet 39-40 installed raw transcript — Ubuntu 24.04
 
-$ sha256sum /tmp/astral-project-39-40-final5.deb
-fc4ad72fe95f4660f1d458aa20c053f9b31e9bb8c919b69736639dbe32bfd10e  /tmp/astral-project-39-40-final5.deb
+$ sha256sum /tmp/astral-project-39-40-final6.deb
+79687cf39c25972273fb10c2c2b5a48b8f5f30bd35e418c03bdecdf21935d491  /tmp/astral-project-39-40-final6.deb
 $ sudo dpkg-query -W -f='${Status} ${Version}\n' astral-project
 install ok installed 0.1.0
 $ sudo apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch

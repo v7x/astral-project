@@ -1,98 +1,96 @@
 $ source closure (source paths)
-44319bed74c693fd1f41bfe7612108d34857452a
-$ source paths are clean; evidence commits after closure are documentation-only
-f5e1fdd06bc14be5eb624c18b064b558f6e2fd54, ae5c327a519de1e8dd5a70079301fd83098a8039
-$ git diff --quiet HEAD -- src packaging scripts tests .github
-PASS source-working-tree-clean
-$ git diff --cached --quiet HEAD -- src packaging scripts tests .github
-PASS source-index-clean
+3f7d7f09132f684e549773d9420041a33011642e
+$ git diff --quiet 3f7d7f09132f684e549773d9420041a33011642e -- src packaging scripts tests .github
+PASS source-tree-equivalence
+$ git diff --check
 $ uv run ruff check src tests scripts
 All checks passed!
 $ uv run mypy src tests
-Success: no issues found in 186 source files
+Success: no issues found in 187 source files
 $ uv run pytest -q tests/adversarial
-............................................                             [100%]
-44 passed in 0.14s
+............................................................             [100%]
+60 passed in 0.25s
 $ ./scripts/test
-Resolved 25 packages in 0.65ms
+Resolved 25 packages in 0.68ms
 Checked 17 packages in 0.21ms
-213 files already formatted
+216 files already formatted
 All checks passed!
-Success: no issues found in 186 source files
+Success: no issues found in 187 source files
 PASS parser fuzz cases=5
 ============================= test session starts ==============================
 platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0
 rootdir: /home/andrew/code/astral-project
 configfile: pyproject.toml
 testpaths: tests
-collected 917 items
+collected 933 items
 
 tests/adversarial/test_packet39_remote.py .....................          [  2%]
 tests/adversarial/test_packet40_local.py .......................         [  4%]
-tests/integration/test_pinned_mount_capability.py ......                 [  5%]
-tests/integration/test_sandbox_native.py ...                             [  5%]
-tests/integration/test_server_audit_landlock.py s                        [  5%]
-tests/integration/test_systemd_fd3.py .                                  [  5%]
-tests/unit/test_apparmor_roots.py .........                              [  6%]
-tests/unit/test_approval_protocol.py ....                                [  7%]
-tests/unit/test_approval_protocol_extra.py ..                            [  7%]
-tests/unit/test_approval_terminal.py ................                    [  9%]
-tests/unit/test_audit.py .......................................         [ 13%]
-tests/unit/test_broker_authority.py .....                                [ 14%]
-tests/unit/test_broker_client.py .....                                   [ 14%]
-tests/unit/test_broker_config.py ................                        [ 16%]
-tests/unit/test_broker_executor.py .....                                 [ 17%]
-tests/unit/test_broker_launch.py .......                                 [ 17%]
-tests/unit/test_broker_main.py ...                                       [ 18%]
-tests/unit/test_broker_mapping.py ..                                     [ 18%]
-tests/unit/test_broker_mapping_extra.py ............................     [ 21%]
-tests/unit/test_broker_registry.py ..                                    [ 21%]
-tests/unit/test_broker_registry_extra.py .......                         [ 22%]
-tests/unit/test_broker_server.py .........................               [ 25%]
-tests/unit/test_broker_socket_activation_extra.py ...                    [ 25%]
-tests/unit/test_broker_sources.py .......                                [ 26%]
-tests/unit/test_broker_sources_extra.py ...........                      [ 27%]
-tests/unit/test_broker_supervision.py .                                  [ 27%]
-tests/unit/test_broker_supervision_extra.py ..                           [ 27%]
-tests/unit/test_cli.py .........................                         [ 30%]
-tests/unit/test_cli_host_probe.py ..                                     [ 30%]
-tests/unit/test_cli_lifecycle.py .....                                   [ 31%]
-tests/unit/test_cli_remote.py ........                                   [ 32%]
-tests/unit/test_core_config.py .....                                     [ 32%]
-tests/unit/test_core_errors.py ..                                        [ 32%]
-tests/unit/test_core_ids.py .............                                [ 34%]
-tests/unit/test_core_paths.py .....................                      [ 36%]
-tests/unit/test_crypto_cbor.py ..............................            [ 39%]
-tests/unit/test_crypto_grants.py ..................                      [ 41%]
-tests/unit/test_crypto_keys.py ....                                      [ 42%]
-tests/unit/test_daemon_extra.py ........                                 [ 43%]
-tests/unit/test_daemon_lifecycle.py .....                                [ 43%]
-tests/unit/test_daemon_listing.py ..                                     [ 43%]
-tests/unit/test_daemon_protocol.py .......                               [ 44%]
-tests/unit/test_daemon_server.py ..............                          [ 46%]
-tests/unit/test_execution_plan.py ...........                            [ 47%]
-tests/unit/test_grant_lifecycle.py ..........                            [ 48%]
-tests/unit/test_hardening.py ....................                        [ 50%]
-tests/unit/test_homed_composite.py ......                                [ 51%]
-tests/unit/test_homed_core.py ......                                     [ 51%]
-tests/unit/test_homed_fuse.py ...                                        [ 52%]
-tests/unit/test_homed_host.py ..............                             [ 53%]
-tests/unit/test_homed_mediation.py ..............                        [ 55%]
-tests/unit/test_homed_overlay.py ....................................... [ 59%]
-..........                                                               [ 60%]
-tests/unit/test_homed_private.py ................                        [ 62%]
-tests/unit/test_host_enrollment.py ............                          [ 63%]
-tests/unit/test_host_probe.py ........                                   [ 64%]
-tests/unit/test_host_records.py ..........                               [ 65%]
+tests/adversarial/test_remote_attacks.py ................                [  6%]
+tests/integration/test_pinned_mount_capability.py ......                 [  7%]
+tests/integration/test_sandbox_native.py ...                             [  7%]
+tests/integration/test_server_audit_landlock.py s                        [  7%]
+tests/integration/test_systemd_fd3.py .                                  [  7%]
+tests/unit/test_apparmor_roots.py .........                              [  8%]
+tests/unit/test_approval_protocol.py ....                                [  9%]
+tests/unit/test_approval_protocol_extra.py ..                            [  9%]
+tests/unit/test_approval_terminal.py ................                    [ 10%]
+tests/unit/test_audit.py .......................................         [ 15%]
+tests/unit/test_broker_authority.py .....                                [ 15%]
+tests/unit/test_broker_client.py .....                                   [ 16%]
+tests/unit/test_broker_config.py ................                        [ 17%]
+tests/unit/test_broker_executor.py .....                                 [ 18%]
+tests/unit/test_broker_launch.py .......                                 [ 19%]
+tests/unit/test_broker_main.py ...                                       [ 19%]
+tests/unit/test_broker_mapping.py ..                                     [ 19%]
+tests/unit/test_broker_mapping_extra.py ............................     [ 22%]
+tests/unit/test_broker_registry.py ..                                    [ 22%]
+tests/unit/test_broker_registry_extra.py .......                         [ 23%]
+tests/unit/test_broker_server.py ..................F......               [ 26%]
+tests/unit/test_broker_socket_activation_extra.py ...                    [ 26%]
+tests/unit/test_broker_sources.py .......                                [ 27%]
+tests/unit/test_broker_sources_extra.py ...........                      [ 28%]
+tests/unit/test_broker_supervision.py .                                  [ 28%]
+tests/unit/test_broker_supervision_extra.py ..                           [ 28%]
+tests/unit/test_cli.py .........................                         [ 31%]
+tests/unit/test_cli_host_probe.py ..                                     [ 31%]
+tests/unit/test_cli_lifecycle.py .....                                   [ 32%]
+tests/unit/test_cli_remote.py ........                                   [ 33%]
+tests/unit/test_core_config.py .....                                     [ 33%]
+tests/unit/test_core_errors.py ..                                        [ 33%]
+tests/unit/test_core_ids.py .............                                [ 35%]
+tests/unit/test_core_paths.py .....................                      [ 37%]
+tests/unit/test_crypto_cbor.py ..............................            [ 40%]
+tests/unit/test_crypto_grants.py ..................                      [ 42%]
+tests/unit/test_crypto_keys.py ....                                      [ 43%]
+tests/unit/test_daemon_extra.py ........                                 [ 44%]
+tests/unit/test_daemon_lifecycle.py .....                                [ 44%]
+tests/unit/test_daemon_listing.py ..                                     [ 44%]
+tests/unit/test_daemon_protocol.py .......                               [ 45%]
+tests/unit/test_daemon_server.py ..............                          [ 47%]
+tests/unit/test_execution_plan.py ...........                            [ 48%]
+tests/unit/test_grant_lifecycle.py ..........                            [ 49%]
+tests/unit/test_hardening.py ....................                        [ 51%]
+tests/unit/test_homed_composite.py ......                                [ 52%]
+tests/unit/test_homed_core.py ......                                     [ 52%]
+tests/unit/test_homed_fuse.py ...                                        [ 53%]
+tests/unit/test_homed_host.py ..............                             [ 54%]
+tests/unit/test_homed_mediation.py ..............                        [ 56%]
+tests/unit/test_homed_overlay.py ....................................... [ 60%]
+..........                                                               [ 61%]
+tests/unit/test_homed_private.py ................                        [ 63%]
+tests/unit/test_host_enrollment.py ............                          [ 64%]
+tests/unit/test_host_probe.py ........                                   [ 65%]
+tests/unit/test_host_records.py ..........                               [ 66%]
 tests/unit/test_mount_lifecycle.py .............                         [ 67%]
-tests/unit/test_namespace_planner.py ...............                     [ 68%]
+tests/unit/test_namespace_planner.py ...............                     [ 69%]
 tests/unit/test_native_mount_worker.py ......                            [ 69%]
 tests/unit/test_native_namespace_worker.py ..........                    [ 70%]
-tests/unit/test_package.py .                                             [ 70%]
-tests/unit/test_packet15e_templates.py .........                         [ 71%]
-tests/unit/test_profile.py ..............................                [ 74%]
-tests/unit/test_profile_lifecycle.py ....................                [ 76%]
-tests/unit/test_rclone_listing.py .........                              [ 77%]
+tests/unit/test_package.py .                                             [ 71%]
+tests/unit/test_packet15e_templates.py .........                         [ 72%]
+tests/unit/test_profile.py ..............................                [ 75%]
+tests/unit/test_profile_lifecycle.py ....................                [ 77%]
+tests/unit/test_rclone_listing.py .........                              [ 78%]
 tests/unit/test_rclone_spike_manifest.py .                               [ 78%]
 tests/unit/test_runtime_closure.py ......s.....                          [ 79%]
 tests/unit/test_runtime_closure_extra.py ...........                     [ 80%]
@@ -101,15 +99,243 @@ tests/unit/test_runtime_smoke_extra.py .........                         [ 82%]
 tests/unit/test_sandbox.py ............................                  [ 85%]
 tests/unit/test_sandbox_resources.py ..........                          [ 86%]
 tests/unit/test_server_broker_bridge.py .                                [ 86%]
-tests/unit/test_server_broker_bridge_extra.py .....                      [ 86%]
+tests/unit/test_server_broker_bridge_extra.py .....                      [ 87%]
 tests/unit/test_server_entry_extra.py ...........                        [ 88%]
 tests/unit/test_server_entry_main.py ..                                  [ 88%]
-tests/unit/test_server_linux_wrappers.py .....                           [ 88%]
-tests/unit/test_server_path_resolver.py ...................              [ 90%]
+tests/unit/test_server_linux_wrappers.py .....                           [ 89%]
+tests/unit/test_server_path_resolver.py ...................              [ 91%]
 tests/unit/test_server_protocol.py .................                     [ 92%]
 tests/unit/test_server_protocol_extra.py ....                            [ 93%]
 tests/unit/test_session_ceiling_extra.py ...                             [ 93%]
-tests/unit/test_session_contracts.py ......................              [ 95%]
+tests/unit/test_session_contracts.py ......................              [ 96%]
+tests/unit/test_session_listing.py ..                                    [ 96%]
+tests/unit/test_sftp_client.py .....                                     [ 96%]
+tests/unit/test_sftp_harness.py .                                        [ 96%]
+tests/unit/test_sftp_policy.py ..                                        [ 97%]
+tests/unit/test_state_sqlite.py ................                         [ 98%]
+tests/unit/test_transport_local.py .......                               [ 99%]
+tests/unit/test_transport_main.py .                                      [ 99%]
+tests/unit/test_ubuntu_matrix_records.py ...                             [100%]
+
+=================================== FAILURES ===================================
+__ test_replayed_grant_and_client_nonce_pair_is_rejected_before_second_worker __
+
+socket_path = PosixPath('/tmp/pytest-of-andrew/pytest-1229/test_replayed_grant_and_client0/broker.sock')
+request = CreateNamespaceV1(request_id=b'rrrrrrrrrrrrrrrr', session_id=b'\x00\x00\x00\x00\x00\x00@\x00\x80\x00\x00\x00\x00\x00\x...xa9\xda\xf7E;\x00", client_nonce=b'ssssssssssssssssssssssssssssssss', requested_workload='sftp_v1', protocol_version=1)
+
+    def request_namespace(
+        socket_path: Path, request: CreateNamespaceV1, *, stream_descriptor: int
+    ) -> NamespaceReadyV1 | NamespaceRejectedV1:
+        """Send canonical request and exactly one local stream socket by SCM_RIGHTS."""
+        if stream_descriptor < 0:
+            raise _error("broker stream descriptor is invalid")
+        payload = request.canonical_bytes()
+        frame = _FRAME_HEADER.pack(len(payload)) + payload
+        connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM | socket.SOCK_CLOEXEC)
+        try:
+            connection.connect(str(socket_path))
+            sent = connection.sendmsg(
+                [frame],
+                [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [stream_descriptor]))],
+            )
+            if sent <= 0:
+                raise _error("broker request made no progress")
+>           connection.sendall(frame[sent:])
+E           BrokenPipeError: [Errno 32] Broken pipe
+
+src/astral_project/broker/client.py:34: BrokenPipeError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/tmp/pytest-of-andrew/pytest-1229/test_replayed_grant_and_client0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7493dfe07fe0>
+
+    def test_replayed_grant_and_client_nonce_pair_is_rejected_before_second_worker(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        authority, signed = _authority()
+
+        class Active:
+            effective_exports_digest = b"e" * 32
+            runtime_manifest_digest = b"m" * 32
+
+        class Executor:
+            calls = 0
+            descriptors: ClassVar[list[int]] = []
+
+            def start(self, grant: object, *, stream_descriptor: int, **_: object) -> Active:
+                self.calls += 1
+                self.descriptors.append(stream_descriptor)
+                return Active()
+
+        executor = Executor()
+        server = BrokerServer(
+            BrokerPaths(tmp_path / "broker.sock"),
+            authority,
+            executor=cast(BrokerSessionExecutor, executor),
+            active_session_sink=lambda *_: None,
+            clock=lambda: 150,
+        )
+        monkeypatch.setattr("astral_project.broker.server.os.geteuid", lambda: 0)
+        monkeypatch.setattr(
+            "astral_project.broker.server._peer_credentials",
+            lambda connection: PeerCredentials(pid=1, uid=1000, gid=1000),
+        )
+        server.start()
+        streams = [socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM) for _ in range(2)]
+        try:
+            first_thread = _serve(server)
+            first = request_namespace(
+                tmp_path / "broker.sock", _request(signed), stream_descriptor=streams[0][1].fileno()
+            )
+            first_thread.join(timeout=1)
+            assert first.__class__.__name__ == "NamespaceReadyV1"
+
+            second_thread = _serve(server)
+>           second = request_namespace(
+                tmp_path / "broker.sock", _request(signed), stream_descriptor=streams[1][1].fileno()
+            )
+
+tests/unit/test_broker_server.py:634:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+socket_path = PosixPath('/tmp/pytest-of-andrew/pytest-1229/test_replayed_grant_and_client0/broker.sock')
+request = CreateNamespaceV1(request_id=b'rrrrrrrrrrrrrrrr', session_id=b'\x00\x00\x00\x00\x00\x00@\x00\x80\x00\x00\x00\x00\x00\x...xa9\xda\xf7E;\x00", client_nonce=b'ssssssssssssssssssssssssssssssss', requested_workload='sftp_v1', protocol_version=1)
+
+    def request_namespace(
+        socket_path: Path, request: CreateNamespaceV1, *, stream_descriptor: int
+    ) -> NamespaceReadyV1 | NamespaceRejectedV1:
+        """Send canonical request and exactly one local stream socket by SCM_RIGHTS."""
+        if stream_descriptor < 0:
+            raise _error("broker stream descriptor is invalid")
+        payload = request.canonical_bytes()
+        frame = _FRAME_HEADER.pack(len(payload)) + payload
+        connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM | socket.SOCK_CLOEXEC)
+        try:
+            connection.connect(str(socket_path))
+            sent = connection.sendmsg(
+                [frame],
+                [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [stream_descriptor]))],
+            )
+            if sent <= 0:
+                raise _error("broker request made no progress")
+            connection.sendall(frame[sent:])
+            header = _read_exact(connection, _FRAME_HEADER.size)
+            (length,) = _FRAME_HEADER.unpack(header)
+            if not 0 < length <= _MAX_RESPONSE_BYTES:
+                raise _error("broker response length is invalid")
+            response = _read_exact(connection, length)
+            try:
+                return NamespaceReadyV1.from_cbor(response)
+            except AstralError:
+                return NamespaceRejectedV1.from_cbor(response)
+        except OSError as error:
+>           raise _error("broker control connection failed") from error
+E           astral_project.core.errors.AstralError: ASPR_DAEMON_AUTH [8002]: broker control connection failed
+E           Security result: broker control request was rejected
+E           Why: outer session may transfer only one local SFTP stream descriptor
+E           Fix: use enrolled remote session through installed broker
+
+src/astral_project/broker/client.py:45: AstralError
+=============================== warnings summary ===============================
+tests/unit/test_approval_terminal.py::test_parent_pty_relay_starts_and_closes_mediation_server
+tests/unit/test_approval_terminal.py::test_parent_pty_relay_external_approval_and_buffered_output
+tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
+tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
+tests/unit/test_approval_terminal.py::test_terminal_controller_forwards_sigcont_after_child_suspend
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1029626) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+    pid, fd = os.forkpty()
+
+tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
+tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
+  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=1029626) is multi-threaded, use of fork() may lead to deadlocks in the child.
+    pid = os.fork()
+
+tests/unit/test_approval_terminal.py::test_controller_does_not_publish_socket_to_child
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1029713) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+    pid, fd = os.forkpty()
+
+tests/unit/test_broker_main.py::test_module_entrypoint_calls_main
+  <frozen runpy>:128: RuntimeWarning: 'astral_project.broker.main' found in sys.modules after import of package 'astral_project.broker', but prior to execution of 'astral_project.broker.main'; this may result in unpredictable behaviour
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/unit/test_broker_server.py::test_replayed_grant_and_client_nonce_pair_is_rejected_before_second_worker
+============ 1 failed, 930 passed, 2 skipped, 9 warnings in 16.90s =============
+..                    [ 10%]
+tests/unit/test_audit.py .......................................         [ 15%]
+tests/unit/test_broker_authority.py .....                                [ 15%]
+tests/unit/test_broker_client.py .....                                   [ 16%]
+tests/unit/test_broker_config.py ................                        [ 17%]
+tests/unit/test_broker_executor.py .....                                 [ 18%]
+tests/unit/test_broker_launch.py .......                                 [ 19%]
+tests/unit/test_broker_main.py ...                                       [ 19%]
+tests/unit/test_broker_mapping.py ..                                     [ 19%]
+tests/unit/test_broker_mapping_extra.py ............................     [ 22%]
+tests/unit/test_broker_registry.py ..                                    [ 22%]
+tests/unit/test_broker_registry_extra.py .......                         [ 23%]
+tests/unit/test_broker_server.py .........................               [ 26%]
+tests/unit/test_broker_socket_activation_extra.py ...                    [ 26%]
+tests/unit/test_broker_sources.py .......                                [ 27%]
+tests/unit/test_broker_sources_extra.py ...........                      [ 28%]
+tests/unit/test_broker_supervision.py .                                  [ 28%]
+tests/unit/test_broker_supervision_extra.py ..                           [ 28%]
+tests/unit/test_cli.py .........................                         [ 31%]
+tests/unit/test_cli_host_probe.py ..                                     [ 31%]
+tests/unit/test_cli_lifecycle.py .....                                   [ 32%]
+tests/unit/test_cli_remote.py ........                                   [ 33%]
+tests/unit/test_core_config.py .....                                     [ 33%]
+tests/unit/test_core_errors.py ..                                        [ 33%]
+tests/unit/test_core_ids.py .............                                [ 35%]
+tests/unit/test_core_paths.py .....................                      [ 37%]
+tests/unit/test_crypto_cbor.py ..............................            [ 40%]
+tests/unit/test_crypto_grants.py ..................                      [ 42%]
+tests/unit/test_crypto_keys.py ....                                      [ 43%]
+tests/unit/test_daemon_extra.py ........                                 [ 44%]
+tests/unit/test_daemon_lifecycle.py .....                                [ 44%]
+tests/unit/test_daemon_listing.py ..                                     [ 44%]
+tests/unit/test_daemon_protocol.py .......                               [ 45%]
+tests/unit/test_daemon_server.py ..............                          [ 47%]
+tests/unit/test_execution_plan.py ...........                            [ 48%]
+tests/unit/test_grant_lifecycle.py ..........                            [ 49%]
+tests/unit/test_hardening.py ....................                        [ 51%]
+tests/unit/test_homed_composite.py ......                                [ 52%]
+tests/unit/test_homed_core.py ......                                     [ 52%]
+tests/unit/test_homed_fuse.py ...                                        [ 53%]
+tests/unit/test_homed_host.py ..............                             [ 54%]
+tests/unit/test_homed_mediation.py ..............                        [ 56%]
+tests/unit/test_homed_overlay.py ....................................... [ 60%]
+..........                                                               [ 61%]
+tests/unit/test_homed_private.py ................                        [ 63%]
+tests/unit/test_host_enrollment.py ............                          [ 64%]
+tests/unit/test_host_probe.py ........                                   [ 65%]
+tests/unit/test_host_records.py ..........                               [ 66%]
+tests/unit/test_mount_lifecycle.py .............                         [ 67%]
+tests/unit/test_namespace_planner.py ...............                     [ 69%]
+tests/unit/test_native_mount_worker.py ......                            [ 69%]
+tests/unit/test_native_namespace_worker.py ..........                    [ 70%]
+tests/unit/test_package.py .                                             [ 71%]
+tests/unit/test_packet15e_templates.py .........                         [ 72%]
+tests/unit/test_profile.py ..............................                [ 75%]
+tests/unit/test_profile_lifecycle.py ....................                [ 77%]
+tests/unit/test_rclone_listing.py .........                              [ 78%]
+tests/unit/test_rclone_spike_manifest.py .                               [ 78%]
+tests/unit/test_runtime_closure.py ......s.....                          [ 79%]
+tests/unit/test_runtime_closure_extra.py ...........                     [ 80%]
+tests/unit/test_runtime_installer.py .....                               [ 81%]
+tests/unit/test_runtime_smoke_extra.py .........                         [ 82%]
+tests/unit/test_sandbox.py ............................                  [ 85%]
+tests/unit/test_sandbox_resources.py ..........                          [ 86%]
+tests/unit/test_server_broker_bridge.py .                                [ 86%]
+tests/unit/test_server_broker_bridge_extra.py .....                      [ 87%]
+tests/unit/test_server_entry_extra.py ...........                        [ 88%]
+tests/unit/test_server_entry_main.py ..                                  [ 88%]
+tests/unit/test_server_linux_wrappers.py .....                           [ 89%]
+tests/unit/test_server_path_resolver.py ...................              [ 91%]
+tests/unit/test_server_protocol.py .................                     [ 92%]
+tests/unit/test_server_protocol_extra.py ....                            [ 93%]
+tests/unit/test_session_ceiling_extra.py ...                             [ 93%]
+tests/unit/test_session_contracts.py ......................              [ 96%]
 tests/unit/test_session_listing.py ..                                    [ 96%]
 tests/unit/test_sftp_client.py .....                                     [ 96%]
 tests/unit/test_sftp_harness.py .                                        [ 96%]
@@ -125,126 +351,20 @@ tests/unit/test_approval_terminal.py::test_parent_pty_relay_external_approval_an
 tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
 tests/unit/test_approval_terminal.py::test_terminal_controller_forwards_sigcont_after_child_suspend
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1022022) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
-    pid, fd = os.forkpty()
-
-tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
-tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
-  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=1022022) is multi-threaded, use of fork() may lead to deadlocks in the child.
-    pid = os.fork()
-
 tests/unit/test_approval_terminal.py::test_controller_does_not_publish_socket_to_child
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1022096) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
-    pid, fd = os.forkpty()
-
-tests/unit/test_broker_main.py::test_module_entrypoint_calls_main
-  <frozen runpy>:128: RuntimeWarning: 'astral_project.broker.main' found in sys.modules after import of package 'astral_project.broker', but prior to execution of 'astral_project.broker.main'; this may result in unpredictable behaviour
-
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 915 passed, 2 skipped, 9 warnings in 16.77s ==================
-..                    [  9%]
-tests/unit/test_audit.py .......................................         [ 13%]
-tests/unit/test_broker_authority.py .....                                [ 14%]
-tests/unit/test_broker_client.py .....                                   [ 14%]
-tests/unit/test_broker_config.py ................                        [ 16%]
-tests/unit/test_broker_executor.py .....                                 [ 17%]
-tests/unit/test_broker_launch.py .......                                 [ 17%]
-tests/unit/test_broker_main.py ...                                       [ 18%]
-tests/unit/test_broker_mapping.py ..                                     [ 18%]
-tests/unit/test_broker_mapping_extra.py ............................     [ 21%]
-tests/unit/test_broker_registry.py ..                                    [ 21%]
-tests/unit/test_broker_registry_extra.py .......                         [ 22%]
-tests/unit/test_broker_server.py .........................               [ 25%]
-tests/unit/test_broker_socket_activation_extra.py ...                    [ 25%]
-tests/unit/test_broker_sources.py .......                                [ 26%]
-tests/unit/test_broker_sources_extra.py ...........                      [ 27%]
-tests/unit/test_broker_supervision.py .                                  [ 27%]
-tests/unit/test_broker_supervision_extra.py ..                           [ 27%]
-tests/unit/test_cli.py .........................                         [ 30%]
-tests/unit/test_cli_host_probe.py ..                                     [ 30%]
-tests/unit/test_cli_lifecycle.py .....                                   [ 31%]
-tests/unit/test_cli_remote.py ........                                   [ 32%]
-tests/unit/test_core_config.py .....                                     [ 32%]
-tests/unit/test_core_errors.py ..                                        [ 32%]
-tests/unit/test_core_ids.py .............                                [ 34%]
-tests/unit/test_core_paths.py .....................                      [ 36%]
-tests/unit/test_crypto_cbor.py ..............................            [ 39%]
-tests/unit/test_crypto_grants.py ..................                      [ 41%]
-tests/unit/test_crypto_keys.py ....                                      [ 42%]
-tests/unit/test_daemon_extra.py ........                                 [ 43%]
-tests/unit/test_daemon_lifecycle.py .....                                [ 43%]
-tests/unit/test_daemon_listing.py ..                                     [ 43%]
-tests/unit/test_daemon_protocol.py .......                               [ 44%]
-tests/unit/test_daemon_server.py ..............                          [ 46%]
-tests/unit/test_execution_plan.py ...........                            [ 47%]
-tests/unit/test_grant_lifecycle.py ..........                            [ 48%]
-tests/unit/test_hardening.py ....................                        [ 50%]
-tests/unit/test_homed_composite.py ......                                [ 51%]
-tests/unit/test_homed_core.py ......                                     [ 51%]
-tests/unit/test_homed_fuse.py ...                                        [ 52%]
-tests/unit/test_homed_host.py ..............                             [ 53%]
-tests/unit/test_homed_mediation.py ..............                        [ 55%]
-tests/unit/test_homed_overlay.py ....................................... [ 59%]
-..........                                                               [ 60%]
-tests/unit/test_homed_private.py ................                        [ 62%]
-tests/unit/test_host_enrollment.py ............                          [ 63%]
-tests/unit/test_host_probe.py ........                                   [ 64%]
-tests/unit/test_host_records.py ..........                               [ 65%]
-tests/unit/test_mount_lifecycle.py .............                         [ 67%]
-tests/unit/test_namespace_planner.py ...............                     [ 68%]
-tests/unit/test_native_mount_worker.py ......                            [ 69%]
-tests/unit/test_native_namespace_worker.py ..........                    [ 70%]
-tests/unit/test_package.py .                                             [ 70%]
-tests/unit/test_packet15e_templates.py .........                         [ 71%]
-tests/unit/test_profile.py ..............................                [ 74%]
-tests/unit/test_profile_lifecycle.py ....................                [ 76%]
-tests/unit/test_rclone_listing.py .........                              [ 77%]
-tests/unit/test_rclone_spike_manifest.py .                               [ 78%]
-tests/unit/test_runtime_closure.py ......s.....                          [ 79%]
-tests/unit/test_runtime_closure_extra.py ...........                     [ 80%]
-tests/unit/test_runtime_installer.py .....                               [ 81%]
-tests/unit/test_runtime_smoke_extra.py .........                         [ 82%]
-tests/unit/test_sandbox.py ............................                  [ 85%]
-tests/unit/test_sandbox_resources.py ..........                          [ 86%]
-tests/unit/test_server_broker_bridge.py .                                [ 86%]
-tests/unit/test_server_broker_bridge_extra.py .....                      [ 86%]
-tests/unit/test_server_entry_extra.py ...........                        [ 88%]
-tests/unit/test_server_entry_main.py ..                                  [ 88%]
-tests/unit/test_server_linux_wrappers.py .....                           [ 88%]
-tests/unit/test_server_path_resolver.py ...................              [ 90%]
-tests/unit/test_server_protocol.py .................                     [ 92%]
-tests/unit/test_server_protocol_extra.py ....                            [ 93%]
-tests/unit/test_session_ceiling_extra.py ...                             [ 93%]
-tests/unit/test_session_contracts.py ......................              [ 95%]
-tests/unit/test_session_listing.py ..                                    [ 96%]
-tests/unit/test_sftp_client.py .....                                     [ 96%]
-tests/unit/test_sftp_harness.py .                                        [ 96%]
-tests/unit/test_sftp_policy.py ..                                        [ 97%]
-tests/unit/test_state_sqlite.py ................                         [ 98%]
-tests/unit/test_transport_local.py .......                               [ 99%]
-tests/unit/test_transport_main.py .                                      [ 99%]
-tests/unit/test_ubuntu_matrix_records.py ...                             [100%]
-
-=============================== warnings summary ===============================
-tests/unit/test_approval_terminal.py::test_parent_pty_relay_starts_and_closes_mediation_server
-tests/unit/test_approval_terminal.py::test_parent_pty_relay_external_approval_and_buffered_output
-tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
-tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
-tests/unit/test_approval_terminal.py::test_terminal_controller_forwards_sigcont_after_child_suspend
-tests/unit/test_approval_terminal.py::test_controller_does_not_publish_socket_to_child
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1022022) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1029626) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
     pid, fd = os.forkpty()
 
 tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
-  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=1022022) is multi-threaded, use of fork() may lead to deadlocks in the child.
+  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=1029626) is multi-threaded, use of fork() may lead to deadlocks in the child.
     pid = os.fork()
 
 tests/unit/test_broker_main.py::test_module_entrypoint_calls_main
   <frozen runpy>:128: RuntimeWarning: 'astral_project.broker.main' found in sys.modules after import of package 'astral_project.broker', but prior to execution of 'astral_project.broker.main'; this may result in unpredictable behaviour
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 915 passed, 2 skipped, 9 warnings in 29.27s ==================
+================= 931 passed, 2 skipped, 9 warnings in 29.27s ==================
 Name    Stmts   Miss Branch BrPart  Cover   Missing
 ---------------------------------------------------
 TOTAL   11715      0   3496      0   100%
@@ -259,19 +379,16 @@ $ apparmor_parser -Q -K packaging/apparmor/usr.libexec.astral-project.aspr-bwrap
 $ native strict builds
 PASS native strict builds
 $ sha256sum package and matrix
-fc4ad72fe95f4660f1d458aa20c053f9b31e9bb8c919b69736639dbe32bfd10e  /tmp/packet39-40-build-final3-1787968846/astral-project_0.1.0_amd64.deb
-ea8b23b02c8fbac5b05531f3b17234abbd1a8cef48bb6d32321ee00ee7e5209b  docs/evidence/packet-39-40-threat-matrix.json
-$ Ubuntu 24.04 installed Packet 40 adversarial acceptance
+79687cf39c25972273fb10c2c2b5a48b8f5f30bd35e418c03bdecdf21935d491  /tmp/packet39-40-build-final4-1787970254/astral-project_0.1.0_amd64.deb
+e0b2ef90052b857a3caf84a697ca343ddf9a7678d229d42659274825094eef7e  docs/evidence/packet-39-40-threat-matrix.json
+$ Ubuntu 24.04 checked-in installed drivers
 {"all_capability_sets_zero": "passed", "all_network_socket_tables_empty": "passed", "all_non_loopback_interfaces_absent": "passed", "credentials_and_sockets_absent": "passed", "dns_absent": "passed", "entrypoint": "/usr/libexec/astral-project/aspr-sandbox-entry", "host_proc_and_same_uid_targets_absent": "passed", "launcher": "/usr/libexec/astral-project/aspr-bwrap-launch", "native_negative_controls": "passed", "network_inherit": "passed", "network_none": "passed", "runtime": "/run/user/1001", "ssh_agent_and_docker_socket_absent": "passed"}
 PASS installed Packet 40 adversarial sandbox acceptance with empty CapBnd transition 000001ffffffffff->0
-$ Ubuntu 26.04 installed Packet 40 adversarial acceptance
+{"chain_errors": [], "export_ok": true, "exported_path": "<redacted>", "failure_order": ["probe.started", "hardening.failure"], "retained_remote_events": ["audit.remote.export.started", "audit.remote.export.completed"]}
+{"error_code": "ASPR_HARDENING_UNAVAILABLE", "event_order": ["hardening.failure"], "workload_started": false}
+$ Ubuntu 26.04 checked-in installed drivers
 sudo: preserving the entire environment is not supported, '-E' is ignored
 {"all_capability_sets_zero": "passed", "all_network_socket_tables_empty": "passed", "all_non_loopback_interfaces_absent": "passed", "credentials_and_sockets_absent": "passed", "dns_absent": "passed", "entrypoint": "/usr/libexec/astral-project/aspr-sandbox-entry", "host_proc_and_same_uid_targets_absent": "passed", "launcher": "/usr/libexec/astral-project/aspr-bwrap-launch", "native_negative_controls": "passed", "network_inherit": "passed", "network_none": "passed", "runtime": "/run/user/1002", "ssh_agent_and_docker_socket_absent": "passed"}
 PASS installed Packet 40 adversarial sandbox acceptance with empty CapBnd transition 000001ffffffffff->0
-$ Ubuntu 24.04 installed remote audit and failure evidence
-PASS installed root real-kernel remote audit export, retention, and preopened failure recording ubuntu24
-PASS installed production run_plan records failure before workload ubuntu24
-$ Ubuntu 26.04 installed remote audit and failure evidence
-PASS installed root real-kernel remote audit export, retention, and preopened failure recording ubuntu26
-PASS installed production run_plan records failure before workload ubuntu26
-$ git diff --check
+{"chain_errors": [], "export_ok": true, "exported_path": "<redacted>", "failure_order": ["probe.started", "hardening.failure"], "retained_remote_events": ["audit.remote.export.started", "audit.remote.export.completed"]}
+{"error_code": "ASPR_HARDENING_UNAVAILABLE", "event_order": ["hardening.failure"], "workload_started": false}

@@ -18,21 +18,21 @@ capability-set zeroing, native negative controls, and AppArmor enforcement.
 
 ## Evidence
 
-- source closure: `44319bed74c693fd1f41bfe7612108d34857452a`
-- package SHA-256: `fc4ad72fe95f4660f1d458aa20c053f9b31e9bb8c919b69736639dbe32bfd10e`
-- threat matrix SHA-256: `ea8b23b02c8fbac5b05531f3b17234abbd1a8cef48bb6d32321ee00ee7e5209b`
-- local validation SHA-256: `8e0a8ef9c4c612b2eaa35c2f3cc23f96bd1b0ef7c9b122827bdf8f7c1c01afb0`
-- Ubuntu 24.04 raw SHA-256: `4c5439460626bdf87fc003f37055071830367299ae7adaa75650c2ba9e965cde`
-- Ubuntu 26.04 raw SHA-256: `94dc5d15328e6751c482dd4122ec53902588e77ace4a5bb0245946c8ece1e859`
+- source closure: `3f7d7f09132f684e549773d9420041a33011642e`
+- package SHA-256: `79687cf39c25972273fb10c2c2b5a48b8f5f30bd35e418c03bdecdf21935d491`
+- threat matrix SHA-256: `e0b2ef90052b857a3caf84a697ca343ddf9a7678d229d42659274825094eef7e`
+- local validation SHA-256: `fb13fc72ba0f971d63a21342f1f44f9657c0f9dcaef00d2c30266785ecc60a38`
+- Ubuntu 24.04 raw SHA-256: `45751016ebc9505c8cacb2cee4d7a65c1b15e21b2b60cfcb8c8fd06c236e2717`
+- Ubuntu 26.04 raw SHA-256: `11bdbb1082f9d91d1feedf1c9eb2096edfb549621a312ac1d9daeded4844a4d2`
 
 ## Gates
 
-- `./scripts/test`: 915 passed, 2 skipped, 100% coverage.
-- `uv run pytest -q tests/adversarial`: 44 passed.
+- `./scripts/test`: 931 passed, 2 skipped, 100% coverage.
+- `uv run pytest -q tests/adversarial`: 60 passed.
 - Ruff and strict mypy: pass.
 - Strict native builds, AppArmor parser, and parser fuzz: pass.
 - Installed adversarial sandbox acceptance with projected-home FUSE and empty inherited CapBnd: pass on Ubuntu 24.04 and 26.04.
-- Installed real-kernel remote audit export, retention, pre-opened failure
+- Checked-in installed remote audit export, retention, pre-opened failure
   recording, and production `run_plan` failure evidence: pass on both releases.
 - `git diff --check`: pass; pushed HEAD equals `origin/master`.
 
