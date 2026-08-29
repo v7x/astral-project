@@ -1,9 +1,7 @@
-$ git rev-parse HEAD
-f5e1fdd06bc14be5eb624c18b064b558f6e2fd54
-$ git rev-parse origin/master
-f5e1fdd06bc14be5eb624c18b064b558f6e2fd54
-$ source closure (source paths); final evidence commit is documentation-only
+$ source closure (source paths)
 44319bed74c693fd1f41bfe7612108d34857452a
+$ source paths are clean; evidence commits after closure are documentation-only
+f5e1fdd06bc14be5eb624c18b064b558f6e2fd54, ae5c327a519de1e8dd5a70079301fd83098a8039
 $ git diff --quiet HEAD -- src packaging scripts tests .github
 PASS source-working-tree-clean
 $ git diff --cached --quiet HEAD -- src packaging scripts tests .github
