@@ -21,7 +21,7 @@ capability-set zeroing, native negative controls, and AppArmor enforcement.
 - source closure: `44319bed74c693fd1f41bfe7612108d34857452a`
 - package SHA-256: `fc4ad72fe95f4660f1d458aa20c053f9b31e9bb8c919b69736639dbe32bfd10e`
 - threat matrix SHA-256: `ea8b23b02c8fbac5b05531f3b17234abbd1a8cef48bb6d32321ee00ee7e5209b`
-- local validation SHA-256: `a170934d286adc70170b67c87be1adc6613f6afdcab2589a30ddb988828e98e5`
+- local validation SHA-256: `bde22bddffa690c4c3a3cfee5083ec3a560f1158734717d5c865728d4a5936e9`
 - Ubuntu 24.04 raw SHA-256: `4c5439460626bdf87fc003f37055071830367299ae7adaa75650c2ba9e965cde`
 - Ubuntu 26.04 raw SHA-256: `94dc5d15328e6751c482dd4122ec53902588e77ace4a5bb0245946c8ece1e859`
 

@@ -1,7 +1,9 @@
 $ git rev-parse HEAD
-4e9d30d7487b46aca06678dd9d6b331e523c82ad
+f5e1fdd06bc14be5eb624c18b064b558f6e2fd54
 $ git rev-parse origin/master
-4e9d30d7487b46aca06678dd9d6b331e523c82ad
+f5e1fdd06bc14be5eb624c18b064b558f6e2fd54
+$ source closure (source paths); final evidence commit is documentation-only
+44319bed74c693fd1f41bfe7612108d34857452a
 $ git diff --quiet HEAD -- src packaging scripts tests .github
 PASS source-working-tree-clean
 $ git diff --cached --quiet HEAD -- src packaging scripts tests .github
@@ -12,10 +14,10 @@ $ uv run mypy src tests
 Success: no issues found in 186 source files
 $ uv run pytest -q tests/adversarial
 ............................................                             [100%]
-44 passed in 0.13s
+44 passed in 0.14s
 $ ./scripts/test
-Resolved 25 packages in 0.74ms
-Checked 17 packages in 0.22ms
+Resolved 25 packages in 0.65ms
+Checked 17 packages in 0.21ms
 213 files already formatted
 All checks passed!
 Success: no issues found in 186 source files
@@ -125,23 +127,23 @@ tests/unit/test_approval_terminal.py::test_parent_pty_relay_external_approval_an
 tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
 tests/unit/test_approval_terminal.py::test_terminal_controller_forwards_sigcont_after_child_suspend
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1019763) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1022022) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
     pid, fd = os.forkpty()
 
 tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
-  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=1019763) is multi-threaded, use of fork() may lead to deadlocks in the child.
+  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=1022022) is multi-threaded, use of fork() may lead to deadlocks in the child.
     pid = os.fork()
 
 tests/unit/test_approval_terminal.py::test_controller_does_not_publish_socket_to_child
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1019840) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1022096) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
     pid, fd = os.forkpty()
 
 tests/unit/test_broker_main.py::test_module_entrypoint_calls_main
   <frozen runpy>:128: RuntimeWarning: 'astral_project.broker.main' found in sys.modules after import of package 'astral_project.broker', but prior to execution of 'astral_project.broker.main'; this may result in unpredictable behaviour
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 915 passed, 2 skipped, 9 warnings in 16.57s ==================
+================= 915 passed, 2 skipped, 9 warnings in 16.77s ==================
 ..                    [  9%]
 tests/unit/test_audit.py .......................................         [ 13%]
 tests/unit/test_broker_authority.py .....                                [ 14%]
@@ -232,19 +234,19 @@ tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transi
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
 tests/unit/test_approval_terminal.py::test_terminal_controller_forwards_sigcont_after_child_suspend
 tests/unit/test_approval_terminal.py::test_controller_does_not_publish_socket_to_child
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1019763) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1022022) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
     pid, fd = os.forkpty()
 
 tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
-  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=1019763) is multi-threaded, use of fork() may lead to deadlocks in the child.
+  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=1022022) is multi-threaded, use of fork() may lead to deadlocks in the child.
     pid = os.fork()
 
 tests/unit/test_broker_main.py::test_module_entrypoint_calls_main
   <frozen runpy>:128: RuntimeWarning: 'astral_project.broker.main' found in sys.modules after import of package 'astral_project.broker', but prior to execution of 'astral_project.broker.main'; this may result in unpredictable behaviour
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 915 passed, 2 skipped, 9 warnings in 28.87s ==================
+================= 915 passed, 2 skipped, 9 warnings in 29.27s ==================
 Name    Stmts   Miss Branch BrPart  Cover   Missing
 ---------------------------------------------------
 TOTAL   11715      0   3496      0   100%
@@ -259,15 +261,15 @@ $ apparmor_parser -Q -K packaging/apparmor/usr.libexec.astral-project.aspr-bwrap
 $ native strict builds
 PASS native strict builds
 $ sha256sum package and matrix
-df138f9a75294d0bf54c473bcb50da583ef3147901e107a5e866018f781b6ca8  /tmp/packet39-40-build-final2-1787968312/astral-project_0.1.0_amd64.deb
+fc4ad72fe95f4660f1d458aa20c053f9b31e9bb8c919b69736639dbe32bfd10e  /tmp/packet39-40-build-final3-1787968846/astral-project_0.1.0_amd64.deb
 ea8b23b02c8fbac5b05531f3b17234abbd1a8cef48bb6d32321ee00ee7e5209b  docs/evidence/packet-39-40-threat-matrix.json
 $ Ubuntu 24.04 installed Packet 40 adversarial acceptance
 {"all_capability_sets_zero": "passed", "all_network_socket_tables_empty": "passed", "all_non_loopback_interfaces_absent": "passed", "credentials_and_sockets_absent": "passed", "dns_absent": "passed", "entrypoint": "/usr/libexec/astral-project/aspr-sandbox-entry", "host_proc_and_same_uid_targets_absent": "passed", "launcher": "/usr/libexec/astral-project/aspr-bwrap-launch", "native_negative_controls": "passed", "network_inherit": "passed", "network_none": "passed", "runtime": "/run/user/1001", "ssh_agent_and_docker_socket_absent": "passed"}
-PASS installed Packet 40 adversarial sandbox acceptance with empty CapBnd
+PASS installed Packet 40 adversarial sandbox acceptance with empty CapBnd transition 000001ffffffffff->0
 $ Ubuntu 26.04 installed Packet 40 adversarial acceptance
 sudo: preserving the entire environment is not supported, '-E' is ignored
 {"all_capability_sets_zero": "passed", "all_network_socket_tables_empty": "passed", "all_non_loopback_interfaces_absent": "passed", "credentials_and_sockets_absent": "passed", "dns_absent": "passed", "entrypoint": "/usr/libexec/astral-project/aspr-sandbox-entry", "host_proc_and_same_uid_targets_absent": "passed", "launcher": "/usr/libexec/astral-project/aspr-bwrap-launch", "native_negative_controls": "passed", "network_inherit": "passed", "network_none": "passed", "runtime": "/run/user/1002", "ssh_agent_and_docker_socket_absent": "passed"}
-PASS installed Packet 40 adversarial sandbox acceptance with empty CapBnd
+PASS installed Packet 40 adversarial sandbox acceptance with empty CapBnd transition 000001ffffffffff->0
 $ Ubuntu 24.04 installed remote audit and failure evidence
 PASS installed root real-kernel remote audit export, retention, and preopened failure recording ubuntu24
 PASS installed production run_plan records failure before workload ubuntu24
