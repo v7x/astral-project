@@ -3,50 +3,260 @@
   "source": "docs/architecture/caveman/astral-project-implementation-caveman.md",
   "packets": {
     "39": [
-      {"id": "R01", "attack": ".. traversal", "test": "tests/unit/test_session_listing.py::test_session_scope_binds_grant_and_export_path", "class": "unit"},
-      {"id": "R02", "attack": "absolute symlink escape", "test": "tests/unit/test_server_path_resolver.py::test_symlink_escape_fails", "class": "unit"},
-      {"id": "R03", "attack": "relative symlink escape", "test": "tests/unit/test_server_path_resolver.py::test_symlink_escape_fails", "class": "unit"},
-      {"id": "R04", "attack": "symlink swap race", "test": "tests/unit/test_server_path_resolver.py::test_rename_race_never_returns_reopened_attacker_object", "class": "unit-race"},
-      {"id": "R05", "attack": "rename race", "test": "tests/unit/test_server_path_resolver.py::test_rename_race_never_returns_reopened_attacker_object", "class": "unit-race"},
-      {"id": "R06", "attack": "export source replacement race", "test": "tests/unit/test_server_path_resolver.py::test_resolve_regular_file_returns_pinned_descriptor", "class": "unit"},
-      {"id": "R07", "attack": "/proc/self/fd escape", "test": "tests/unit/test_server_path_resolver.py::test_proc_magic_link_fails", "class": "unit"},
-      {"id": "R08", "attack": "inherited FD escape", "test": "tests/unit/test_sandbox_resources.py::test_environment_policy_rejects_bad_fixed_value_and_fd_inventory", "class": "unit"},
-      {"id": "R09", "attack": "nested mount surprise", "test": "tests/unit/test_server_path_resolver.py::test_resolve_directory_reports_identity_and_mount_topology", "class": "unit"},
-      {"id": "R10", "attack": "wrong-host grant replay", "test": "tests/unit/test_crypto_grants.py::test_context_binding_and_time_window_fail_closed", "class": "unit"},
-      {"id": "R11", "attack": "wrong-user grant replay", "test": "tests/unit/test_crypto_grants.py::test_context_binding_and_time_window_fail_closed", "class": "unit"},
-      {"id": "R12", "attack": "expired grant", "test": "tests/unit/test_crypto_grants.py::test_context_binding_and_time_window_fail_closed", "class": "unit"},
-      {"id": "R13", "attack": "revoked grant", "test": "tests/unit/test_grant_lifecycle.py::test_revoke_is_local_first_and_offline_is_recorded", "class": "unit"},
-      {"id": "R14", "attack": "runtime bundle leakage", "test": "tests/unit/test_runtime_closure.py::test_runtime_closure_rejects_unexplained_or_modified_file", "class": "unit"},
-      {"id": "R15", "attack": "multi-connection incoherence", "test": "tests/unit/test_state_sqlite.py::test_active_listing_scope_is_bound_to_one_active_grant", "class": "unit"},
-      {"id": "R16", "attack": "hardlink alias to authorized keys", "test": "tests/unit/test_homed_private.py::test_private_sanitizes_setid_and_rejects_hardlink_aliases", "class": "unit"},
-      {"id": "R17", "attack": "hardlink alias to server/runtime file", "test": "tests/unit/test_runtime_closure_extra.py::test_runtime_manifest_rejects_bad_file_values_and_inconsistent_bytes", "class": "unit"},
-      {"id": "R18", "attack": "concurrent alias creation", "test": "tests/unit/test_homed_overlay.py::test_overlay_copy_up_concurrent_and_unsupported_features", "class": "residual-rootless-race"},
-      {"id": "R19", "attack": "writable persistence path warning", "test": "tests/unit/test_mount_lifecycle.py::test_close_reports_flush_failure_and_clean_close_removes_config", "class": "unit"},
-      {"id": "R20", "attack": "forced-command shell attempt", "test": "tests/unit/test_server_protocol.py::test_outer_command_and_fuzz_fail_closed", "class": "unit"}
+      {
+        "id": "R01",
+        "attack": ".. traversal",
+        "test": "tests/adversarial/test_remote_attacks.py::test_r01_dotdot_traversal_is_rejected",
+        "class": "unit"
+      },
+      {
+        "id": "R02",
+        "attack": "absolute symlink escape",
+        "test": "tests/adversarial/test_remote_attacks.py::test_r02_r03_symlink_escapes_are_rejected",
+        "class": "unit"
+      },
+      {
+        "id": "R03",
+        "attack": "relative symlink escape",
+        "test": "tests/adversarial/test_remote_attacks.py::test_r02_r03_symlink_escapes_are_rejected",
+        "class": "unit"
+      },
+      {
+        "id": "R04",
+        "attack": "symlink swap race",
+        "test": "tests/adversarial/test_remote_attacks.py::test_r04_symlink_swap_race_never_returns_indirected_source",
+        "class": "unit-race"
+      },
+      {
+        "id": "R05",
+        "attack": "rename race",
+        "test": "tests/adversarial/test_remote_attacks.py::test_r05_r06_rename_and_source_replacement_are_pinned",
+        "class": "unit-race"
+      },
+      {
+        "id": "R06",
+        "attack": "export source replacement race",
+        "test": "tests/adversarial/test_remote_attacks.py::test_r05_r06_rename_and_source_replacement_are_pinned",
+        "class": "unit"
+      },
+      {
+        "id": "R07",
+        "attack": "/proc/self/fd escape",
+        "test": "tests/adversarial/test_remote_attacks.py::test_r07_proc_fd_magic_link_is_rejected",
+        "class": "unit"
+      },
+      {
+        "id": "R08",
+        "attack": "inherited FD escape",
+        "test": "tests/adversarial/test_remote_attacks.py::test_r08_inherited_fd_is_closed_before_use",
+        "class": "unit"
+      },
+      {
+        "id": "R09",
+        "attack": "nested mount surprise",
+        "test": "tests/adversarial/test_remote_attacks.py::test_r09_nested_mount_metadata_is_advisory",
+        "class": "unit"
+      },
+      {
+        "id": "R10",
+        "attack": "wrong-host grant replay",
+        "test": "tests/adversarial/test_remote_attacks.py::test_r10_r11_wrong_context_replays_are_rejected",
+        "class": "unit"
+      },
+      {
+        "id": "R11",
+        "attack": "wrong-user grant replay",
+        "test": "tests/adversarial/test_remote_attacks.py::test_r10_r11_wrong_context_replays_are_rejected",
+        "class": "unit"
+      },
+      {
+        "id": "R12",
+        "attack": "expired grant",
+        "test": "tests/adversarial/test_remote_attacks.py::test_r12_expired_grant_is_rejected",
+        "class": "unit"
+      },
+      {
+        "id": "R13",
+        "attack": "revoked grant",
+        "test": "tests/adversarial/test_remote_attacks.py::test_r13_revoked_grant_is_unusable",
+        "class": "unit"
+      },
+      {
+        "id": "R14",
+        "attack": "runtime bundle leakage",
+        "test": "tests/adversarial/test_remote_attacks.py::test_r14_runtime_bundle_extra_file_is_rejected",
+        "class": "unit"
+      },
+      {
+        "id": "R15",
+        "attack": "multi-connection incoherence",
+        "test": "tests/adversarial/test_remote_attacks.py::test_r15_multi_connection_scope_cannot_cross_grants",
+        "class": "unit"
+      },
+      {
+        "id": "R16",
+        "attack": "hardlink alias to authorized keys",
+        "test": "tests/adversarial/test_remote_attacks.py::test_r16_private_hardlink_alias_is_rejected",
+        "class": "unit"
+      },
+      {
+        "id": "R17",
+        "attack": "hardlink alias to server/runtime file",
+        "test": "tests/adversarial/test_remote_attacks.py::test_r17_runtime_alias_and_r18_concurrent_alias_creation_are_rejected",
+        "class": "unit"
+      },
+      {
+        "id": "R18",
+        "attack": "concurrent alias creation",
+        "test": "tests/adversarial/test_remote_attacks.py::test_r17_runtime_alias_and_r18_concurrent_alias_creation_are_rejected",
+        "class": "residual-rootless-race"
+      },
+      {
+        "id": "R19",
+        "attack": "writable persistence path warning",
+        "test": "tests/unit/test_mount_lifecycle.py::test_close_reports_flush_failure_and_clean_close_removes_config",
+        "class": "unit"
+      },
+      {
+        "id": "R20",
+        "attack": "forced-command shell attempt",
+        "test": "tests/adversarial/test_remote_attacks.py::test_r20_forced_command_rejects_shell_marker",
+        "class": "unit"
+      }
     ],
     "40": [
-      {"id": "L01", "attack": "hidden home read", "test": "scripts/sandbox_enforce_acceptance.py::main", "class": "installed"},
-      {"id": "L02", "attack": "host /proc inspection", "test": "scripts/sandbox_enforce_acceptance.py::main", "class": "installed"},
-      {"id": "L03", "attack": "same-UID daemon signal/ptrace", "test": "tests/unit/test_sandbox.py::test_sandbox_private_helpers_and_rejections", "class": "unit"},
-      {"id": "L04", "attack": "main socket discovery", "test": "scripts/sandbox_enforce_acceptance.py::main", "class": "installed"},
-      {"id": "L05", "attack": "abstract socket discovery", "test": "tests/unit/test_sandbox_resources.py::test_resource_policy_denies_dangerous_abstract_and_wrong_paths", "class": "unit"},
-      {"id": "L06", "attack": "SSH key search", "test": "scripts/sandbox_enforce_acceptance.py::main", "class": "installed"},
-      {"id": "L07", "attack": "SSH agent use", "test": "tests/unit/test_sandbox_resources.py::test_environment_policy_removes_secrets_and_invisible_path", "class": "unit"},
-      {"id": "L08", "attack": "Docker socket use", "test": "tests/unit/test_sandbox_resources.py::test_resource_policy_denies_dangerous_abstract_and_wrong_paths", "class": "unit"},
-      {"id": "L09", "attack": "inherited FD", "test": "tests/unit/test_sandbox_resources.py::test_close_unlisted_fds_ignores_close_races", "class": "unit"},
-      {"id": "L10", "attack": "FUSE symlink escape", "test": "tests/unit/test_homed_host.py::test_symlink_escape_and_absolute_symlink_fail", "class": "unit"},
-      {"id": "L11", "attack": "hardlink restriction", "test": "tests/unit/test_homed_private.py::test_private_sanitizes_setid_and_rejects_hardlink_aliases", "class": "unit"},
-      {"id": "L12", "attack": "prompt flooding", "test": "tests/unit/test_homed_mediation.py::test_mediator_coalesces_and_bounds_queue_and_rate", "class": "unit"},
-      {"id": "L13", "attack": "unknown-parent brute force", "test": "tests/unit/test_homed_mediation.py::test_host_view_unknown_denial_and_remote_cancel", "class": "unit"},
-      {"id": "L14", "attack": "fake approval screen", "test": "tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve", "class": "unit"},
-      {"id": "L15", "attack": "child consumes Ctrl-]", "test": "tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve", "class": "unit"},
-      {"id": "L16", "attack": "approval request replay", "test": "tests/unit/test_approval_protocol.py::test_external_approval_accepts_exact_request_and_rejects_stale", "class": "unit"},
-      {"id": "L17", "attack": "session socket relay", "test": "tests/unit/test_sandbox.py::test_session_socket_allows_only_narrow_same_session_api", "class": "unit"},
-      {"id": "L18", "attack": "rclone config replacement", "test": "tests/unit/test_rclone_listing.py::test_ephemeral_sftp_config_has_fixed_transport_and_no_token", "class": "unit"},
-      {"id": "L19", "attack": "alternate SSH execution", "test": "tests/unit/test_cli_remote.py::test_cli_transport_dispatch_is_exact", "class": "unit"},
-      {"id": "L20", "attack": "FUSE daemon crash", "test": "tests/unit/test_homed_fuse.py::test_fuse_lookup_cancellation_releases_request_lease", "class": "unit"},
-      {"id": "L21", "attack": "overlay crash recovery", "test": "tests/unit/test_homed_overlay.py::test_overlay_sqlite_wal_and_incomplete_whiteout_recovery", "class": "unit"},
-      {"id": "L22", "attack": "terminal crash restoration", "test": "tests/unit/test_approval_terminal.py::test_terminal_guard_crash_without_reaping_or_saved_state", "class": "unit"}
+      {
+        "id": "L01",
+        "attack": "hidden home read",
+        "test": "scripts/sandbox_enforce_acceptance.py::main",
+        "class": "installed"
+      },
+      {
+        "id": "L02",
+        "attack": "host /proc inspection",
+        "test": "scripts/sandbox_enforce_acceptance.py::main",
+        "class": "installed"
+      },
+      {
+        "id": "L03",
+        "attack": "same-UID daemon signal/ptrace",
+        "test": "tests/unit/test_sandbox.py::test_sandbox_private_helpers_and_rejections",
+        "class": "unit"
+      },
+      {
+        "id": "L04",
+        "attack": "main socket discovery",
+        "test": "scripts/sandbox_enforce_acceptance.py::main",
+        "class": "installed"
+      },
+      {
+        "id": "L05",
+        "attack": "abstract socket discovery",
+        "test": "tests/unit/test_sandbox_resources.py::test_resource_policy_denies_dangerous_abstract_and_wrong_paths",
+        "class": "unit"
+      },
+      {
+        "id": "L06",
+        "attack": "SSH key search",
+        "test": "scripts/sandbox_enforce_acceptance.py::main",
+        "class": "installed"
+      },
+      {
+        "id": "L07",
+        "attack": "SSH agent use",
+        "test": "tests/unit/test_sandbox_resources.py::test_environment_policy_removes_secrets_and_invisible_path",
+        "class": "unit"
+      },
+      {
+        "id": "L08",
+        "attack": "Docker socket use",
+        "test": "tests/unit/test_sandbox_resources.py::test_resource_policy_denies_dangerous_abstract_and_wrong_paths",
+        "class": "unit"
+      },
+      {
+        "id": "L09",
+        "attack": "inherited FD",
+        "test": "tests/unit/test_sandbox_resources.py::test_close_unlisted_fds_ignores_close_races",
+        "class": "unit"
+      },
+      {
+        "id": "L10",
+        "attack": "FUSE symlink escape",
+        "test": "tests/unit/test_homed_host.py::test_symlink_escape_and_absolute_symlink_fail",
+        "class": "unit"
+      },
+      {
+        "id": "L11",
+        "attack": "hardlink restriction",
+        "test": "tests/unit/test_homed_private.py::test_private_sanitizes_setid_and_rejects_hardlink_aliases",
+        "class": "unit"
+      },
+      {
+        "id": "L12",
+        "attack": "prompt flooding",
+        "test": "tests/unit/test_homed_mediation.py::test_mediator_coalesces_and_bounds_queue_and_rate",
+        "class": "unit"
+      },
+      {
+        "id": "L13",
+        "attack": "unknown-parent brute force",
+        "test": "tests/unit/test_homed_mediation.py::test_host_view_unknown_denial_and_remote_cancel",
+        "class": "unit"
+      },
+      {
+        "id": "L14",
+        "attack": "fake approval screen",
+        "test": "tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve",
+        "class": "unit"
+      },
+      {
+        "id": "L15",
+        "attack": "child consumes Ctrl-]",
+        "test": "tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve",
+        "class": "unit"
+      },
+      {
+        "id": "L16",
+        "attack": "approval request replay",
+        "test": "tests/unit/test_approval_protocol.py::test_external_approval_accepts_exact_request_and_rejects_stale",
+        "class": "unit"
+      },
+      {
+        "id": "L17",
+        "attack": "session socket relay",
+        "test": "tests/unit/test_sandbox.py::test_session_socket_allows_only_narrow_same_session_api",
+        "class": "unit"
+      },
+      {
+        "id": "L18",
+        "attack": "rclone config replacement",
+        "test": "tests/unit/test_rclone_listing.py::test_ephemeral_sftp_config_has_fixed_transport_and_no_token",
+        "class": "unit"
+      },
+      {
+        "id": "L19",
+        "attack": "alternate SSH execution",
+        "test": "tests/unit/test_cli_remote.py::test_cli_transport_dispatch_is_exact",
+        "class": "unit"
+      },
+      {
+        "id": "L20",
+        "attack": "FUSE daemon crash",
+        "test": "tests/unit/test_homed_fuse.py::test_fuse_lookup_cancellation_releases_request_lease",
+        "class": "unit"
+      },
+      {
+        "id": "L21",
+        "attack": "overlay crash recovery",
+        "test": "tests/unit/test_homed_overlay.py::test_overlay_sqlite_wal_and_incomplete_whiteout_recovery",
+        "class": "unit"
+      },
+      {
+        "id": "L22",
+        "attack": "terminal crash restoration",
+        "test": "tests/unit/test_approval_terminal.py::test_terminal_guard_crash_without_reaping_or_saved_state",
+        "class": "unit"
+      }
     ]
   }
 }
