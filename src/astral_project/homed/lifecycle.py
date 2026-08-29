@@ -76,6 +76,7 @@ class ProjectedHomeProcess:  # pragma: no cover - exercised by installed FUSE ac
                 diagnostic = (
                     process.stderr.read().decode("utf-8", "replace") if process.stderr else ""
                 )
+                cleanup_stale_mount(mountpoint)
                 mountpoint.rmdir()
                 if "pyfuse3 is not installed" in diagnostic:
                     raise FuseUnavailable(diagnostic.strip())

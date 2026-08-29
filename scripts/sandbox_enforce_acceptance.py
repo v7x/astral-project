@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import atexit
 import json
 import os
 import struct
@@ -30,6 +31,15 @@ def main() -> int:
     runtime = os.environ.get("XDG_RUNTIME_DIR", "")
     if not runtime.startswith("/run/user/"):
         raise RuntimeError("XDG_RUNTIME_DIR must be the normal /run/user/<uid> runtime")
+    host_pid = os.getpid()
+    same_uid_target = subprocess.Popen(["sleep", "60"])
+
+    def cleanup_target() -> None:
+        if same_uid_target.poll() is None:
+            same_uid_target.terminate()
+            same_uid_target.wait(timeout=5)
+
+    atexit.register(cleanup_target)
     with tempfile.TemporaryDirectory(prefix="aspr-enforce-state-") as state:
         env = os.environ.copy()
         env["XDG_STATE_HOME"] = state
@@ -65,20 +75,27 @@ def main() -> int:
                     "grep -v 'lo:')\"; "
                     'test "$(cat /proc/net/route | tail -n +2 | wc -l)" -eq 0; '
                     "test ! -e /etc/resolv.conf; test ! -e /etc/hosts; "
-                    "test ! -S /run/astral-project/daemon.sock; "
-                    "test ! -S /run/astral-project/transport.sock; "
+                    "test ! -e /run/astral-project/daemon.sock; "
+                    "test ! -e /run/astral-project/transport.sock; "
+                    "test ! -e /var/run/docker.sock; test ! -e /run/docker.sock; "
+                    'test -z "${SSH_AUTH_SOCK-}"; '
+                    f"test ! -e /proc/{host_pid}/cmdline; "
+                    f"test ! -e /proc/{same_uid_target.pid}/status; "
+                    f"! kill -0 {same_uid_target.pid}; "
                     'test "$(tail -n +2 /proc/net/tcp | wc -l)" -eq 0; '
                     'test "$(tail -n +2 /proc/net/tcp6 | wc -l)" -eq 0; '
                     'test "$(tail -n +2 /proc/net/udp | wc -l)" -eq 0; '
                     'test "$(tail -n +2 /proc/net/udp6 | wc -l)" -eq 0; '
                     'test "$(tail -n +2 /proc/net/unix | wc -l)" -eq 0; '
                     "test ! -e /root/.ssh; test ! -e /home/testuser/.ssh; "
+                    "test ! -e /proc/1/root/home/testuser/.ssh; "
                     "mkdir /tmp/blocked; ! mount -t tmpfs tmpfs /tmp/blocked"
                 ),
             ],
             env,
         )
         require(none, "network=none")
+    cleanup_target()
     invalid = subprocess.run([str(LAUNCHER)], input=b"BADPLAN!", capture_output=True, check=False)
     if invalid.returncode != 70:
         raise RuntimeError("invalid native plan was accepted")
@@ -113,6 +130,8 @@ def main() -> int:
         "all_network_socket_tables_empty": "passed",
         "dns_absent": "passed",
         "credentials_and_sockets_absent": "passed",
+        "host_proc_and_same_uid_targets_absent": "passed",
+        "ssh_agent_and_docker_socket_absent": "passed",
         "native_negative_controls": "passed",
         "runtime": runtime,
     }

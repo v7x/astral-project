@@ -4,10 +4,14 @@ import asyncio
 import importlib
 import sys
 import types
+from io import BytesIO
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 import astral_project.homed.fuse as fuse
+import astral_project.homed.lifecycle as lifecycle
 from astral_project.homed.core import InodeRecord, RequestBudget
 from astral_project.homed.fuse import (
     FuseUnavailable,
@@ -30,6 +34,34 @@ def test_fuse_adapter_is_import_safe_without_optional_runtime() -> None:
         _host_attributes(BackingNode(2, ".x", 0o100644, 1, 0, False))
     with pytest.raises(FuseUnavailable):
         ProjectedHomeOperations()
+
+
+def test_projected_home_cleans_stale_mount_after_child_exit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    mountpoint = tmp_path / "projected"
+    mountpoint.mkdir()
+    process = SimpleNamespace(
+        pid=123,
+        poll=lambda: 1,
+        stderr=BytesIO(b"mount failed"),
+    )
+    cleaned: list[Path] = []
+    monkeypatch.setattr(lifecycle, "temp_dir", lambda *_args: str(mountpoint))
+    monkeypatch.setattr("astral_project.homed.lifecycle.Path.is_file", lambda _self: True)
+    monkeypatch.setattr("astral_project.homed.lifecycle.os.access", lambda *_args: True)
+    monkeypatch.setattr(
+        "astral_project.homed.lifecycle.subprocess.Popen", lambda *_args, **_kwargs: process
+    )
+
+    def clean(path: Path) -> bool:
+        cleaned.append(path)
+        return True
+
+    monkeypatch.setattr(lifecycle, "cleanup_stale_mount", clean)
+    with pytest.raises(OSError, match="aspr-homed exited"):
+        lifecycle.ProjectedHomeProcess.start(tmp_path / "runtime")
+    assert cleaned == [mountpoint]
 
 
 def test_fuse_lookup_cancellation_releases_request_lease(
