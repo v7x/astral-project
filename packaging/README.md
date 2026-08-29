@@ -1,38 +1,55 @@
-# Packet 15E package assets
+# Ubuntu package assets
 
-These files are package inputs. They are not an installer and must not be copied into host paths by a development command.
+This directory contains inputs for building Astral Project's current amd64
+Ubuntu package. It is not an installer and development commands must not copy
+these files into host paths. See [installation](../docs/user/installation.md)
+and [administrator setup](../docs/user/setup.md) for user operation.
 
-Package operation installs root-owned files only:
+## Build
 
-- broker and native workers: `/usr/libexec/astral-project/`;
-- broker configuration and per-user ceilings: `/etc/astral-project/`;
-- content-addressed runtime closures: `/var/lib/astral-project/runtime/`;
-- socket directory: `/run/astral-project/`.
-
-`astral-project-broker.socket` grants group reachability only. Signed grant, `SO_PEERCRED` UID/GID, replay, and per-root ceiling remain broker checks.
-
-Profile roles:
-
-- `aspr-broker`: root broker and controlled worker transition;
-- `aspr-namespace-setup`: namespace/mount setup only;
-- `aspr-sftp-v1`: fixed final workload. It has no network, mount, capability, or arbitrary-exec allow rule.
-
-Validate package assets before an administrator-approved package operation:
-
-```text
-apparmor_parser -p packaging/apparmor/usr.libexec.astral-project.aspr-broker
-systemd-analyze verify --root=<disposable-root> astral-project-broker.socket astral-project-broker.service
+```sh
+./packaging/debian/build-deb.sh /absolute/output-directory
 ```
 
-Packet 15F package preflight source is `packaging/tools/packet15f-gate.py`; package installs it as `/usr/libexec/astral-project/packet15f-gate`. It has no arguments and writes only fixed evidence path.
+Build script only builds `.deb`; it does not install, enable services, load
+AppArmor, or contact another host. It compiles fixed C workers, embeds the pure
+Python wheel, and uses target `/usr/bin/python3` plus Ubuntu runtime packages.
+The package is currently built for `amd64` and certified only on Ubuntu 24.04
+and Ubuntu 26.04.
 
-After administrator authority and ceiling files exist, render exact AppArmor source-root rules:
+## Installed layout
 
-```text
-sudo /usr/libexec/astral-project/render-apparmor-roots
-sudo apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-broker
+- public launchers: `/usr/bin/aspr` and `/usr/bin/astral-project`;
+- broker, server, transport, namespace, mount, and sandbox workers:
+  `/usr/libexec/astral-project/`;
+- broker configuration: `/etc/astral-project/broker.toml`;
+- administrator authority and ceilings: `/etc/astral-project/`;
+- verified runtime closure: `/var/lib/astral-project/runtime/`;
+- socket runtime: `/run/astral-project/`.
+
+Package operation installs root-owned files. The post-install hook creates the broker reachability group and runtime
+directories, renders source-root rules when administrator authority already
+exists, and loads the fixed AppArmor profile.
+It fails when `apparmor_parser` is unavailable; no unconfined fallback exists.
+
+Enable socket activation after installation:
+
+```sh
+sudo systemctl enable --now astral-project-broker.socket
 ```
 
-Renderer reads only root-owned `/etc/astral-project/authority.toml` and its ceiling, writes only fixed root-owned local include, rejects unsafe inputs, and is idempotent. Normal sessions never require `sudo`.
+The socket's `astral-project` group grants reachability only. Signed grants,
+`SO_PEERCRED` UID/GID checks, replay protection, source-root ceilings, issuer
+keys, host identity, and revocation remain broker checks. Normal sessions do
+not require `sudo`.
 
-No package asset changes global AppArmor policy or user-namespace sysctls.
+## Trusted process rules
+
+Production broker, server, transport, namespace, mount, and FUSE launchers
+use fixed application paths and Python isolated mode. They remove ambient
+`PYTHON*` influence and do not use `uv run`. Fixed native entrypoints are
+root-owned and non-writable after installation.
+
+The package does not change global AppArmor policy or user-namespace sysctls,
+and does not install setuid or file-capability helpers. It does not create
+usable administrator authority or remote enrollment artifacts by itself.
