@@ -22,12 +22,12 @@ and AppArmor enforcement.
 
 ## Evidence
 
-- source closure: `ae41ed80f8c2b0ddab17a799f592c6991a8ae33c`
-- package SHA-256: `2e5ed2ef9ff3c65991c2321debb4080c5de30bd6f60ade145c144ccda418e2dc`
+- source closure: `0cba915bafde1a8500e1c01ab4a9ad9302e9cea8`
+- package SHA-256: `4707c585f9123b54883e65e8c91862e84475f976e019105534ad874cc91bc01b`
 - threat matrix SHA-256: `ffd5a5a2709139c2f224adbb8dab862a9fbf64e4f123a2839a0fe2e221b1441c`
-- local validation SHA-256: `d89b2db5fa746425a82039cc4451b6acdd970615d227aa716ea9c7d07edf7c1c`
-- Ubuntu 24.04 raw SHA-256: `95d762639cafaf281a442f365275080005bb6220a37b90c74e906c10437e9a93`
-- Ubuntu 26.04 raw SHA-256: `3c53a345c850c0d256e6606ebb4edfaecb15e58d91f724ba2fa6d0c9bd908624`
+- local validation SHA-256: `7f03bd0fc7a5db721bb06617734dc7d457e237038d513e89735de7dbdd2e3aa2`
+- Ubuntu 24.04 raw SHA-256: `29235a7d9694fb9d71691b44c4751a06c21bbdb8e342547f899b07f6a0d361b6`
+- Ubuntu 26.04 raw SHA-256: `00adeaf71f2a7ad99ad5f79dac24a27993554d376d72a830837bfe455838a3e5`
 
 ## Gates
 
