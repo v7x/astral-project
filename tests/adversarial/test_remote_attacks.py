@@ -29,6 +29,7 @@ from astral_project.crypto.grants import (
 from astral_project.crypto.keys import generate_private_key
 from astral_project.homed.overlay import OverlayBackend, OverlayStateError
 from astral_project.homed.private import PrivateStateError, PrivateWritableBackend
+from astral_project.mounts.lifecycle import MountManager
 from astral_project.profile import Profile
 from astral_project.runtime.closure import RuntimeInput, RuntimeManifestV1, verify_runtime_closure
 from astral_project.sandbox.environment import close_unlisted_fds, inherited_fd_inventory
@@ -192,7 +193,17 @@ def test_r13_revoked_grant_is_unusable(tmp_path: Path) -> None:
         issuer_key=public,
     )
     database.revoke_grant(signed.grant.grant_id.value, reason="attack", revoked_at=120)
-    assert database.grant_is_revoked(signed.grant.grant_id.value)
+    manager = MountManager(database, tmp_path / "runtime", clock=lambda: 130)
+    with pytest.raises(AstralError, match="revoked"):
+        manager.open(
+            session_id="session",
+            signed_grant=signed,
+            mount_path=tmp_path / "mount",
+            virtual_target="/project",
+            host="host",
+            identity_file=Path("/dev/null"),
+            port=22,
+        )
 
 
 def test_r14_runtime_bundle_extra_file_is_rejected(tmp_path: Path) -> None:

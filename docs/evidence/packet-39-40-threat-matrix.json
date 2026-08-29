@@ -54,8 +54,8 @@
       {
         "id": "R09",
         "attack": "nested mount surprise",
-        "test": "tests/adversarial/test_remote_attacks.py::test_r09_nested_mount_metadata_is_advisory",
-        "class": "unit"
+        "test": "scripts/nested_mount_installed_acceptance.py",
+        "class": "installed"
       },
       {
         "id": "R10",

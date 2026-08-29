@@ -34,6 +34,17 @@ def main() -> int:
     )
     output = BytesIO()
     error = StringIO()
+    abuse_log = AuditLog(root / "command-abuse.log")
+    command_abuse_output = BytesIO()
+    command_abuse = run_audit_export_entry(
+        "transport",
+        stdin=BytesIO(b"{}"),
+        stdout=command_abuse_output,
+        stderr=StringIO(),
+        environment={"SSH_ORIGINAL_COMMAND": "sh -c id"},
+        trust=trust,
+        audit_log=abuse_log,
+    )
     result = run_audit_export_entry(
         "transport",
         stdin=BytesIO(json.dumps({"version": 1, "path_mode": "redact"}).encode()),
@@ -48,16 +59,29 @@ def main() -> int:
     response = json.loads(output.getvalue())
     exported = response["export"]
     exported_events = [json.loads(line) for line in exported.splitlines()]
+    assert command_abuse == 70
     assert result == 0 and response["ok"] is True
-    assert exported_events[0]["payload"]["path"] == "<redacted>"
+    path_event = next(
+        event for event in exported_events if event["payload"].get("path") == "<redacted>"
+    )
     assert log.chain_errors() == ()
     assert [event.kind for event in failure.read()] == ["probe.started", "hardening.failure"]
     print(
         json.dumps(
             {
                 "chain_errors": list(log.chain_errors()),
+                "command_abuse": {"result": "denied" if command_abuse == 70 else "succeeded"},
                 "export_ok": response["ok"],
-                "exported_path": exported_events[0]["payload"]["path"],
+                "exported_path": path_event["payload"]["path"],
+                "exported_records": [
+                    {
+                        "event_id": event["event_id"],
+                        "kind": event["kind"],
+                        "payload": event["payload"],
+                        "previous_event_id": event["previous_event_id"],
+                    }
+                    for event in exported_events
+                ],
                 "failure_order": [event.kind for event in failure.read()],
                 "retained_remote_events": [event.kind for event in log.read()],
             },
