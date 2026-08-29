@@ -6,6 +6,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -26,7 +27,7 @@ from astral_project.server.entry import (
     run_audit_export_entry,
 )
 
-log = AuditLog(Path(sys.argv[1]))
+log = AuditLog(Path(sys.argv[1]), retention=1)
 failure_log = AuditLog(Path(sys.argv[1]).with_name("failure.log"))
 failure_log.append("probe.started", "process", "probe", {})
 failure_recorder = failure_log.prepare_failure_recorder()
@@ -60,7 +61,7 @@ print(json.dumps({
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Landlock is Linux-only")
-def test_remote_audit_export_survives_real_read_only_landlock_wall(tmp_path: Path) -> None:
+def test_remote_audit_export_survives_real_read_only_landlock_wall() -> None:
     try:
         abi = detect_landlock()
     except OSError as error:
@@ -68,25 +69,31 @@ def test_remote_audit_export_survives_real_read_only_landlock_wall(tmp_path: Pat
     if abi is None or abi < 3:
         pytest.skip(f"Landlock ABI {abi!r} is below the required ABI")
 
-    os.chmod(tmp_path, 0o700)
-    log_path = tmp_path / "remote.log"
-    environment = os.environ.copy()
-    source_root = str(Path(__file__).parents[2] / "src")
-    environment["PYTHONPATH"] = source_root + os.pathsep + environment.get("PYTHONPATH", "")
-    completed = subprocess.run(
-        [sys.executable, "-c", _REMOTE_EXPORT_PROBE, str(log_path)],
-        capture_output=True,
-        check=True,
-        env=environment,
-        text=True,
-        timeout=30,
-    )
+    # /tmp is intentionally writable in the fixed policy; use the projected-home
+    # class of root that the remote server actually hardens read-only.
+    with tempfile.TemporaryDirectory(dir=Path.home(), prefix=".aspr-audit-landlock-") as root_name:
+        root = Path(root_name)
+        root.chmod(0o700)
+        log_path = root / "remote.log"
+        environment = os.environ.copy()
+        source_root = str(Path(__file__).parents[2] / "src")
+        environment["PYTHONPATH"] = source_root + os.pathsep + environment.get("PYTHONPATH", "")
+        completed = subprocess.run(
+            [sys.executable, "-c", _REMOTE_EXPORT_PROBE, str(log_path)],
+            capture_output=True,
+            check=True,
+            env=environment,
+            text=True,
+            timeout=30,
+        )
 
-    probe = json.loads(completed.stdout)
-    assert probe["return_code"] == 0
-    assert probe["response"]["ok"] is True
-    assert "audit.remote.export.started" in probe["response"]["export"]
-    assert probe["stderr"] == ""
-    assert probe["failure_kinds"] == ["probe.started", "hardening.failure"]
-    assert AuditLog(log_path).chain_errors() == ()
-    assert [event.kind for event in AuditLog(log_path).read()] == ["audit.remote.export.started"]
+        probe = json.loads(completed.stdout)
+        assert probe["return_code"] == 0
+        assert probe["response"]["ok"] is True
+        assert "audit.remote.export.started" in probe["response"]["export"]
+        assert probe["stderr"] == ""
+        assert probe["failure_kinds"] == ["probe.started", "hardening.failure"]
+        assert AuditLog(log_path).chain_errors() == ()
+        assert [event.kind for event in AuditLog(log_path).read()] == [
+            "audit.remote.export.completed",
+        ]

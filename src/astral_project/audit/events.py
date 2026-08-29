@@ -543,7 +543,7 @@ class AuditLog:
         self._record_pruning_boundary_unlocked(before, self._read_unlocked())
         self._apply_retention_unlocked()
 
-    def _apply_retention_unlocked(self) -> None:
+    def _retention_rows_unlocked(self) -> list[tuple[AuditEvent, str]]:
         rows: list[tuple[AuditEvent, str]] = []
         for path in self._read_paths():
             try:
@@ -558,6 +558,10 @@ class AuditLog:
                     rows.append((AuditEvent.from_dict(cast(Mapping[str, object], raw)), line))
                 except (AuditEventError, json.JSONDecodeError, TypeError, ValueError):
                     continue
+        return rows
+
+    def _apply_retention_unlocked(self) -> None:
+        rows = self._retention_rows_unlocked()
         if len(rows) <= self.retention:
             return
         retained = rows[-self.retention :]
@@ -569,7 +573,44 @@ class AuditLog:
             self._generation(index).unlink(missing_ok=True)
         self._append_boundary_unlocked(boundary)
 
-    def _read_boundaries_unlocked(self) -> tuple[AuditRetentionBoundary, ...]:
+    def _prepare_failure_storage_unlocked(self) -> None:
+        """Flatten generations before a read-only wall owns the active log."""
+        rows = self._retention_rows_unlocked()
+        if len(rows) > self.retention:
+            self._apply_retention_unlocked()
+            return
+        if any(self._generation(index).exists() for index in range(1, self.retain + 1)):
+            self._atomic_replace(self.path, "".join(line for _, line in rows).encode())
+            for index in range(1, self.retain + 1):
+                self._generation(index).unlink(missing_ok=True)
+
+    def _apply_retention_with_descriptors_unlocked(
+        self, active_descriptor: int, boundary_descriptor: int | None
+    ) -> None:
+        rows = self._retention_rows_unlocked()
+        if len(rows) <= self.retention:
+            return
+        retained = rows[-self.retention :]
+        boundary = AuditRetentionBoundary.create(
+            rows[-self.retention - 1][0].event_id, retained[0][0].event_id
+        )
+        data = "".join(line for _, line in retained).encode()
+        os.lseek(active_descriptor, 0, os.SEEK_SET)
+        view = memoryview(data)
+        while view:
+            written = os.write(active_descriptor, view)
+            if written <= 0:
+                raise OSError("audit retention write made no progress")
+            view = view[written:]
+        os.ftruncate(active_descriptor, len(data))
+        os.fsync(active_descriptor)
+        if boundary_descriptor is None:
+            raise OSError("audit retention boundary descriptor is unavailable")
+        self._append_boundary_unlocked(boundary, descriptor=boundary_descriptor, allow_empty=True)
+
+    def _read_boundaries_unlocked(
+        self, *, allow_empty: bool = False
+    ) -> tuple[AuditRetentionBoundary, ...]:
         if not os.path.lexists(self.boundary_path):
             return ()
         _check_private_file(self.boundary_path)
@@ -580,22 +621,36 @@ class AuditLog:
                 raise AuditEventError("audit retention boundary is invalid")
             result.append(AuditRetentionBoundary.from_dict(cast(Mapping[str, object], raw)))
         if not result:
+            if allow_empty:
+                return ()
             raise AuditEventError("audit retention boundary is invalid")
         return tuple(result)
 
-    def _append_boundary_unlocked(self, boundary: AuditRetentionBoundary) -> None:
-        existing = self._read_boundaries_unlocked()
+    def _append_boundary_unlocked(
+        self,
+        boundary: AuditRetentionBoundary,
+        *,
+        descriptor: int | None = None,
+        allow_empty: bool = False,
+    ) -> None:
+        existing = self._read_boundaries_unlocked(allow_empty=allow_empty)
         if existing and existing[-1] == boundary:
             return
         if existing and existing[-1].first_retained_event_id != boundary.pruned_through_event_id:
             raise AuditEventError("audit retention boundary history is not linear")
-        descriptor = os.open(
-            self.boundary_path,
-            os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW,
-            0o600,
-        )
+        owned_descriptor = descriptor is None
+        if owned_descriptor:
+            descriptor = os.open(
+                self.boundary_path,
+                os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW,
+                0o600,
+            )
+        assert descriptor is not None
         try:
-            os.fchmod(descriptor, 0o600)
+            if owned_descriptor:
+                os.fchmod(descriptor, 0o600)
+            else:
+                os.lseek(descriptor, 0, os.SEEK_END)
             data = (
                 json.dumps(boundary.to_dict(), separators=(",", ":"), sort_keys=True) + "\n"
             ).encode()
@@ -607,7 +662,8 @@ class AuditLog:
                 view = view[written:]
             os.fsync(descriptor)
         finally:
-            os.close(descriptor)
+            if owned_descriptor:
+                os.close(descriptor)
         _check_private_file(self.boundary_path)
 
     def _record_pruning_boundary_unlocked(
@@ -722,19 +778,32 @@ class AuditLog:
 
 
 class AuditFailureRecorder:
-    """Append one safe failure event through descriptors opened pre-hardening."""
+    """Serialize one active-log append through descriptors opened pre-hardening."""
 
     def __init__(self, log: AuditLog) -> None:
         self._log = log
         self._lock_descriptor = -1
         self._append_descriptor = -1
+        self._boundary_descriptor = -1
         try:
             self._lock_descriptor = os.open(log.lock_path, os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC)
-            self._append_descriptor = os.open(
-                log.path, os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW | os.O_CLOEXEC
-            )
+            fcntl.flock(self._lock_descriptor, fcntl.LOCK_EX)
+            log._prepare_failure_storage_unlocked()
+            self._append_descriptor = os.open(log.path, os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC)
+            if (
+                os.path.lexists(log.boundary_path)
+                or len(log._retention_rows_unlocked()) >= log.retention
+            ):
+                self._boundary_descriptor = os.open(
+                    log.boundary_path,
+                    os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC,
+                    0o600,
+                )
+                os.fchmod(self._boundary_descriptor, 0o600)
             _check_private_file(log.lock_path)
             _check_private_file(log.path)
+            if self._boundary_descriptor >= 0:
+                _check_private_file(log.boundary_path)
         except BaseException:
             self.close()
             raise
@@ -750,41 +819,53 @@ class AuditFailureRecorder:
     ) -> AuditEvent:
         if self._lock_descriptor < 0 or self._append_descriptor < 0:
             raise OSError("audit failure recorder is closed")
-        fcntl.flock(self._lock_descriptor, fcntl.LOCK_EX)
-        try:
-            previous = next(iter(reversed(self._log._read_unlocked())), None)
-            event = AuditEvent.create(
-                kind,
-                subject_type,
-                subject_id,
-                payload,
-                previous_event_id=None if previous is None else previous.event_id,
-                occurred_at=occurred_at,
-            )
-            data = (
-                json.dumps(event.to_dict(), separators=(",", ":"), sort_keys=True) + "\n"
-            ).encode()
-            if len(data) > AUDIT_MAX_EVENT_BYTES:
-                raise AuditEventError("audit event exceeds serialized size limit")
-            view = memoryview(data)
-            while view:
-                written = os.write(self._append_descriptor, view)
-                if written <= 0:
-                    raise OSError("audit failure write made no progress")
-                view = view[written:]
-            os.fsync(self._append_descriptor)
-            _check_private_file(self._log.path)
-            return event
-        finally:
-            with suppress(OSError):
-                fcntl.flock(self._lock_descriptor, fcntl.LOCK_UN)
+        previous = next(iter(reversed(self._log._read_unlocked())), None)
+        event = AuditEvent.create(
+            kind,
+            subject_type,
+            subject_id,
+            payload,
+            previous_event_id=None if previous is None else previous.event_id,
+            occurred_at=occurred_at,
+        )
+        data = (json.dumps(event.to_dict(), separators=(",", ":"), sort_keys=True) + "\n").encode()
+        if len(data) > AUDIT_MAX_EVENT_BYTES:
+            raise AuditEventError("audit event exceeds serialized size limit")
+        os.lseek(self._append_descriptor, 0, os.SEEK_END)
+        view = memoryview(data)
+        while view:
+            written = os.write(self._append_descriptor, view)
+            if written <= 0:
+                raise OSError("audit failure write made no progress")
+            view = view[written:]
+        os.fsync(self._append_descriptor)
+        _check_private_file(self._log.path)
+        self._log._apply_retention_with_descriptors_unlocked(
+            self._append_descriptor,
+            None if self._boundary_descriptor < 0 else self._boundary_descriptor,
+        )
+        return event
+
+    def read(self) -> tuple[AuditEvent, ...]:
+        """Read while this recorder's exclusive lock prevents rotation."""
+        if self._lock_descriptor < 0:
+            raise OSError("audit failure recorder is closed")
+        return self._log._read_unlocked()
 
     def close(self) -> None:
-        for descriptor in (self._append_descriptor, self._lock_descriptor):
+        if self._lock_descriptor >= 0:
+            with suppress(OSError):
+                fcntl.flock(self._lock_descriptor, fcntl.LOCK_UN)
+        for descriptor in (
+            self._append_descriptor,
+            self._boundary_descriptor,
+            self._lock_descriptor,
+        ):
             if descriptor >= 0:
                 with suppress(OSError):
                     os.close(descriptor)
         self._append_descriptor = -1
+        self._boundary_descriptor = -1
         self._lock_descriptor = -1
 
     def __enter__(self) -> AuditFailureRecorder:

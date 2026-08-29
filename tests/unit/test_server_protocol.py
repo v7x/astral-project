@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from astral_project.audit import AuditEvent, AuditLog
+from astral_project.audit import AuditEvent, AuditFailureRecorder, AuditLog
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.core.ids import GrantId, HostId, IssuerKeyId, SessionId
 from astral_project.crypto.grants import (
@@ -233,13 +233,49 @@ def test_remote_audit_export_records_failure_without_reserved_recorder(
     assert log.read()[1].kind == "hardening.failure"
 
 
+def test_remote_audit_export_failure_recording_does_not_mask_rejection(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _, trust = signed_request()
+    log = AuditLog(tmp_path / "remote-recording-failure.log")
+    failure = HardeningError(
+        code=ErrorCode.HARDENING_APPLY,
+        message="hardening failed",
+        security_result="rejected",
+        unsafe_reason="mandatory",
+        next_action="repair",
+    )
+    monkeypatch.setattr(
+        "astral_project.server.entry.enforce", lambda _policy: (_ for _ in ()).throw(failure)
+    )
+    monkeypatch.setattr(
+        AuditFailureRecorder,
+        "append",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("recorder unavailable")),
+    )
+    stdout = BytesIO()
+    assert (
+        run_audit_export_entry(
+            "transport-1",
+            stdin=BytesIO(b'{"version":1,"path_mode":"redact"}'),
+            stdout=stdout,
+            stderr=StringIO(),
+            environment={"SSH_ORIGINAL_COMMAND": SSH_ORIGINAL_AUDIT_COMMAND},
+            trust=trust,
+            audit_log=log,
+        )
+        == 70
+    )
+    assert json.loads(stdout.getvalue())["ok"] is False
+
+
 def test_remote_audit_export_response_limits(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _, trust = signed_request()
     log = AuditLog(tmp_path / "remote-large.log")
     huge = AuditEvent("huge", 1, "kind", "subject", "id", {"result": "x" * (1024 * 1024 + 1)})
-    monkeypatch.setattr(log, "read", lambda: (huge,))
+    monkeypatch.setattr(AuditFailureRecorder, "read", lambda _self: (huge,))
     stdout = BytesIO()
     assert (
         run_audit_export_entry(
@@ -255,7 +291,9 @@ def test_remote_audit_export_response_limits(
     )
     with pytest.raises(OSError, match="too large"):
         _write_audit_response(BytesIO(), {"export": "x" * (1024 * 1024 + 1)})
-    monkeypatch.setattr(log, "read", lambda: (_ for _ in ()).throw(ValueError("bad")))
+    monkeypatch.setattr(
+        AuditFailureRecorder, "read", lambda _self: (_ for _ in ()).throw(ValueError("bad"))
+    )
     stdout = BytesIO()
     assert (
         run_audit_export_entry(

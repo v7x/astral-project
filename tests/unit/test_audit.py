@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import json
 import multiprocessing
+import os
 import sqlite3
 import stat
+import threading
+import time
 from pathlib import Path
 from typing import Protocol
 
@@ -326,6 +329,95 @@ def test_audit_log_concurrent_append_with_retention_is_bounded(tmp_path: Path) -
     assert log.chain_errors() == ()
 
 
+def test_failure_recorder_applies_count_retention(tmp_path: Path) -> None:
+    log = AuditLog(tmp_path / "failure.log", retention=1)
+    first = log.append("one", "process", "probe", {})
+    with log.prepare_failure_recorder() as recorder:
+        failure = recorder.append("failure", "process", "probe", {})
+    events = log.read()
+    assert [event.kind for event in events] == ["failure"]
+    assert events[0].previous_event_id == first.event_id
+    assert failure.event_id == events[0].event_id
+    assert log.chain_errors() == ()
+    assert log.boundary_path.stat().st_mode & 0o777 == 0o600
+
+
+def test_failure_recorder_serializes_rotation_and_preserves_chain(tmp_path: Path) -> None:
+    log = AuditLog(tmp_path / "failure.log", max_bytes=1, retain=2)
+    log.append("initial", "process", "probe", {})
+    recorder = log.prepare_failure_recorder()
+    rotation_finished = threading.Event()
+
+    def rotate() -> None:
+        log.rotate()
+        rotation_finished.set()
+
+    thread = threading.Thread(target=rotate)
+    thread.start()
+    time.sleep(0.05)
+    assert not rotation_finished.is_set()
+    recorder.append("failure", "process", "probe", {})
+    recorder.close()
+    thread.join(timeout=1)
+    assert rotation_finished.is_set()
+    log.append("normal", "process", "probe", {})
+    assert log.chain_errors() == ()
+
+
+def test_failure_recorder_prepares_rotated_storage_before_hardening(tmp_path: Path) -> None:
+    log = AuditLog(tmp_path / "pruned.log", max_bytes=1, retain=2, retention=100)
+    for kind in ("one", "two", "three"):
+        log.append(kind, "process", "probe", {})
+    assert log._generation(1).exists()
+    log.retention = 1
+    with log.prepare_failure_recorder() as recorder:
+        assert not log._generation(1).exists()
+        recorder.append("failure", "process", "probe", {})
+    assert len(log.read()) == 1
+    assert log.chain_errors() == ()
+
+    flattened = AuditLog(tmp_path / "flattened.log", max_bytes=1, retain=2, retention=100)
+    flattened.append("one", "process", "probe", {})
+    flattened.append("two", "process", "probe", {})
+    assert flattened._generation(1).exists()
+    with flattened.prepare_failure_recorder() as recorder:
+        assert not flattened._generation(1).exists()
+        recorder.read()
+
+
+def test_failure_recorder_retention_write_failures_are_bounded(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    log = AuditLog(tmp_path / "stalled.log", retention=1)
+    log.append("one", "process", "probe", {})
+    recorder = log.prepare_failure_recorder()
+    writes = 0
+    real_write = os.write
+
+    def stalled(descriptor: int, data: memoryview) -> int:
+        nonlocal writes
+        writes += 1
+        return real_write(descriptor, data) if writes == 1 else 0
+
+    monkeypatch.setattr("astral_project.audit.events.os.write", stalled)
+    with pytest.raises(OSError, match="retention write"):
+        recorder.append("failure", "process", "probe", {})
+    recorder.close()
+
+
+def test_failure_recorder_rejects_missing_boundary_descriptor(tmp_path: Path) -> None:
+    log = AuditLog(tmp_path / "missing-boundary.log", retention=1)
+    log.append("one", "process", "probe", {})
+    recorder = log.prepare_failure_recorder()
+    descriptor = recorder._boundary_descriptor
+    assert descriptor >= 0
+    os.close(descriptor)
+    recorder._boundary_descriptor = -1
+    with pytest.raises(OSError, match="boundary descriptor"):
+        recorder.append("failure", "process", "probe", {})
+    recorder.close()
+
+
 def test_failure_recorder_appends_after_read_only_wall(tmp_path: Path) -> None:
     log = AuditLog(tmp_path / "failure.log")
     first = log.append("probe.started", "process", "probe", {})
@@ -345,6 +437,8 @@ def test_failure_recorder_rejects_closed_oversized_and_stalled_writes(
     recorder = log.prepare_failure_recorder()
     recorder.close()
     recorder.close()
+    with pytest.raises(OSError, match="closed"):
+        recorder.read()
     with pytest.raises(OSError, match="closed"):
         recorder.append("hardening.failure", "process", "remote-audit", {"error_code": "probe"})
 

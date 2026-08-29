@@ -14,7 +14,12 @@ from typing import BinaryIO, TextIO
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
-from astral_project.audit.events import AuditFailureRecorder, AuditLog, PathMode
+from astral_project.audit.events import (
+    AuditEventError,
+    AuditFailureRecorder,
+    AuditLog,
+    PathMode,
+)
 from astral_project.core.config import load_toml_config
 from astral_project.core.errors import AstralError, ErrorCode
 from astral_project.core.ids import HostId, IssuerKeyId
@@ -180,7 +185,7 @@ def run_audit_export_entry(
         # The post-hardening policy is intentionally read-only for the audit directory.
         failure_recorder = log.prepare_failure_recorder()
         enforce(HardeningPolicy.for_plan(((log.path.parent, False),)))
-        events = log.read()[-MAX_AUDIT_EXPORT_RECORDS:]
+        events = failure_recorder.read()[-MAX_AUDIT_EXPORT_RECORDS:]
         exported = "".join(
             json.dumps(event.to_dict(path_mode=path_mode), separators=(",", ":"), sort_keys=True)
             + "\n"
@@ -189,16 +194,26 @@ def run_audit_export_entry(
         if len(exported.encode()) > MAX_AUDIT_EXPORT_RESPONSE:
             raise _command_error("remote audit export exceeds response limit")
         _write_audit_response(stdout, {"version": 1, "ok": True, "export": exported})
+        failure_recorder.append("audit.remote.export.completed", "process", "remote-audit", {})
         return 0
     except (AstralError, OSError, TypeError, ValueError, json.JSONDecodeError) as error:
         if isinstance(error, HardeningError):
+            failure_kind = "hardening.failure"
             failure_payload = {"error_code": error.code.string}
+        else:
+            failure_kind = "audit.remote.export.failure"
+            failure_payload = {
+                "error_code": error.code.string
+                if isinstance(error, AstralError)
+                else "export-failure"
+            }
+        try:
             if failure_recorder is None:
-                log.append("hardening.failure", "process", "remote-audit", failure_payload)
+                log.append(failure_kind, "process", "remote-audit", failure_payload)
             else:
-                failure_recorder.append(
-                    "hardening.failure", "process", "remote-audit", failure_payload
-                )
+                failure_recorder.append(failure_kind, "process", "remote-audit", failure_payload)
+        except (AuditEventError, OSError, TypeError, ValueError):
+            pass
         if isinstance(error, AstralError):
             code = error.code.string
             message = error.message
