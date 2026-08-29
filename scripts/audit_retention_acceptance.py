@@ -7,15 +7,19 @@ import hashlib
 import json
 import stat
 import tempfile
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from astral_project.audit import AuditEvent, AuditEventError, AuditLog, PathMode
 
 
-def _attempt(name: str, operation: object) -> dict[str, object]:
-    del operation
-    return {"attack": name, "result": "denied"}
+def _attempt(name: str, operation: Callable[[], object]) -> dict[str, object]:
+    try:
+        operation()
+    except AuditEventError:
+        return {"attack": name, "result": "denied"}
+    return {"attack": name, "result": "succeeded"}
 
 
 def main() -> int:
@@ -30,19 +34,17 @@ def main() -> int:
         expected_hash = (
             "sha256:" + hashlib.sha256(b"astral-project-audit-path\0/secret").hexdigest()
         )
-        protocol_attempt = _attempt("secret-bearing-payload", AuditEventError("expected rejection"))
+        protocol_attempt = _attempt(
+            "secret-bearing-payload",
+            lambda: log.append("attack", "test", "attack", {"password": "hidden"}),
+        )
         try:
             AuditEvent.from_dict({"event_id": "malformed"})
         except AuditEventError:
             malformed_denied = True
         else:
             malformed_denied = False
-        try:
-            log.append("attack", "test", "attack", {"password": "hidden"})
-        except AuditEventError:
-            protocol_denied = True
-        else:
-            protocol_denied = False
+        protocol_denied = protocol_attempt["result"] == "denied"
         for number in range(2, 6):
             log.append("retention.probe", "test", str(number), {}, occurred_at=number)
         retained = log.read()
@@ -66,14 +68,17 @@ def main() -> int:
             "bounded": len(concurrent.read()) == 4,
             "chain_errors": list(concurrent.chain_errors()),
         }
+        rotation_path = root / "rotation.jsonl"
+        rotation_log = AuditLog(rotation_path, max_bytes=1024, retain=2, retention=100)
+        rotation_log.append("rotation.probe", "test", "rotation", {}, occurred_at=1)
+        rotation_log.rotate()
+        rotated_generation = rotation_path.with_name(f"{rotation_path.name}.1")
         rotation_result = {
-            "generation_count": sum(
-                int(log.path.with_name(f"{log.path.name}.{index}").exists())
-                for index in range(1, 3)
-            ),
-            "lock_mode": stat.S_IMODE(log.lock_path.stat().st_mode),
+            "generation_count": int(rotated_generation.exists()),
+            "rotated_generation_mode": stat.S_IMODE(rotated_generation.stat().st_mode),
+            "lock_mode": stat.S_IMODE(rotation_log.lock_path.stat().st_mode),
             "boundary_mode": stat.S_IMODE(log.boundary_path.stat().st_mode),
-            "rotation_observed": len(boundary_before_tamper.splitlines()) > 0,
+            "rotation_observed": rotated_generation.exists(),
         }
         result = {
             "protocol_abuse": protocol_attempt,
@@ -102,6 +107,8 @@ def main() -> int:
         and tamper_denied
         and result["retention"] == {"retained": 2, "subjects": ["4", "5"]}
         and concurrent_result == {"retained": 4, "bounded": True, "chain_errors": []}
+        and rotation_result["generation_count"] == 1
+        and rotation_result["rotated_generation_mode"] == 0o600
         and rotation_result["lock_mode"] == 0o600
         and rotation_result["boundary_mode"] == 0o600
         and rotation_result["rotation_observed"] is True
