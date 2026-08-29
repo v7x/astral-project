@@ -1,5 +1,5 @@
 $ source closure
-0cba915bafde1a8500e1c01ab4a9ad9302e9cea8
+4cb50d147d5cdb6112c4a0fd0b2ed7fcbc6a386c
 $ source paths unchanged since closure
 PASS
 $ git diff --check
@@ -9,11 +9,11 @@ $ uv run mypy src tests
 Success: no issues found in 187 source files
 $ uv run pytest -q tests/adversarial
 ............................................................             [100%]
-60 passed in 0.26s
+60 passed in 0.25s
 $ ./scripts/test
-Resolved 25 packages in 0.87ms
-Checked 17 packages in 0.24ms
-218 files already formatted
+Resolved 25 packages in 0.76ms
+Checked 17 packages in 0.23ms
+219 files already formatted
 All checks passed!
 Success: no issues found in 187 source files
 PASS parser fuzz cases=5
@@ -123,23 +123,23 @@ tests/unit/test_approval_terminal.py::test_parent_pty_relay_external_approval_an
 tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
 tests/unit/test_approval_terminal.py::test_terminal_controller_forwards_sigcont_after_child_suspend
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1064062) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1066453) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
     pid, fd = os.forkpty()
 
 tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
-  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=1064062) is multi-threaded, use of fork() may lead to deadlocks in the child.
+  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=1066453) is multi-threaded, use of fork() may lead to deadlocks in the child.
     pid = os.fork()
 
 tests/unit/test_approval_terminal.py::test_controller_does_not_publish_socket_to_child
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1064162) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1066541) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
     pid, fd = os.forkpty()
 
 tests/unit/test_broker_main.py::test_module_entrypoint_calls_main
   <frozen runpy>:128: RuntimeWarning: 'astral_project.broker.main' found in sys.modules after import of package 'astral_project.broker', but prior to execution of 'astral_project.broker.main'; this may result in unpredictable behaviour
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 931 passed, 2 skipped, 9 warnings in 17.01s ==================
+================= 931 passed, 2 skipped, 9 warnings in 16.90s ==================
 ..                    [ 10%]
 tests/unit/test_audit.py .......................................         [ 15%]
 tests/unit/test_broker_authority.py .....                                [ 15%]
@@ -230,19 +230,19 @@ tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transi
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
 tests/unit/test_approval_terminal.py::test_terminal_controller_forwards_sigcont_after_child_suspend
 tests/unit/test_approval_terminal.py::test_controller_does_not_publish_socket_to_child
-  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1064062) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
+  /usr/lib/python3.12/pty.py:95: DeprecationWarning: This process (pid=1066453) is multi-threaded, use of forkpty() may lead to deadlocks in the child.
     pid, fd = os.forkpty()
 
 tests/unit/test_approval_terminal.py::test_terminal_escape_enters_trusted_transition_and_child_cannot_approve
 tests/unit/test_approval_terminal.py::test_terminal_buffer_cap_discards_excess_output
-  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=1064062) is multi-threaded, use of fork() may lead to deadlocks in the child.
+  /home/andrew/code/astral-project/src/astral_project/approval/terminal.py:79: DeprecationWarning: This process (pid=1066453) is multi-threaded, use of fork() may lead to deadlocks in the child.
     pid = os.fork()
 
 tests/unit/test_broker_main.py::test_module_entrypoint_calls_main
   <frozen runpy>:128: RuntimeWarning: 'astral_project.broker.main' found in sys.modules after import of package 'astral_project.broker', but prior to execution of 'astral_project.broker.main'; this may result in unpredictable behaviour
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-================= 931 passed, 2 skipped, 9 warnings in 29.11s ==================
+================= 931 passed, 2 skipped, 9 warnings in 29.18s ==================
 Name    Stmts   Miss Branch BrPart  Cover   Missing
 ---------------------------------------------------
 TOTAL   11715      0   3496      0   100%
@@ -256,5 +256,5 @@ $ apparmor_parser -Q -K packaging/apparmor/usr.libexec.astral-project.aspr-bwrap
 $ native strict builds
 PASS
 $ package and matrix hashes
-4707c585f9123b54883e65e8c91862e84475f976e019105534ad874cc91bc01b  /tmp/packet39-40-build-final11-1788011884/astral-project_0.1.0_amd64.deb
-ffd5a5a2709139c2f224adbb8dab862a9fbf64e4f123a2839a0fe2e221b1441c  docs/evidence/packet-39-40-threat-matrix.json
+80898ff6d9ef12e3b31a8cd34024b69e56e2bac5413b8ab6daf1a6890fe39c6c  /tmp/packet39-40-build-final12-1788012220/astral-project_0.1.0_amd64.deb
+8521de9aac2b01a31e34d2e79f5825c0299e67ad1cf713bff1403e322d1c30e1  docs/evidence/packet-39-40-threat-matrix.json

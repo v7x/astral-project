@@ -1,7 +1,7 @@
 Packet 39-40 current-package installed raw transcript — Ubuntu 26.04
 
-$ sha256sum /tmp/astral-project-39-40-final11.deb
-4707c585f9123b54883e65e8c91862e84475f976e019105534ad874cc91bc01b  /tmp/astral-project-39-40-final11.deb
+$ sha256sum /tmp/astral-project-39-40-final12.deb
+80898ff6d9ef12e3b31a8cd34024b69e56e2bac5413b8ab6daf1a6890fe39c6c  /tmp/astral-project-39-40-final12.deb
 $ sudo dpkg-query -W -f='${Status} ${Version}\n' astral-project
 install ok installed 0.1.0
 $ sudo apparmor_parser --replace /etc/apparmor.d/usr.libexec.astral-project.aspr-bwrap-launch
@@ -19,8 +19,10 @@ $ sudo env SUDO_USER=aspr-admin PYTHONPATH=/usr/lib/astral-project/python HOME=/
 {"boundary_records_before_tamper": 4, "concurrency": {"bounded": true, "chain_errors": [], "retained": 4}, "hashing": true, "malformed_record_rejected": true, "protocol_abuse": {"attack": "secret-bearing-payload", "result": "denied"}, "protocol_secret_rejected": true, "provenance": true, "redaction": true, "retention": {"retained": 2, "subjects": ["4", "5"]}, "rotation": {"boundary_mode": 384, "generation_count": 1, "lock_mode": 384, "rotated_generation_mode": 384, "rotation_observed": true}, "tamper": {"result": "denied"}}
 === remote.nested-mount-pinning ===
 {"descriptor_content_after_unmount": "pinned", "descriptor_content_before_unmount": "pinned", "descriptor_remained_pinned": true, "nested_mount_observed": true, "nested_mount_unmounted": true}
+=== remote.revoked-mount-operation ===
+{"error_code": "ASPR_DAEMON_AUTH", "grant_revoked": true, "operation": "MountManager.open", "result": "denied"}
 === remote.audit-export ===
-{"chain_errors": [], "command_abuse": {"result": "denied"}, "export_ok": true, "exported_path": "<redacted>", "exported_records": [{"event_id": "f4e17a4f-1870-46be-8093-628a92a05961", "kind": "probe.started", "payload": {"path": "<redacted>"}, "previous_event_id": null}, {"event_id": "b2c973ce-fa8f-421e-baa4-bd6ea38d664a", "kind": "audit.remote.export.started", "payload": {"path_mode": "redact"}, "previous_event_id": "f4e17a4f-1870-46be-8093-628a92a05961"}], "failure_order": ["probe.started", "hardening.failure"], "retained_remote_events": ["audit.remote.export.started", "audit.remote.export.completed"]}
+{"chain_errors": [], "command_abuse": {"result": "denied"}, "export_ok": true, "exported_path": "<redacted>", "exported_records": [{"event_id": "be05c64f-97f8-40c4-8caf-c8bec9f38cea", "kind": "probe.started", "payload": {"path": "<redacted>"}, "previous_event_id": null}, {"event_id": "0fa6da98-220f-4016-a0dd-a7987209c399", "kind": "audit.remote.export.started", "payload": {"path_mode": "redact"}, "previous_event_id": "be05c64f-97f8-40c4-8caf-c8bec9f38cea"}], "failure_order": ["probe.started", "hardening.failure"], "retained_remote_events": ["audit.remote.export.started", "audit.remote.export.completed"]}
 === remote.hardening-failure ===
 {"error_code": "ASPR_HARDENING_UNAVAILABLE", "event_order": ["hardening.failure"], "workload_started": false}
 === local.sandbox-boundary ===
