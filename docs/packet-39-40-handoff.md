@@ -5,8 +5,8 @@
 Packets 39 and 40 are complete. Detached audit approval remains required.
 Packet 41 is out of scope and untouched.
 
-Source closure is `4e9d30d7487b46aca06678dd9d6b331e523c82ad`; final package is
-`df138f9a75294d0bf54c473bcb50da583ef3147901e107a5e866018f781b6ca8`.
+Source closure is `44319bed74c693fd1f41bfe7612108d34857452a`; final package is
+`fc4ad72fe95f4660f1d458aa20c053f9b31e9bb8c919b69736639dbe32bfd10e`.
 Evidence-only documentation commits must preserve this source closure.
 
 ## Contract

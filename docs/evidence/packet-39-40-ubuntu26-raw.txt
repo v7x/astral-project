@@ -26,3 +26,15 @@ $ sudo env PYTHONPATH=/usr/lib/astral-project/python HOME=/root python3 /tmp/asp
 PASS installed root real-kernel remote audit export, retention, and preopened failure recording ubuntu26
 $ PYTHONPATH=/usr/lib/astral-project/python python3 /tmp/aspr-hardening-failure-probe7.py
 PASS installed production run_plan records failure before workload ubuntu26
+
+--- final projected-home FUSE and capability transition acceptance ---
+$ sha256sum /tmp/astral-project-39-40-final5.deb
+fc4ad72fe95f4660f1d458aa20c053f9b31e9bb8c919b69736639dbe32bfd10e  /tmp/astral-project-39-40-final5.deb
+$ sudo -E SUDO_USER=aspr-admin python3 sandbox_adversarial_installed_acceptance.py
+sudo: preserving the entire environment is not supported, '-E' is ignored
+{"all_capability_sets_zero": "passed", "all_network_socket_tables_empty": "passed", "all_non_loopback_interfaces_absent": "passed", "credentials_and_sockets_absent": "passed", "dns_absent": "passed", "entrypoint": "/usr/libexec/astral-project/aspr-sandbox-entry", "host_proc_and_same_uid_targets_absent": "passed", "launcher": "/usr/libexec/astral-project/aspr-bwrap-launch", "native_negative_controls": "passed", "network_inherit": "passed", "network_none": "passed", "runtime": "/run/user/1002", "ssh_agent_and_docker_socket_absent": "passed"}
+PASS installed Packet 40 adversarial sandbox acceptance with empty CapBnd transition 000001ffffffffff->0
+$ sudo env PYTHONPATH=/usr/lib/astral-project/python HOME=/root python3 /tmp/aspr-audit-landlock-probe8-26.py
+PASS installed root real-kernel remote audit export, retention, and preopened failure recording ubuntu26
+$ PYTHONPATH=/usr/lib/astral-project/python python3 /tmp/aspr-hardening-failure-probe7.py
+PASS installed production run_plan records failure before workload ubuntu26

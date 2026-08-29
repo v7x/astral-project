@@ -18,12 +18,12 @@ capability-set zeroing, native negative controls, and AppArmor enforcement.
 
 ## Evidence
 
-- source closure: `4e9d30d7487b46aca06678dd9d6b331e523c82ad`
-- package SHA-256: `df138f9a75294d0bf54c473bcb50da583ef3147901e107a5e866018f781b6ca8`
+- source closure: `44319bed74c693fd1f41bfe7612108d34857452a`
+- package SHA-256: `fc4ad72fe95f4660f1d458aa20c053f9b31e9bb8c919b69736639dbe32bfd10e`
 - threat matrix SHA-256: `ea8b23b02c8fbac5b05531f3b17234abbd1a8cef48bb6d32321ee00ee7e5209b`
-- local validation SHA-256: `a5cecf682605f72218baad2d33eca977127a5c3089498bfe86392457d428d861`
-- Ubuntu 24.04 raw SHA-256: `eda4bf3df62a76a61f5b844fc87010401ce438a878167f8728f289b11fbf0706`
-- Ubuntu 26.04 raw SHA-256: `2ff501ae80e5dea7e3066f0571af218861b06f81238ab3480cb2cb61d518851c`
+- local validation SHA-256: `a170934d286adc70170b67c87be1adc6613f6afdcab2589a30ddb988828e98e5`
+- Ubuntu 24.04 raw SHA-256: `4c5439460626bdf87fc003f37055071830367299ae7adaa75650c2ba9e965cde`
+- Ubuntu 26.04 raw SHA-256: `94dc5d15328e6751c482dd4122ec53902588e77ace4a5bb0245946c8ece1e859`
 
 ## Gates
 
