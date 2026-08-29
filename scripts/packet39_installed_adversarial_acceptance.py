@@ -15,6 +15,7 @@ _PROBES = (
     ("landlock.device-runtime", ("landlock_acceptance.py", "--role", "device-runtime")),
     ("audit.protocol-retention-rotation", ("audit_retention_acceptance.py",)),
     ("remote.nested-mount-pinning", ("nested_mount_installed_acceptance.py",)),
+    ("remote.revoked-mount-operation", ("revoked_mount_installed_acceptance.py",)),
     ("remote.audit-export", ("remote_audit_installed_acceptance.py",)),
     ("remote.hardening-failure", ("remote_hardening_failure_installed_acceptance.py",)),
     ("local.sandbox-boundary", ("sandbox_adversarial_installed_acceptance.py",)),

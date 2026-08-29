@@ -78,8 +78,8 @@
       {
         "id": "R13",
         "attack": "revoked grant",
-        "test": "tests/adversarial/test_remote_attacks.py::test_r13_revoked_grant_is_unusable",
-        "class": "unit"
+        "test": "scripts/revoked_mount_installed_acceptance.py",
+        "class": "installed"
       },
       {
         "id": "R14",
