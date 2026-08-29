@@ -5,8 +5,8 @@
 Packets 39 and 40 are complete. Detached audit approval remains required.
 Packet 41 is out of scope and untouched.
 
-Source closure is `3f7d7f09132f684e549773d9420041a33011642e`; final package is
-`79687cf39c25972273fb10c2c2b5a48b8f5f30bd35e418c03bdecdf21935d491`.
+Source closure is `ae41ed80f8c2b0ddab17a799f592c6991a8ae33c`; final package is
+`2e5ed2ef9ff3c65991c2321debb4080c5de30bd6f60ade145c144ccda418e2dc`.
 Evidence-only documentation commits must preserve this source closure.
 
 ## Contract
@@ -26,8 +26,9 @@ namespace or capability relaxation, or Packet 24 session API expansion.
 - strict native builds, AppArmor parser validation, and parser fuzz;
 - installed Packet 40 positive/negative acceptance with projected-home FUSE
   and empty inherited CapBnd on Ubuntu 24.04 and 26.04;
-- installed real-kernel Landlock, AppArmor/native, capability, network,
-  hidden-home, socket, FD, remote-audit, retention, and failure-order probes;
+- installed real-kernel Landlock role/operation, nested-mount, AppArmor/native,
+  capability, network, hidden-home, socket, FD, remote-audit, retention,
+  tamper/concurrency, revoked-operation, and failure-order probes;
 - exact source, package, matrix, and raw transcript hashes;
 - `git diff --check` and pushed refs equal.
 

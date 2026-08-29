@@ -12,18 +12,22 @@ presented as a proven race pass.
 Local adversarial gates cover path pinning, grant context, replay/revocation,
 runtime closure, FD and resource isolation, mediation bounds, approval and
 terminal control, session relay, rclone transport, FUSE/overlay recovery, and
-native hardening. Installed Packet 40 acceptance additionally proves hidden
-home and host-process targets, socket and credential absence, network isolation,
-capability-set zeroing, native negative controls, and AppArmor enforcement.
+native hardening. The checked-in Packet 39 driver additionally executes every
+fixed Landlock role, allowed/denied filesystem operation, audit protocol,
+retention/rotation/tamper/concurrency, real nested-mount pinning, and revoked
+mount operation against the installed package. Installed Packet 40 acceptance
+additionally proves hidden home and host-process targets, socket and credential
+absence, network isolation, capability-set zeroing, native negative controls,
+and AppArmor enforcement.
 
 ## Evidence
 
-- source closure: `3f7d7f09132f684e549773d9420041a33011642e`
-- package SHA-256: `79687cf39c25972273fb10c2c2b5a48b8f5f30bd35e418c03bdecdf21935d491`
-- threat matrix SHA-256: `e0b2ef90052b857a3caf84a697ca343ddf9a7678d229d42659274825094eef7e`
-- local validation SHA-256: `d7ee428707e3b3c8c80fa9559fe0a0f93eeead124a56c5c2e5e869a30bda4c84`
-- Ubuntu 24.04 raw SHA-256: `45751016ebc9505c8cacb2cee4d7a65c1b15e21b2b60cfcb8c8fd06c236e2717`
-- Ubuntu 26.04 raw SHA-256: `11bdbb1082f9d91d1feedf1c9eb2096edfb549621a312ac1d9daeded4844a4d2`
+- source closure: `ae41ed80f8c2b0ddab17a799f592c6991a8ae33c`
+- package SHA-256: `2e5ed2ef9ff3c65991c2321debb4080c5de30bd6f60ade145c144ccda418e2dc`
+- threat matrix SHA-256: `ffd5a5a2709139c2f224adbb8dab862a9fbf64e4f123a2839a0fe2e221b1441c`
+- local validation SHA-256: `d89b2db5fa746425a82039cc4451b6acdd970615d227aa716ea9c7d07edf7c1c`
+- Ubuntu 24.04 raw SHA-256: `95d762639cafaf281a442f365275080005bb6220a37b90c74e906c10437e9a93`
+- Ubuntu 26.04 raw SHA-256: `3c53a345c850c0d256e6606ebb4edfaecb15e58d91f724ba2fa6d0c9bd908624`
 
 ## Gates
 
@@ -32,8 +36,11 @@ capability-set zeroing, native negative controls, and AppArmor enforcement.
 - Ruff and strict mypy: pass.
 - Strict native builds, AppArmor parser, and parser fuzz: pass.
 - Installed adversarial sandbox acceptance with projected-home FUSE and empty inherited CapBnd: pass on Ubuntu 24.04 and 26.04.
-- Checked-in installed remote audit export, retention, pre-opened failure
-  recording, and production `run_plan` failure evidence: pass on both releases.
+- Checked-in installed Packet 39 driver: all four Landlock roles and their
+  allowed/denied operation matrices, audit protocol abuse, hashing/redaction,
+  provenance, retention/rotation/tamper/concurrency, nested mount pinning,
+  revoked operation rejection, remote export, and failure ordering pass on both
+  releases.
 - `git diff --check`: pass; pushed HEAD equals `origin/master`.
 
 Raw commands and outputs live in:
