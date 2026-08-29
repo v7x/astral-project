@@ -25,7 +25,25 @@ LANDLOCK_MINIMUM_ABI = 3
 _PR_SET_NO_NEW_PRIVS = 38
 _PR_CAPBSET_READ = 23
 _PR_CAPBSET_DROP = 24
+_PR_CAP_AMBIENT = 47
+_PR_CAP_AMBIENT_CLEAR_ALL = 4
+_SYS_CAPSET = 126
 _MAX_CAPABILITY = 63
+_LINUX_CAPABILITY_VERSION_3 = 0x20080522
+
+
+class _CapabilityHeader(ctypes.Structure):
+    _fields_ = [("version", ctypes.c_uint32), ("pid", ctypes.c_int)]
+
+
+class _CapabilityData(ctypes.Structure):
+    _fields_ = [
+        ("effective", ctypes.c_uint32),
+        ("permitted", ctypes.c_uint32),
+        ("inheritable", ctypes.c_uint32),
+    ]
+
+
 LANDLOCK_ACCESS_FS_EXECUTE = 1 << 0
 LANDLOCK_ACCESS_FS_WRITE_FILE = 1 << 1
 LANDLOCK_ACCESS_FS_READ_FILE = 1 << 2
@@ -337,6 +355,20 @@ def _drop_capability_bounding_set() -> None:
         error = ctypes.get_errno()
         if error != errno.EPERM or _capability_bounding_state(call, capability) != 0:
             raise OSError(error, os.strerror(error))
+
+
+def clear_process_capabilities() -> None:
+    """Clear ambient, permitted, effective, and inheritable capabilities."""
+    call = _libc_syscall()
+    if call(157, _PR_CAP_AMBIENT, _PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0) != 0:
+        error = ctypes.get_errno()
+        if error != errno.EINVAL:
+            raise OSError(error, os.strerror(error))
+    header = _CapabilityHeader(_LINUX_CAPABILITY_VERSION_3, 0)
+    data = (_CapabilityData * 2)()
+    if call(_SYS_CAPSET, ctypes.byref(header), ctypes.byref(data)) != 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error))
 
 
 def _restrict_paths(roots: Sequence[tuple[Path, RootRole | bool]]) -> None:

@@ -23,7 +23,7 @@ from astral_project.homed.mediation import RemoteUnknownPathMediator, UnknownPat
 from astral_project.homed.overlay import OverlayBackend
 from astral_project.homed.private import PrivateWritableBackend
 from astral_project.profile import Profile
-from astral_project.sandbox.hardening import HardeningPolicy, enforce
+from astral_project.sandbox.hardening import HardeningPolicy, clear_process_capabilities, enforce
 
 try:
     import pyfuse3 as _pyfuse3  # type: ignore[import-not-found]
@@ -548,6 +548,7 @@ def _mount_operations(  # pragma: no cover - exercised by installed FUSE accepta
         _pyfuse3.init(operations, os.fspath(path), options)
         initialized = True
         enforce(policy)
+        clear_process_capabilities()
         trio.run(_pyfuse3.main)
     finally:
         operations.state.close()

@@ -21,6 +21,7 @@ from astral_project.homed.lifecycle import ProjectedHomeProcess
 from astral_project.homed.mediation import PendingRequest, UnknownPathMediator
 from astral_project.profile import Operation, Profile, ProfileError
 from astral_project.sandbox.environment import EnvironmentPolicy
+from astral_project.sandbox.hardening import clear_process_capabilities
 from astral_project.sandbox.plan import LocalSandboxPlan, NetworkMode, RemoteBinding
 from astral_project.sandbox.resources import ResourcePolicy
 from astral_project.sandbox.runner import hardening_policy, run_plan
@@ -297,6 +298,15 @@ def run_sandbox(
                 private_root=parsed.private_root,
                 overlay_root=parsed.overlay_root,
             )
+            if projected is not None:
+                try:
+                    clear_process_capabilities()
+                except OSError as error:
+                    projected.close()
+                    raise _error(
+                        f"projected-home capability cleanup failed: {error}",
+                        ErrorCode.HARDENING_APPLY,
+                    ) from error
             host_rx_manifest, host_rx_directory = _write_host_rx_manifest(runtime, host_rx_target)
             plan = LocalSandboxPlan(
                 parsed.command,

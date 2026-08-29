@@ -67,6 +67,11 @@ def _reload_profile(profile: Path) -> None:
     run(["apparmor_parser", "--replace", str(profile)], sudo=True)
 
 
+def _maybe_reload_profile(profile: Path) -> None:
+    if os.environ.get("ASPR_SKIP_PROFILE_RELOAD") != "1":
+        _reload_profile(profile)
+
+
 def _audit_lines_after(baseline: int) -> list[str]:
     text = _capture_root(["journalctl", "-k", "--no-pager", "-o", "cat"])
     return [
@@ -87,8 +92,14 @@ def main() -> int:
     if runtime_root.is_symlink():
         raise SystemExit("normal runtime directory must not be a symlink")
     runtime_root.mkdir(parents=True, exist_ok=True)
-    os.chown(runtime_root, acceptance_uid, pwd.getpwnam(acceptance_user).pw_gid)
-    runtime_root.chmod(0o700)
+    runtime_details = runtime_root.stat()
+    if (
+        runtime_details.st_uid != acceptance_uid
+        or runtime_details.st_gid != pwd.getpwnam(acceptance_user).pw_gid
+    ):
+        os.chown(runtime_root, acceptance_uid, pwd.getpwnam(acceptance_user).pw_gid)
+    if runtime_root.stat().st_mode & 0o777 != 0o700:
+        runtime_root.chmod(0o700)
     package_override = os.environ.get("ASPR_PACKAGE")
     with tempfile.TemporaryDirectory(prefix="aspr-package-") as output:
         if package_override is None:
@@ -99,7 +110,8 @@ def main() -> int:
             package = Path(package_override)
             if not package.is_absolute() or not package.is_file():
                 raise SystemExit("ASPR_PACKAGE must name an existing absolute package path")
-        run(["dpkg", "-i", str(package)], sudo=True)
+        if os.environ.get("ASPR_SKIP_INSTALL") != "1":
+            run(["dpkg", "-i", str(package)], sudo=True)
         for path in (LAUNCHER, ENTRY):
             run(["stat", "-c", "%n %U:%G %a %A", str(path)])
             details = os.stat(path)
@@ -112,7 +124,7 @@ def main() -> int:
             raise SystemExit(
                 f"installed security entrypoint has file capabilities: {capabilities.strip()}"
             )
-        _reload_profile(PROFILE)
+        _maybe_reload_profile(PROFILE)
         time.sleep(10)
         status = run(["aa-status"], sudo=True)
         if "aspr-bwrap-setup" not in status or "aspr-sandbox-payload" not in status:
@@ -222,7 +234,7 @@ def main() -> int:
         )
         try:
             time.sleep(10)
-            _reload_profile(PROFILE)
+            _maybe_reload_profile(PROFILE)
             time.sleep(5)
             positive_baseline = _audit_baseline()
             positive = run_result(probe_command, sudo=True)
@@ -251,7 +263,7 @@ def main() -> int:
             print("setup_net_admin_probe_audit=passed")
             print(positive_line)
 
-            _reload_profile(PROFILE)
+            _maybe_reload_profile(PROFILE)
             time.sleep(5)
             runtime_baseline = _audit_baseline()
             runtime_probe = run_result(

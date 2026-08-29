@@ -297,6 +297,39 @@ def test_capability_drop_accepts_only_proven_absence(monkeypatch: pytest.MonkeyP
         hardening._drop_capability_bounding_set()
 
 
+def test_clear_process_capabilities_handles_success_and_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[object, ...]] = []
+
+    def successful_call(*args: object) -> int:
+        calls.append(args)
+        return 0
+
+    monkeypatch.setattr(hardening, "_libc_syscall", lambda: successful_call)
+    hardening.clear_process_capabilities()
+    assert calls[0][1:] == (hardening._PR_CAP_AMBIENT, hardening._PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0)
+    assert calls[1][0] == hardening._SYS_CAPSET
+
+    def ambient_failure(*_args: object) -> int:
+        ctypes.set_errno(errno.EIO)
+        return -1
+
+    monkeypatch.setattr(hardening, "_libc_syscall", lambda: ambient_failure)
+    with pytest.raises(OSError, match="Input/output error"):
+        hardening.clear_process_capabilities()
+
+    def capset_failure(*args: object) -> int:
+        if args[0] == hardening._SYS_CAPSET:
+            ctypes.set_errno(errno.EIO)
+            return -1
+        return 0
+
+    monkeypatch.setattr(hardening, "_libc_syscall", lambda: capset_failure)
+    with pytest.raises(OSError, match="Input/output error"):
+        hardening.clear_process_capabilities()
+
+
 def test_restrict_paths_success_and_failures(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
